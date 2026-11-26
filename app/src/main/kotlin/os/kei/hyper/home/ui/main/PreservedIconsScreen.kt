@@ -88,6 +88,7 @@ import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.icon.glass.GridView
 import top.yukonga.miuix.kmp.icon.glass.Sort
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
@@ -177,8 +178,20 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
         title = stringResource(R.string.custom_icons_conflict_title),
         summary = stringResource(R.string.custom_icons_conflict_custom)) {
         conflict?.let { name ->
-          Text(state.apps.firstOrNull { it.packageName == name }?.label ?: name,
-            style = MiuixTheme.textStyles.body1)
+          val conflictApp = state.apps.firstOrNull { it.packageName == name }
+          top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+            Row(
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              OriginalPreservedIcon(conflictApp, inventory, configurationKey, 48.dp)
+              Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(conflictApp?.label ?: name, style = MiuixTheme.textStyles.body1)
+                Text(name, style = MiuixTheme.textStyles.footnote2,
+                  color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              }
+            }
+          }
         }
         Os4DialogButton(
           text = stringResource(R.string.custom_icons_conflict_preserve_action),
@@ -276,6 +289,11 @@ internal fun PreservedIconsPage(
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } }, actions = {
+          os.kei.hyper.home.ui.components.Os4InfoPopup(
+            title = stringResource(R.string.preserved_icons_title),
+            summary = stringResource(R.string.preserved_icons_explanation),
+            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.UsageHelp,
+          )
           PreservedIconsFilter(origin, showHidden, onOriginChange = { origin = it },
             onShowHiddenChange = onShowHiddenChange,
             onReset = { origin = 0; onShowHiddenChange(false) })
@@ -309,37 +327,54 @@ internal fun PreservedIconsPage(
           label = stringResource(R.string.preserved_icons_search),
           modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("preserved-icons.search"))
       }
-      item("guidance", contentType = "guidance") {
-        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(12.dp)) {
+      if (loading || failed) item("guidance", contentType = "guidance") {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(14.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.preserved_icons_explanation), style = MiuixTheme.textStyles.footnote1,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            Os4AnimatedVisibility(loading || failed) {
-              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                  if (loading) CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
-                  Text(stringResource(if (loading) R.string.preserved_icons_loading else R.string.preserved_icons_error),
-                    modifier = Modifier.testTag("preserved-icons.status"), style = MiuixTheme.textStyles.footnote1,
-                    color = if (failed) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
-                }
-                if (failed) TextButton(stringResource(R.string.preserved_icons_retry), onClick = onRetry,
-                  modifier = Modifier.testTag("preserved-icons.retry"))
-              }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+              if (loading) CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
+              Text(stringResource(if (loading) R.string.preserved_icons_loading else R.string.preserved_icons_error),
+                modifier = Modifier.testTag("preserved-icons.status"), style = MiuixTheme.textStyles.footnote1,
+                color = if (failed) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
             }
+            if (failed) TextButton(stringResource(R.string.preserved_icons_retry), onClick = onRetry,
+              modifier = Modifier.testTag("preserved-icons.retry"))
           }
         }
       }
       if (filtered.isEmpty() && !loading && !failed) item("empty", contentType = "empty") {
         Card(Modifier.fillMaxWidth().animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null),
-          insideMargin = PaddingValues(20.dp)) {
-          Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(when {
-              query.isNotBlank() -> R.string.preserved_icons_no_matches
-              allApps -> R.string.preserved_icons_no_apps
-              else -> R.string.preserved_icons_empty
-            }), modifier = Modifier.testTag("preserved-icons.empty"), style = MiuixTheme.textStyles.body2)
-            if (!allApps && query.isBlank()) TextButton(stringResource(R.string.preserved_icons_add),
-              onClick = { allApps = true }, modifier = Modifier.testTag("preserved-icons.add"))
+          insideMargin = PaddingValues(24.dp)) {
+          Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            os.kei.hyper.home.ui.components.Os4IconBadge(
+              icon = actionIcon(PageActionIcon.APPS),
+              tint = os.kei.hyper.home.ui.components.Os4BadgePalette.Blue,
+              size = 52.dp,
+              cornerRadius = 16.dp,
+              iconSize = 26.dp,
+            )
+            Text(
+              stringResource(when {
+                query.isNotBlank() -> R.string.preserved_icons_no_matches
+                allApps -> R.string.preserved_icons_no_apps
+                else -> R.string.preserved_icons_empty
+              }),
+              modifier = Modifier.testTag("preserved-icons.empty"),
+              style = MiuixTheme.textStyles.body2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            if (!allApps && query.isBlank()) TextButton(
+              text = stringResource(R.string.preserved_icons_add),
+              onClick = { allApps = true },
+              colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+              cornerRadius = 20.dp,
+              insideMargin = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+              modifier = Modifier.testTag("preserved-icons.add"),
+            )
           }
         }
       }

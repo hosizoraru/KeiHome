@@ -312,9 +312,37 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           }
         }
         if ((if (uncustomized) apps.isEmpty() else savedRows.isEmpty()) && !state.loading) item("empty") {
-          Text(stringResource(if (!uncustomized && state.selections.isEmpty()) R.string.custom_icons_empty
-            else R.string.custom_icons_no_results), Modifier.padding(12.dp),
-            style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          val emptySaved = !uncustomized && state.selections.isEmpty()
+          Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(24.dp)) {
+            Column(
+              Modifier.fillMaxWidth(),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              os.kei.hyper.home.ui.components.Os4IconBadge(
+                icon = actionIcon(PageActionIcon.CUSTOMIZE),
+                tint = os.kei.hyper.home.ui.components.Os4BadgePalette.Purple,
+                size = 52.dp,
+                cornerRadius = 16.dp,
+                iconSize = 26.dp,
+              )
+              Text(
+                stringResource(if (emptySaved) R.string.custom_icons_empty else R.string.custom_icons_no_results),
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+              )
+              if (emptySaved) {
+                top.yukonga.miuix.kmp.basic.TextButton(
+                  text = stringResource(R.string.custom_icons_choose_app),
+                  onClick = { uncustomized = true },
+                  colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                  cornerRadius = 20.dp,
+                  insideMargin = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                )
+              }
+            }
+          }
         }
       } else {
         targetPackage?.let { name -> item("target") {
@@ -406,48 +434,97 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
       }
     }
     }
-    inspecting?.let { item ->
-      Os4ActionDialog(show = inspectionVisible, title = item.appLabel,
-        summary = stringResource(R.string.custom_icons_reapply),
-        modifier = Modifier.testTag("custom-icons.details"),
-        onDismissRequest = { inspectionVisible = false },
-        onDismissFinished = {
-          if (!inspectionVisible) {
-            inspecting = null
-            val next = afterInspection
-            afterInspection = null
-            next?.invoke()
+    val inspectedItem = inspecting
+    Os4DetailsSheet(
+      show = inspectionVisible && inspectedItem != null,
+      onDismissRequest = { inspectionVisible = false },
+      onDismissFinished = {
+        if (!inspectionVisible) {
+          inspecting = null
+          val next = afterInspection
+          afterInspection = null
+          next?.invoke()
+        }
+      },
+      title = inspectedItem?.appLabel.orEmpty(),
+      summary = stringResource(R.string.custom_icons_reapply),
+      modifier = Modifier.testTag("custom-icons.details"),
+    ) {
+      inspectedItem?.let { item ->
+        val sourcePack = catalog.packs.firstOrNull { it.pack.id == item.sourceId }?.pack
+        val sourceTitle = if (sourcePack?.source is IconPackSource.Builtin && sourcePack.colorOsProfile != null)
+          "ColorOS · ${customIconSourceTitle(sourcePack)}" else item.sourceTitle
+        top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+              Modifier.weight(1f)
+                .squircleBackground(MiuixTheme.colorScheme.surfaceContainerHigh, 16.dp)
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              OriginalPreservedIcon(
+                state.apps.firstOrNull { it.packageName == item.packageName },
+                controller.inventory,
+                configuration,
+                64.dp,
+              )
+              Text(
+                stringResource(R.string.custom_icons_original),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+              )
+            }
+            Column(
+              Modifier.weight(1f)
+                .squircleBackground(MiuixTheme.colorScheme.primary.copy(alpha = 0.10f), 16.dp)
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              SavedIconArtwork(controller, item, dark, 64.dp)
+              Text(
+                stringResource(R.string.custom_icons_current),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+              )
+            }
           }
-        }, actions = listOf(
-          Os4DialogAction(stringResource(R.string.custom_icons_remove), enabled = inspectionVisible && !state.busy,
+        }
+        top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(sourceTitle, style = MiuixTheme.textStyles.body2)
+            Text(
+              item.packageName,
+              style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+          }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          Os4DialogButton(
+            text = stringResource(R.string.custom_icons_remove),
             onClick = {
               afterInspection = { removing = item; showRemoving = true }
               inspectionVisible = false
-            }),
-          Os4DialogAction(stringResource(R.string.custom_icons_edit), enabled = inspectionVisible && !state.busy,
-            role = GlassDialogButtonRole.Primary, onClick = {
+            },
+            enabled = inspectionVisible && !state.busy,
+            role = GlassDialogButtonRole.Destructive,
+            modifier = Modifier.weight(1f),
+          )
+          Os4DialogButton(
+            text = stringResource(R.string.custom_icons_edit),
+            onClick = {
               afterInspection = { targetPackage = item.packageName }
               inspectionVisible = false
-            }),
-        ), artwork = {
-          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              OriginalPreservedIcon(state.apps.firstOrNull { it.packageName == item.packageName },
-                controller.inventory, configuration, 64.dp)
-              Text(stringResource(R.string.custom_icons_original), style = MiuixTheme.textStyles.footnote1,
-                textAlign = TextAlign.Center)
-            }
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              SavedIconArtwork(controller, item, dark, 64.dp)
-              Text(stringResource(R.string.custom_icons_current), style = MiuixTheme.textStyles.footnote1,
-                textAlign = TextAlign.Center)
-            }
-          }
-        }) {
-        Text(item.packageName, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            },
+            enabled = inspectionVisible && !state.busy,
+            role = GlassDialogButtonRole.Primary,
+            modifier = Modifier.weight(1f),
+          )
+        }
       }
     }
     val selected = candidate
@@ -457,30 +534,85 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
       title = stringResource(R.string.custom_icons_confirm),
       summary = stringResource(R.string.custom_icons_confirm_summary)) {
       if (selected != null && pack != null) {
-        Text(target?.label ?: state.selections.firstOrNull { it.packageName == targetPackage }?.appLabel
-          ?: targetPackage.orEmpty(), style = MiuixTheme.textStyles.body1)
-        Text(targetPackage.orEmpty(), style = MiuixTheme.textStyles.footnote2)
+        val appTitle = target?.label ?: state.selections.firstOrNull { it.packageName == targetPackage }?.appLabel
+          ?: targetPackage.orEmpty()
         val sourceTitle = (if (pack.source is IconPackSource.Builtin && pack.colorOsProfile != null) "ColorOS · " else "") +
           customIconSourceTitle(pack)
-        Text(sourceTitle, style = MiuixTheme.textStyles.footnote1)
+        top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+              Modifier.weight(1f)
+                .squircleBackground(MiuixTheme.colorScheme.surfaceContainerHigh, 16.dp)
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              OriginalPreservedIcon(target, controller.inventory, configuration, 56.dp)
+              Text(
+                stringResource(R.string.custom_icons_original),
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              )
+            }
+            Column(
+              Modifier.weight(1f)
+                .squircleBackground(Color(0xFFF2F3F7), 16.dp)
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              SourceIconArtwork(controller, pack, selected, false, 56.dp)
+              Text(
+                stringResource(R.string.monet_preview_light),
+                style = MiuixTheme.textStyles.footnote2,
+                color = Color(0xFF3C4048),
+              )
+            }
+            Column(
+              Modifier.weight(1f)
+                .squircleBackground(Color(0xFF1E2026), 16.dp)
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              SourceIconArtwork(controller, pack, selected, true, 56.dp)
+              Text(
+                stringResource(R.string.monet_preview_dark),
+                style = MiuixTheme.textStyles.footnote2,
+                color = Color(0xFFD2D5DC),
+              )
+            }
+          }
+        }
+        top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(appTitle, style = MiuixTheme.textStyles.body1)
+            Text(
+              sourceTitle,
+              style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.primary,
+            )
+            Text(
+              targetPackage.orEmpty(),
+              style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+          }
+        }
         if (targetPackage in preferences.preservedIconPackages) {
-          Text(stringResource(R.string.custom_icons_conflict_preserved), style = MiuixTheme.textStyles.body2)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OriginalPreservedIcon(target, controller.inventory, configuration, 60.dp)
-            Text(stringResource(R.string.custom_icons_original), style = MiuixTheme.textStyles.footnote2)
-          }
-          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceIconArtwork(controller, pack, selected, false)
-            Text(stringResource(R.string.monet_preview_light), style = MiuixTheme.textStyles.footnote2)
-          }
-          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceIconArtwork(controller, pack, selected, true)
-            Text(stringResource(R.string.monet_preview_dark), style = MiuixTheme.textStyles.footnote2)
+          top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+            Text(
+              stringResource(R.string.custom_icons_conflict_preserved),
+              style = MiuixTheme.textStyles.footnote1,
+              color = os.kei.hyper.home.ui.components.Os4BadgePalette.Orange,
+            )
           }
         }
-        if (state.failed) Text(stringResource(R.string.custom_icons_error), style = MiuixTheme.textStyles.body2)
+        if (state.failed) Text(
+          stringResource(R.string.custom_icons_error),
+          style = MiuixTheme.textStyles.body2,
+          color = MiuixTheme.colorScheme.error,
+        )
         Os4DialogButton(
           text = stringResource(when {
             state.busy -> R.string.custom_icons_saving
@@ -488,8 +620,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             else -> R.string.custom_icons_confirm
           }),
           onClick = { targetPackage?.let { name ->
-            controller.save(name, target?.label ?: state.selections.firstOrNull { it.packageName == name }?.appLabel ?: name,
-              pack, selected, sourceTitle)
+            controller.save(name, appTitle, pack, selected, sourceTitle)
           } },
           enabled = state.ready && !state.busy && !state.loading && targetPackage != null,
           role = GlassDialogButtonRole.Primary,
@@ -497,20 +628,30 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         )
       }
     }
-    Os4DetailsSheet(showRemoving && removing != null,
+    Os4ActionDialog(
+      show = showRemoving && removing != null,
       onDismissRequest = { showRemoving = false },
       onDismissFinished = { if (!showRemoving) removing = null },
       title = stringResource(R.string.custom_icons_remove),
-      summary = stringResource(R.string.custom_icons_remove_summary)) {
-      removing?.let { Text(it.appLabel, style = MiuixTheme.textStyles.body1) }
-      Os4DialogButton(
-        text = stringResource(R.string.custom_icons_remove),
-        onClick = { removing?.let { controller.remove(it.packageName) }; showRemoving = false },
-        modifier = Modifier.fillMaxWidth(),
-        enabled = !state.busy,
-        role = GlassDialogButtonRole.Destructive,
-      )
-    }
+      summary = removing?.appLabel.orEmpty(),
+      icon = actionIcon(PageActionIcon.CLEAR),
+      details = {
+        Text(
+          stringResource(R.string.custom_icons_remove_summary),
+          style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        )
+      },
+      actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { showRemoving = false }),
+        Os4DialogAction(
+          stringResource(R.string.custom_icons_remove),
+          role = GlassDialogButtonRole.Destructive,
+          enabled = !state.busy,
+          onClick = { removing?.let { controller.remove(it.packageName) }; showRemoving = false },
+        ),
+      ),
+    )
   }
 }
 

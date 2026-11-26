@@ -219,8 +219,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
     }
   }) { padding ->
     Os4LazyColumn(state = list,
-      modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
-        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier).testTag("custom-icons.list"),
+      modifier = Modifier.fillMaxSize()
+        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
+        .keiHomeTopBarScroll(behavior).testTag("custom-icons.list"),
       contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
       topAppBarScrollBehavior = behavior,

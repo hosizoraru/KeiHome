@@ -38,8 +38,9 @@ internal fun Os4ViewTabs(
   selectedIndex: Int,
   onSelect: (Int) -> Unit,
   modifier: Modifier = Modifier,
+  surfaceAlpha: Float? = null,
 ) {
-  Os4NativeTabs(items, selectedIndex, onSelect, modifier, joined = true)
+  Os4NativeTabs(items, selectedIndex, onSelect, modifier, joined = true, surfaceAlpha = surfaceAlpha)
 }
 
 /** Separate content categories retain independent pills rather than a joined view selector. */
@@ -49,8 +50,9 @@ internal fun Os4CategoryTabs(
   selectedIndex: Int,
   onSelect: (Int) -> Unit,
   modifier: Modifier = Modifier,
+  surfaceAlpha: Float? = null,
 ) {
-  Os4NativeTabs(items, selectedIndex, onSelect, modifier, joined = false)
+  Os4NativeTabs(items, selectedIndex, onSelect, modifier, joined = false, surfaceAlpha = surfaceAlpha)
 }
 
 @Composable
@@ -60,6 +62,7 @@ private fun Os4NativeTabs(
   onSelect: (Int) -> Unit,
   modifier: Modifier,
   joined: Boolean,
+  surfaceAlpha: Float?,
 ) {
   if (items.isEmpty()) return
   // Inline tabs are inside the page recording. Sampling that recording creates
@@ -130,16 +133,23 @@ private fun Os4NativeTabs(
       val trackModifier = Modifier
         .padding(shadowPadding)
         .width(trackWidth)
+      val headerScrolled = LocalGlassTopBarScrolled.current
+      val resolvedSurfaceAlpha = surfaceAlpha ?: when {
+        LocalKeiHomeBackdrop.current == null -> 0f
+        headerScrolled != null -> if (headerScrolled) 1f else 0f
+        else -> 1f
+      }
       if (joined) {
         GlassSegmentedTabRow(tabs = items, selectedIndex = selected,
           onSelect = { if (it in items.indices && it != selected) onSelect(it) },
           backdrop = surfaceBackdrop, modifier = trackModifier,
-          surfaceAlpha = if (LocalKeiHomeBackdrop.current == null) 0f else 1f,
+          surfaceAlpha = resolvedSurfaceAlpha,
           height = height, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
       } else {
         GlassTabRow(tabs = items, selectedIndex = selected,
           onSelect = { if (it in items.indices && it != selected) onSelect(it) },
           backdrop = surfaceBackdrop.takeIf { LocalKeiHomeBackdrop.current != null },
+          surfaceAlpha = resolvedSurfaceAlpha,
           modifier = trackModifier, height = height,
           style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
       }

@@ -58,7 +58,7 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   LaunchedEffect(model) { model.readDesktopAppearance() }
-  Scaffold(modifier = Modifier.testTag("desktop.page.tools"), topBar = {
+  Scaffold(backdrop = backdrop, modifier = Modifier.testTag("desktop.page.tools"), topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(R.string.desktop_dark_mode_statusbar), scrollBehavior = behavior, expandable = false,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
@@ -71,7 +71,7 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
     }
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior).verticalScroll(rememberScrollState())
+      Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior).verticalScroll(rememberScrollState(), overscrollEffect = null)
         .padding(PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {

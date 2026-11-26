@@ -66,7 +66,6 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
-import os.kei.hyper.home.ui.components.KeiHomeTopBarActions
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
@@ -76,7 +75,6 @@ import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -121,16 +119,14 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
     BlurredBar(backdrop, backdrop != null) {
       KeiHomeTopAppBar(stringResource(R.string.perfect_custom_static), scrollBehavior = behavior,
         navigationIcon = {
-          IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
+          KeiHomeIconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
         }, actions = {
           if (state.customStaticIds.isNotEmpty()) {
-            KeiHomeTopBarActions {
-              KeiHomeIconButton(enabled = !busy, onClick = {
-                error = false
-                draft = StaticDraft()
-              }) {
-                Icon(actionIcon(PageActionIcon.CUSTOMIZE), stringResource(R.string.perfect_custom_add))
-              }
+            KeiHomeIconButton(enabled = !busy, onClick = {
+              error = false
+              draft = StaticDraft()
+            }) {
+              Icon(actionIcon(PageActionIcon.CUSTOMIZE), stringResource(R.string.perfect_custom_add))
             }
           }
         })

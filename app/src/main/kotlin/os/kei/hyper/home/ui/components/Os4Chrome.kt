@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -42,7 +44,8 @@ import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import os.kei.hyper.home.data.AppTopBarBlur
 
-private val LocalGlassToolbar = staticCompositionLocalOf { false }
+internal val LocalGlassToolbar = staticCompositionLocalOf { false }
+internal val LocalGlassTopBarScrolled = staticCompositionLocalOf<Boolean?> { null }
 
 @Composable
 internal fun keiHomeIconButtonSize(): Dp = if (LocalGlassToolbar.current) 40.dp else 48.dp
@@ -101,6 +104,11 @@ internal fun KeiHomeTopAppBar(
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
   val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
+  val contentScrolled by remember(scrollBehavior) {
+    derivedStateOf {
+      scrollBehavior?.state?.let { it.contentOffset < -1f || it.overscrollOffset < -1f } ?: true
+    }
+  }
   GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
     expandable = expandable,
     titleAlpha = titleAlpha,
@@ -109,7 +117,7 @@ internal fun KeiHomeTopAppBar(
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
     actions = { KeiHomeTopBarActions(actions) },
     scrollBehavior = scrollBehavior,
-    bottomContent = bottomContent,
+    bottomContent = { CompositionLocalProvider(LocalGlassTopBarScrolled provides contentScrolled, content = bottomContent) },
     bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)
       else SolidColor(Color.Transparent))
 }

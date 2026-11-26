@@ -269,6 +269,22 @@ class PerfectDynamicNightTest {
     assertNull(fixture.classify())
   }
 
+  @Test fun rejectsCutoutsWithoutAnIsolatedBoundedCanvasAndAnExclusiveMask() {
+    val paint = "<Image src='icon.png'/>"
+    val mask = "<Image src='mask.png' xfermode='dst_out'/>"
+    val group = "<Group layered='true' w='324' h='324'>$paint$mask</Group>"
+    for (body in listOf(
+      "$paint$mask",
+      group.replace("w='324'", "w='2049'"),
+      group.replace("$paint$mask", "$mask$paint"),
+      group.replace(mask, mask.replace("/>", " srcid='#date'/>")),
+      "$group<Image src='mask.png'/>",
+      "$group$group",
+    )) {
+      assertNull(body, fixture(body = body).with("1/fancy/mask.png", raster).classify())
+    }
+  }
+
   @Test fun permitsExplicitSourceOverOnAnOrdinaryBitmap() {
     assertNotNull(fixture(body = "<Image src='icon.png' xfermode='src_over'/>").classify())
   }

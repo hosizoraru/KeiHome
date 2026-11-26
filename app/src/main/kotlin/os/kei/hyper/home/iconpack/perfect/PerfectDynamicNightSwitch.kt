@@ -61,7 +61,8 @@ internal object PerfectDynamicNightSwitch {
     if (admitted.background != group.background || admitted.foreground != group.foreground ||
       admitted.bgAssets != group.bgAssets || admitted.compositeQuiet != group.compositeQuiet ||
       admitted.compositeQuietLayers != group.compositeQuietLayers ||
-      admitted.compositeQuietProofLayers != group.compositeQuietProofLayers) return null
+      admitted.compositeQuietProofLayers != group.compositeQuietProofLayers ||
+      admitted.alphaMasks != group.alphaMasks) return null
     val availableLayers = NativeLayerConfig.availableLayerDirectories("", originals.keys)
     val layers = NativeLayerConfig.parse(
       originals.getValue("config.xml"),
@@ -154,6 +155,10 @@ internal object PerfectDynamicNightSwitch {
         val source = image.getAttribute("src")
         if (source.isEmpty() || !source.matches(Regex("[A-Za-z0-9_./-]+"))) return null
         PerfectIconFormat.safePath(source)
+        if ("$fancy/$source" in group.alphaMasks) {
+          PerfectIconFormat.raster(originals.getValue("$fancy/$source"))
+          continue
+        }
         if (image.hasAttribute("srcid")) {
           // MAML appends _<srcid> before the extension after evaluating srcExp.
           // Only the complete calendar day series has a bounded, proven closure.

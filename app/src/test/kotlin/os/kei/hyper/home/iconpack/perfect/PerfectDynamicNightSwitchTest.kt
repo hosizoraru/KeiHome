@@ -473,6 +473,48 @@ class PerfectDynamicNightSwitchTest {
     }
   }
 
+  @Test fun isolatedCutoutRetainsItsOriginalTextureAndAnimationOwner() {
+    val body = """
+      <ExternalCommands><Trigger action="back_home_finish">
+        <FolmeCommand target="cutout" states="'settled'" command="setTo"/>
+      </Trigger></ExternalCommands>
+      <FolmeState name="settled" x="140" y="136"/>
+      <Group>
+        <Group layered="true" w="324" h="324">
+          <Image name="first" src="first.png" x="81" y="95" folmeMode="true"/>
+          <Image name="cutout" src="cutout.png" x="140" y="136" folmeMode="true" xfermode="dst_out"/>
+        </Group>
+        <Image name="second" src="second.png" x="144" y="139" folmeMode="true"/>
+      </Group>
+    """.trimIndent()
+    val fixture = fixtureFrom(fixture(
+      width = 324, height = 324, images = listOf("first.png", "cutout.png", "second.png"), body = body,
+    ).originals)
+    val mask = "art/fancy/cutout.png"
+    assertEquals(setOf(mask), fixture.group.alphaMasks)
+    assertFalse(mask in fixture.group.nightPaths)
+    val output = converted(fixture)
+    assertArrayEquals(fixture.originals.getValue(mask), output.getValue(mask))
+    assertFalse("art/fancy/keihome_night/cutout.png" in output)
+    for (source in listOf("first.png", "second.png")) {
+      assertArrayEquals(fixture.night.getValue("art/fancy/$source"),
+        output.getValue("art/fancy/keihome_night/$source"))
+    }
+    val original = parse(fixture.originals.getValue("art/fancy/manifest.xml"))
+    val rewritten = parse(output.getValue("art/fancy/manifest.xml"))
+    rewritten.documentElement.setAttribute("useVariableUpdater", "DateTime.Second")
+    val images = rewritten.getElementsByTagName("Image")
+    for (index in 0 until images.length) {
+      val image = images.item(index) as Element
+      val source = image.getAttribute("src")
+      if (source != "cutout.png") {
+        assertEquals("ifelse(#__darkmode,'keihome_night/$source','$source')", image.getAttribute("srcExp"))
+        image.removeAttribute("srcExp")
+      }
+    }
+    assertTrue(withoutFormatting(original.documentElement).isEqualNode(withoutFormatting(rewritten.documentElement)))
+  }
+
   @Test fun leavesAllInputBytesAndMapsUnchangedOnSuccessfulConversion() {
     val fixture = fixture()
     val originals = fixture.originals.mapValues { it.value.copyOf() }

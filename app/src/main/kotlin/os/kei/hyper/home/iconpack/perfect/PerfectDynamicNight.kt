@@ -6,7 +6,7 @@ import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 
 /** Resource roles, not package names or filenames such as "bg", determine the tint operation. */
 internal object PerfectDynamicNight {
-  const val REVISION = "perfect-dynamic-night-10"
+  const val REVISION = "perfect-dynamic-night-11"
 
   data class Group(
     val files: Map<String, PerfectIconBlob>,
@@ -16,6 +16,7 @@ internal object PerfectDynamicNight {
     val compositeQuiet: String? = null,
     val compositeQuietLayers: List<String> = emptyList(),
     val compositeQuietProofLayers: List<String> = emptyList(),
+    val alphaMasks: Set<String> = emptySet(),
   ) {
     val nightPaths: Set<String> get() = bgAssets + foreground + listOfNotNull(compositeQuiet)
   }
@@ -37,6 +38,7 @@ internal object PerfectDynamicNight {
     val rasters = files.keys.filter { it.endsWith(".png", true) }.toSet()
     if (rasters.size > 128) return null
     val bgAssets = linkedSetOf<String>()
+    val alphaMasks = linkedSetOf<String>()
     val textDirectories = mutableSetOf<String>()
     var weatherDirectory: String? = null
     if (backgroundQuiet in files) bgAssets += backgroundQuiet
@@ -69,7 +71,12 @@ internal object PerfectDynamicNight {
         weatherDirectory = directory
         continue
       }
-      if (xml.root != "Icon" || xml.elements.any { element ->
+      if (xml.root != "Icon") return null
+      val masks = alphaMaskSources(xml.elements, directory != backgroundDirectory) ?: return null
+      val maskPaths = masks.map { "$directory/fancy/$it" }
+      if (!rasters.containsAll(maskPaths)) return null
+      alphaMasks += maskPaths
+      if (xml.elements.any { element ->
           element.name !in visualTags && element.name !in controlTags ||
             element.name == "ExternCommand" &&
               (element.attributes["command"] != "__datatimeVarUpdate" ||
@@ -78,11 +85,10 @@ internal object PerfectDynamicNight {
               key in setOf("tint", "tintExp", "colorExp", "colorFilter") ||
                 key == "color" && !(element.name == "Text" &&
                   value.matches(Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"))) ||
-                key == "xfermodeExp" ||
-                key == "layered" && value.equals("true", true) ||
+                key in setOf("xfermodeExp", "layeredExp") ||
                 key == "useVariableUpdater" && value.split(',').any { it.trim().equals("DarkMode", true) } ||
                 value.contains("__darkmode", true) ||
-                key == "xfermode" && value !in setOf("src_over", "src_atop")
+                key == "xfermode" && value !in setOf("src_over", "src_atop", "dst_out")
             }
         }) return null
       if (xml.elements.any { it.name == "Text" }) textDirectories += directory
@@ -112,13 +118,13 @@ internal object PerfectDynamicNight {
         rasters.none { it.startsWith("$directory/fancy/") }) return null
     }
     val foreground = rasters.filterTo(linkedSetOf()) { path ->
-      layers.layers.drop(1).any { directory ->
+      path !in alphaMasks && layers.layers.drop(1).any { directory ->
         path == "$directory/quiet/quietImage.png" || path.startsWith("$directory/fancy/")
       }
     }
     // The root quiet image is the entire scene and needs static composition policy,
     // never the background-only recoloring operation.
-    if (rasters != bgAssets + foreground + listOfNotNull(compositeQuiet)) return null
+    if (rasters != bgAssets + foreground + alphaMasks + listOfNotNull(compositeQuiet)) return null
     // This exact program places its artwork on the authored 351px canvas. Its
     // flat preview has baked sky/cloud gradients that cannot be segmented safely.
     val quietLayers = layers.layers.map { "$it/quiet/quietImage.png" }
@@ -156,6 +162,34 @@ internal object PerfectDynamicNight {
         it.size == 2 && it.all(files::containsKey)
     }.orEmpty()
     return Group(files, backgroundQuiet.takeIf { it in bgAssets } ?: bgAssets.first(),
-      foreground, bgAssets, safeCompositeQuiet, compositeQuietLayers, proofLayers)
+      foreground, bgAssets, safeCompositeQuiet, compositeQuietLayers, proofLayers, alphaMasks)
+  }
+
+  /**
+   * Keep the original alpha texture for an isolated Porter-Duff cutout. A group
+   * must draw one literal image, then erase from that image on a bounded canvas.
+   */
+  private fun alphaMaskSources(elements: List<PerfectIconFormat.XmlElement>, foreground: Boolean): Set<String>? {
+    val cutouts = elements.filter { it.attributes["xfermode"] == "dst_out" }
+    val groups = elements.withIndex().filter { (_, element) ->
+      element.attributes["layered"]?.let { it != "false" } == true
+    }
+    if (groups.isEmpty() && cutouts.isEmpty()) return emptySet()
+    if (!foreground || groups.size != 1 || cutouts.size != 1) return null
+    val (index, group) = groups.single()
+    if (group.name != "Group" || group.attributes.keys != setOf("layered", "w", "h") ||
+      group.attributes["layered"] != "true") return null
+    val width = group.attributes["w"]?.toIntOrNull() ?: return null
+    val height = group.attributes["h"]?.toIntOrNull() ?: return null
+    if (width !in 1..2048 || height !in 1..2048) return null
+    val children = elements.drop(index + 1).takeWhile { it.depth > group.depth }
+    if (children.size != 2 || children.any { it.depth != group.depth + 1 || it.name != "Image" }) return null
+    val (paint, mask) = children
+    if (mask !== cutouts.single() || paint.attributes["xfermode"] !in setOf(null, "src_over") ||
+      children.any { it.attributes.keys.any { key -> key in setOf("srcExp", "srcid", "srcidExp") } }) return null
+    val maskSource = mask.attributes["src"] ?: return null
+    if ("src" !in paint.attributes ||
+      elements.any { it !== mask && it.attributes["src"] == maskSource }) return null
+    return setOf(maskSource)
   }
 }

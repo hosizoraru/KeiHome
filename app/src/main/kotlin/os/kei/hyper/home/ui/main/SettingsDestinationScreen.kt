@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -18,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -29,6 +29,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.CacheReminderBudget
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
@@ -38,7 +39,6 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -85,8 +85,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
-  var actionHeight by remember { mutableIntStateOf(0) }
-  val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
+  var cacheReading by remember { mutableStateOf(false) }
   val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
@@ -110,33 +109,36 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
             CacheBudgetEditor(preferences.cacheReminderBytes,
               CacheReminderBudget.resolve(preferences.cacheReminderBytes),
               model.preferences::setCacheReminderBytes)
-            IconButton(onClick = { cacheRefresh++ }, modifier = Modifier.testTag("settings.cache.refresh")) {
-              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
-            }
+            Os4RefreshIconButton(
+              busy = cacheReading,
+              onClick = { cacheRefresh++ },
+              contentDescription = stringResource(R.string.refresh),
+              modifier = Modifier.testTag("settings.cache.refresh"),
+            )
           }
         },
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } })
     }
-  }, floatingActionButton = {
-    if (section == SettingsSection.CACHE) PageActionFab(
-      stringResource(R.string.action_label_clear), actionIcon(PageActionIcon.CLEAR),
-      description = stringResource(R.string.polish_clear_previews),
-      onHeightChanged = { actionHeight = it },
-      modifier = Modifier.testTag("settings.cache.clear"), onClick = {
-        model.clearPreviewCache()
-        cacheRefresh++
-        android.widget.Toast.makeText(context, R.string.polish_previews_cleared, android.widget.Toast.LENGTH_SHORT).show()
-      })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior).verticalScroll(rememberScrollState(), overscrollEffect = null)
         .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() + if (section == SettingsSection.CACHE) actionBottomPadding else 24.dp)) {
+          bottom = insets.calculateBottomPadding() + 24.dp)) {
         when {
-          section == SettingsSection.CACHE -> CacheOverview(model, cacheRefresh, onOpenPackSection,
-            onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
+          section == SettingsSection.CACHE -> CacheOverview(
+            model = model,
+            refreshKey = cacheRefresh,
+            onOpenPack = onOpenPackSection,
+            onOpenLogs = { onNavigate(SettingsSection.LOG.route) },
+            onClearMemory = {
+              model.clearPreviewCache()
+              cacheRefresh++
+              android.widget.Toast.makeText(context, R.string.polish_previews_cleared, android.widget.Toast.LENGTH_SHORT).show()
+            },
+            onReadingChange = { cacheReading = it },
+          )
           section == SettingsSection.THEME -> AppThemeSettingsContent(model.preferences)
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
             onOpenPerfectIcons = onOpenPackSection)

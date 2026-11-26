@@ -74,7 +74,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private val storageColors = listOf(
+internal val cacheStorageColors = listOf(
   Color(0xFFFCD231), // current icons
   Color(0xFFFF963A), // builtin copy
   Color(0xFF38E191), // transfer
@@ -84,6 +84,7 @@ private val storageColors = listOf(
   Color(0xFF14CBCB), // logs
   Color(0xFFC8A654), // imported packs
 )
+private val storageColors get() = cacheStorageColors
 private val storageLabels = listOf(R.string.storage_icons, R.string.storage_builtin,
   R.string.storage_transfer, R.string.storage_temporary, R.string.storage_apple, R.string.storage_perfect,
   R.string.storage_logs, R.string.storage_imported)

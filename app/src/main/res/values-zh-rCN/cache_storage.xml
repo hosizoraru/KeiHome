@@ -10,7 +10,7 @@
     <string name="storage_memory">预览内存</string>
     <string name="storage_budget_title">清理提醒</string>
     <string name="storage_budget_help">默认为 520 MB，仅用于提醒，不限制下载，也不会自动删除文件。</string>
-    <string name="storage_clear_help">顶部清理按钮释放预览内存。大文件请通过管理入口清理；日志请在日志页清理。</string>
+    <string name="storage_clear_help">仅占运行内存，不计入上方本地占用，清理后按需重建。大文件请通过上方入口管理；日志请在日志页清理。</string>
     <string name="storage_icons">图标快照</string>
     <string name="storage_builtin">内置副本</string>
     <string name="storage_transfer">导入导出</string>

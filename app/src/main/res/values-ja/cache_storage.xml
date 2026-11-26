@@ -10,7 +10,7 @@
     <string name="storage_memory">プレビューのメモリ</string>
     <string name="storage_budget_title">キャッシュ整理の通知</string>
     <string name="storage_budget_help">既定は 520 MB です。通知の目安であり、ダウンロードの制限や自動削除は行いません。</string>
-    <string name="storage_clear_help">上部のクリア操作はプレビュー用メモリを解放します。大きなファイルは管理項目から、ログはログ画面から削除できます。</string>
+    <string name="storage_clear_help">メモリ上のプレビューキャッシュのみで、上のローカル容量には含まれません。大きなファイルは上の項目から、ログはログ画面から整理できます。</string>
     <string name="storage_icons">アイコン画像</string>
     <string name="storage_builtin">内蔵リソースのコピー</string>
     <string name="storage_transfer">入出力</string>

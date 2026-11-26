@@ -10,7 +10,7 @@
     <string name="storage_memory">Preview memory</string>
     <string name="storage_budget_title">Cleanup reminder</string>
     <string name="storage_budget_help">Default: 520 MB. This reminder threshold does not limit downloads or delete files.</string>
-    <string name="storage_clear_help">The toolbar clear action releases preview memory. Manage large files below; clear logs from the Logs page.</string>
+    <string name="storage_clear_help">In-memory preview bitmaps only, excluded from local storage above. Manage large files above; clear logs from the Logs page.</string>
     <string name="storage_icons">Icon snapshots</string>
     <string name="storage_builtin">Built-in copies</string>
     <string name="storage_transfer">Transfers</string>

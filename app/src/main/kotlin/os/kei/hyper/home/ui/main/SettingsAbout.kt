@@ -28,7 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,9 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -73,6 +72,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.glass.GlassCard
@@ -84,7 +84,10 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Copy
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit,
@@ -93,10 +96,20 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val aboutScroll = rememberScrollState()
   var heroHeightPx by remember { mutableIntStateOf(0) }
+  val scrollProgress: () -> Float = {
+    if (heroHeightPx > 0) (aboutScroll.value.toFloat() / heroHeightPx).coerceIn(0f, 1f) else 0f
+  }
   val titleVisible by remember {
     derivedStateOf { heroHeightPx > 0 && aboutScroll.value >= heroHeightPx * 0.45f }
   }
+  val heroCollapsed by remember {
+    derivedStateOf { heroHeightPx > 0 && aboutScroll.value >= heroHeightPx }
+  }
+  val contentScrolled by remember {
+    derivedStateOf { aboutScroll.canScrollBackward }
+  }
   val titleAlpha = animateFloatAsState(if (titleVisible) 1f else 0f, tween(200), label = "About title")
+  val barBgAlpha = animateFloatAsState(if (heroCollapsed) 1f else 0f, tween(200), label = "About bar bg")
   LaunchedEffect(focusEnvironment) {
     if (focusEnvironment) {
       snapshotFlow { aboutScroll.maxValue }.first { it != Int.MAX_VALUE }
@@ -118,27 +131,42 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
       .setPrimaryClip(ClipData.newPlainText(appName, "$appName $version\n${BuildConfig.APPLICATION_ID}"))
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
+  val hapticEnabled = LocalKeiHomeScrollEndHaptic.current
   Scaffold(containerColor = Color.Transparent, backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = appName, titleAlpha = { titleAlpha.value }, expandable = false, color = Color.Transparent,
+      TopAppBar(
+        title = appName,
+        isContentScrolled = contentScrolled,
+        backgroundAlpha = { barBgAlpha.value },
+        titleAlpha = { titleAlpha.value },
+        expandable = false,
+        color = MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
-        } }, actions = {
+        } },
+        actions = {
           IconButton(onClick = copyVersion, minHeight = 48.dp, minWidth = 48.dp,
             modifier = Modifier.testTag("aboutCopy")) {
             Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
           }
-        })
+        },
+      )
     }
   }) { insets ->
     BoxWithConstraints(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val heroHeight = (maxHeight * 0.47f).coerceAtLeast(260.dp)
-      AboutBackground {
-        Column(Modifier.fillMaxSize().testTag("about.scroll").verticalScroll(aboutScroll)
-          .navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding())) {
+      AboutBackground(alpha = { 1f - scrollProgress() }) {
+        Column(
+          Modifier.fillMaxSize().testTag("about.scroll")
+            .then(if (hapticEnabled) Modifier.scrollEndHaptic() else Modifier)
+            .overScrollVertical()
+            .verticalScroll(aboutScroll, overscrollEffect = null)
+            .navigationBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding()),
+        ) {
           Box(Modifier.fillMaxWidth().height(heroHeight).onSizeChanged { heroHeightPx = it.height },
-            contentAlignment = Alignment.Center) { AboutHero(model) }
+            contentAlignment = Alignment.Center) { AboutHero(model, scrollProgress = scrollProgress) }
           AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices,
             onOpenContributors = onOpenContributors, onBackground = true)
           Spacer(Modifier.height(12.dp))
@@ -151,18 +179,27 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
 }
 
 @Composable
-internal fun AboutHero(model: HomeViewModel) {
+internal fun AboutHero(model: HomeViewModel, scrollProgress: () -> Float = { 0f }) {
   val appName = stringResource(R.string.app_name)
   val version = stringResource(R.string.polish_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
   val dark = LocalKeiHomeDarkTheme.current
   val titleColors = if (dark) listOf(Color(0xff85dcea), Color(0xffa9a4ff))
     else listOf(Color(0xff155d7b), Color(0xff5044a6))
+  // Stagger hero fade-out in draw phase so scrolling never recomposes the hero subtree.
+  fun Modifier.heroFade(start: Float, span: Float = 0.28f): Modifier = graphicsLayer {
+    val p = ((scrollProgress() - start) / span).coerceIn(0f, 1f)
+    alpha = 1f - p
+    scaleX = 1f - p * 0.05f
+    scaleY = 1f - p * 0.05f
+  }
   Column(Modifier.fillMaxWidth().testTag("about.hero").padding(horizontal = 12.dp, vertical = 16.dp),
     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    AboutAppIcon(model)
-    Text(appName, style = MiuixTheme.textStyles.title1.copy(brush = Brush.linearGradient(titleColors),
-      fontSize = 36.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
-    Text(version, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
+    Box(Modifier.heroFade(0.32f)) { AboutAppIcon(model) }
+    Text(appName, modifier = Modifier.heroFade(0.18f),
+      style = MiuixTheme.textStyles.title1.copy(brush = Brush.linearGradient(titleColors),
+        fontSize = 36.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
+    Text(version, modifier = Modifier.heroFade(0.05f),
+      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
       textAlign = TextAlign.Center)
   }
 }
@@ -189,7 +226,7 @@ private fun AboutAppIcon(model: HomeViewModel) {
   val colors = remember(monet.snapshot) { previewColors(monet.snapshot) }
   CurrentAppearanceIcon(previews, monet.snapshot?.monochrome?.enabled == true, colors, Modifier.size(96.dp)) {
     Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null,
-      modifier = Modifier.size(96.dp).clip(RoundedCornerShape(25.dp))
+      modifier = Modifier.size(96.dp).squircleClip(25.dp)
         .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
   }
 }

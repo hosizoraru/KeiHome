@@ -1072,7 +1072,7 @@ private fun DashboardDetail(
   modifier: Modifier = Modifier,
 ) {
   BoxWithConstraints(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-    val vertical = stacked || maxWidth < 320.dp || LocalDensity.current.fontScale > 1.3f
+    val vertical = stacked || maxWidth < 260.dp || LocalDensity.current.fontScale > 1.3f
     val valueContent: @Composable () -> Unit = {
       if (pillColor != null) MetadataPill(value, pillColor)
       else Text(value, style = MiuixTheme.textStyles.body2,

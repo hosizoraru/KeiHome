@@ -33,17 +33,19 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -75,9 +77,10 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
-        actions = { IconButton(enabled = 5 !in refreshing, onClick = { model.refresh(5, section) }) {
-          Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
-        } })
+        actions = {
+          Os4RefreshIconButton(busy = 5 in refreshing, onClick = { model.refresh(5, section) },
+            contentDescription = stringResource(R.string.refresh))
+        })
     }
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
@@ -118,12 +121,14 @@ private fun DarkModeSettingsContent(model: HomeViewModel, onOpenStatusBarTools: 
   }
   DarkModeSettingsGroup(R.string.desktop_dark_mode_apps_and_statusbar_group) {
     DesktopIconSettings(model, DesktopFeature.SPLASH)
+    val toolsPress = rememberOs4PressSource()
     Card(insideMargin = PaddingValues(0.dp)) {
       BasicComponent(title = stringResource(R.string.desktop_dark_mode_statusbar),
         summary = stringResource(DesktopSection.TOOLS.summary),
         role = Role.Button, onClick = onOpenStatusBarTools,
+        interactionSource = toolsPress,
         endActions = { Os4TrailingChevron() },
-        modifier = Modifier.testTag("desktop.dark-mode.tools"))
+        modifier = Modifier.testTag("desktop.dark-mode.tools").glassPress(toolsPress))
     }
   }
 }

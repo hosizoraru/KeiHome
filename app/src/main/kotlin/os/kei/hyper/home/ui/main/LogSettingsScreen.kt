@@ -54,11 +54,16 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -67,10 +72,8 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Info
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -84,6 +87,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   var rangeIndex by rememberSaveable { mutableIntStateOf(3) }
   val customHours = rememberTextFieldState("24")
   var refresh by remember { mutableIntStateOf(0) }
+  var loadingStats by remember { mutableStateOf(false) }
   var stats by remember { mutableStateOf(0L to 0) }
   var confirmClear by remember { mutableStateOf(false) }
   var exportHours by remember { mutableStateOf<Long?>(null) }
@@ -93,8 +97,13 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   val hours = when (rangeIndex) { 0 -> 3L; 1 -> 6L; 2 -> 12L; 3 -> 24L
     else -> customHours.text.toString().toLongOrNull()?.takeIf { it in 1..168 } ?: 0L }
   LaunchedEffect(hours, refresh) {
-    stats = if (hours == 0L) 0L to 0 else withContext(Dispatchers.IO) {
-      AppLogStore.stats(context, System.currentTimeMillis() - hours * 3_600_000)
+    loadingStats = true
+    try {
+      stats = if (hours == 0L) 0L to 0 else withContext(Dispatchers.IO) {
+        AppLogStore.stats(context, System.currentTimeMillis() - hours * 3_600_000)
+      }
+    } finally {
+      loadingStats = false
     }
   }
   val labels = listOf(R.string.logs_three_hours, R.string.logs_six_hours, R.string.logs_twelve_hours,
@@ -111,7 +120,8 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         navigationIcon = {
           IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back)) }
         }, actions = {
-          IconButton(onClick = { refresh++ }) { Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh)) }
+          Os4RefreshIconButton(busy = loadingStats, onClick = { refresh++ },
+            contentDescription = stringResource(R.string.refresh))
         })
     }
   }, floatingActionButton = {
@@ -156,6 +166,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         bottom = padding.calculateBottomPadding() + actionBottomPadding),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Card(Modifier.fillMaxWidth().os4Clickable(
+        cornerRadius = CardDefaults.CornerRadius,
         onClickLabel = stringResource(R.string.logs_source), onClick = openFrameworkLogs),
         insideMargin = PaddingValues(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +179,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
             Text(stringResource(R.string.logs_source), style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
               color = MiuixTheme.colorScheme.primary)
           }
-          Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.primary)
+          Os4TrailingChevron(tint = MiuixTheme.colorScheme.primary)
         }
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
@@ -200,19 +211,20 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
           items = labels.map { DropdownItem(text = stringResource(it)) }, selectedIndex = rangeIndex,
           onSelectedIndexChange = { rangeIndex = it })
       }
-      if (rangeIndex == 4) {
+      Os4AnimatedVisibility(visible = rangeIndex == 4, label = "logs-custom-hours") {
         GlassTextField(state = customHours, inputTransformation = InputTransformation {
           if (length > 3 || !asCharSequence().all(Char::isDigit)) revertAllChanges()
         }, label = stringResource(R.string.logs_hours_custom), lineLimits = TextFieldLineLimits.SingleLine,
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
           modifier = Modifier.fillMaxWidth())
       }
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.logs_size),
           summary = stringResource(R.string.logs_lines, stats.second), endActions = {
             Text(Formatter.formatShortFileSize(context, stats.first))
           })
-        BasicComponent(title = stringResource(R.string.logs_clear), enabled = !exporting, onClick = {
+        BasicComponent(title = stringResource(R.string.logs_clear), enabled = !exporting,
+          holdDownState = confirmClear, onClick = {
           if (hours == 0L) Toast.makeText(context, R.string.logs_invalid_range, Toast.LENGTH_SHORT).show()
           else confirmClear = true
         })

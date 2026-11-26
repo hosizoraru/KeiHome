@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,60 +57,69 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
     Os4SearchField(query = query, onQueryChange = { query = it },
       modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("settings.search"),
       label = stringResource(R.string.settings_search))
-    if (query.isBlank()) {
-      val groups = listOf(
-        listOf(SettingsSection.APP, SettingsSection.THEME),
-        listOf(SettingsSection.HOOK, SettingsSection.CACHE, SettingsSection.LOG),
-        listOf(SettingsSection.RELEASE_NOTES, SettingsSection.ABOUT),
-      )
-      groups.forEach { sections ->
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          sections.forEach { section ->
-            val pressSource = rememberOs4PressSource()
-            val icon = when (section) {
-              SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
-              SettingsSection.THEME -> MiuixIcons.Glass.Theme
-              SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
-              SettingsSection.HOOK -> MiuixIcons.Glass.Link
-              SettingsSection.CACHE -> MiuixIcons.Glass.AppData
-              SettingsSection.LOG -> MiuixIcons.Glass.Log
-              SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
-              SettingsSection.ABOUT -> MiuixIcons.Glass.Info
+    Crossfade(targetState = query.isBlank(), animationSpec = tween(180), label = "settings-search-mode") { browsing ->
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (browsing) {
+          val groups = listOf(
+            listOf(SettingsSection.APP, SettingsSection.THEME),
+            listOf(SettingsSection.HOOK, SettingsSection.CACHE, SettingsSection.LOG),
+            listOf(SettingsSection.RELEASE_NOTES, SettingsSection.ABOUT),
+          )
+          groups.forEach { sections ->
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              sections.forEach { section ->
+                val pressSource = rememberOs4PressSource()
+                val icon = when (section) {
+                  SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
+                  SettingsSection.THEME -> MiuixIcons.Glass.Theme
+                  SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
+                  SettingsSection.HOOK -> MiuixIcons.Glass.Link
+                  SettingsSection.CACHE -> MiuixIcons.Glass.AppData
+                  SettingsSection.LOG -> MiuixIcons.Glass.Log
+                  SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
+                  SettingsSection.ABOUT -> MiuixIcons.Glass.Info
+                }
+                BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
+                  onClick = { onNavigate(section.route) }, interactionSource = pressSource,
+                  modifier = Modifier.testTag("settings.entry.${section.route}").glassPress(pressSource),
+                  startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
+                  endActions = { Os4TrailingChevron() })
+              }
             }
-            BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-              onClick = { onNavigate(section.route) }, interactionSource = pressSource,
-              modifier = Modifier.testTag("settings.entry.${section.route}").glassPress(pressSource),
-              startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Os4TrailingChevron() })
           }
+        } else {
+          val releaseNotes = settingsQueryMatches(query, listOf(
+            stringResource(R.string.release_notes_title), stringResource(R.string.release_notes_summary),
+            stringResource(R.string.release_notes_search_keywords), stringResource(R.string.setup_title),
+            stringResource(R.string.setup_replay_summary), stringResource(R.string.setup_search_keywords),
+          ).joinToString(" "))
+          val logs = settingsQueryMatches(query, listOf(stringResource(R.string.settings_log_section),
+            stringResource(R.string.settings_log_summary)).joinToString(" "))
+          if (releaseNotes) {
+            val press = rememberOs4PressSource()
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              BasicComponent(title = stringResource(R.string.release_notes_title),
+                summary = stringResource(R.string.release_notes_summary),
+                interactionSource = press,
+                modifier = Modifier.testTag("settings.entry.release-notes").glassPress(press),
+                onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
+                endActions = { Os4TrailingChevron() })
+            }
+          }
+          if (logs) {
+            val press = rememberOs4PressSource()
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              BasicComponent(title = stringResource(R.string.settings_log_section),
+                summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
+                interactionSource = press,
+                modifier = Modifier.glassPress(press),
+                endActions = { Os4TrailingChevron() })
+            }
+          }
+          SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
+            onOpenPerfectIcons = onOpenPerfectIcons, showEmptySearch = !releaseNotes && !logs)
         }
       }
-    } else {
-      val releaseNotes = settingsQueryMatches(query, listOf(
-        stringResource(R.string.release_notes_title), stringResource(R.string.release_notes_summary),
-        stringResource(R.string.release_notes_search_keywords), stringResource(R.string.setup_title),
-        stringResource(R.string.setup_replay_summary), stringResource(R.string.setup_search_keywords),
-      ).joinToString(" "))
-      val logs = settingsQueryMatches(query, listOf(stringResource(R.string.settings_log_section),
-        stringResource(R.string.settings_log_summary)).joinToString(" "))
-      if (releaseNotes) {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          BasicComponent(title = stringResource(R.string.release_notes_title),
-            summary = stringResource(R.string.release_notes_summary),
-            modifier = Modifier.testTag("settings.entry.release-notes"),
-            onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
-            endActions = { Os4TrailingChevron() })
-        }
-      }
-      if (logs) {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          BasicComponent(title = stringResource(R.string.settings_log_section),
-            summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
-            endActions = { Os4TrailingChevron() })
-        }
-      }
-      SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
-        onOpenPerfectIcons = onOpenPerfectIcons, showEmptySearch = !releaseNotes && !logs)
     }
   }
 }

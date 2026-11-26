@@ -24,7 +24,10 @@ import java.text.DateFormat
 import java.util.Date
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.status.AppearanceRefreshResult
 import os.kei.hyper.home.status.DesktopAppearanceInbox
@@ -42,7 +45,6 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class DesktopAppearanceUiState(
@@ -65,9 +67,10 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
-        actions = { IconButton(enabled = !state.checking, onClick = { model.readDesktopAppearance() }) {
-          Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.desktop_tools_read))
-        } })
+        actions = {
+          Os4RefreshIconButton(busy = state.checking, onClick = { model.readDesktopAppearance() },
+            contentDescription = stringResource(R.string.desktop_tools_read))
+        })
     }
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
@@ -75,7 +78,7 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
         .padding(PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
           val report = state.report
           BasicComponent(title = stringResource(R.string.desktop_tools_status), summary = stringResource(when {
             state.checking -> R.string.desktop_tools_reading
@@ -115,16 +118,19 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
               modifier = Modifier.padding(bottom = 16.dp))
           }
         }
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.desktop_tools_refresh_title),
             summary = stringResource(R.string.desktop_tools_refresh_summary))
           Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            lastRefresh?.takeUnless { state.checking && it.result == AppearanceRefreshResult.UNCONFIRMED }?.let {
-              Text(stringResource(R.string.desktop_tools_last_result,
-                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it.atMillis)),
-                stringResource(refreshResultText(it.result))),
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            val result = lastRefresh?.takeUnless { state.checking && it.result == AppearanceRefreshResult.UNCONFIRMED }
+            Os4AnimatedVisibility(visible = result != null, label = "desktop-tools-result") {
+              result?.let {
+                Text(stringResource(R.string.desktop_tools_last_result,
+                  DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it.atMillis)),
+                  stringResource(refreshResultText(it.result))),
+                  style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              }
             }
             Button(onClick = { model.readDesktopAppearance(refresh = true) }, enabled = !state.checking,
               colors = ButtonDefaults.buttonColorsPrimary(),

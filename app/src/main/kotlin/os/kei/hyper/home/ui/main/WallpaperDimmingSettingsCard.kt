@@ -60,18 +60,18 @@ import kotlinx.coroutines.selects.select
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.WallpaperDimStrengths
 import os.kei.hyper.home.data.WallpaperDimStyle
-import os.kei.hyper.home.ui.components.KeiHomeIconButton
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleClip
@@ -90,18 +90,24 @@ internal fun WallpaperDimmingSettingsCard(model: HomeViewModel) {
     title = R.string.wallpaper_dimming_title, summary = R.string.wallpaper_dimming_summary,
     tag = "wallpaper-dimming", feature = null, scopeMessage = R.string.wallpaper_dimming_scope) {
     val style = strengths.strengths?.style
-    Os4DropdownPreference(title = stringResource(R.string.dark_mode_wallpaper_style),
-      items = listOf(stringResource(R.string.dark_mode_wallpaper_hyperos), stringResource(R.string.dark_mode_wallpaper_coloros)),
-      selectedIndex = style?.ordinal ?: 0,
-      enabled = inScope && style != null,
-      onSelectedIndexChange = { model.wallpaperDimmingStrength.setStyle(WallpaperDimStyle.entries[it]) },
-      modifier = Modifier.testTag("wallpaper-dimming.style"))
-    BasicComponent(title = stringResource(if (style == WallpaperDimStyle.COLOR_OS)
-      R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
-      summary = stringResource(R.string.wallpaper_dimming_strength_entry),
-      enabled = inScope, holdDownState = show && inScope, onClick = { show = true },
-      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
-      modifier = Modifier.testTag("wallpaper-dimming.strength"))
+    Os4AnimatedVisibility(visible = settings.savedChoice == true, label = "wallpaper-dimming-options") {
+      Column {
+        Os4DropdownPreference(title = stringResource(R.string.dark_mode_wallpaper_style),
+          items = listOf(stringResource(R.string.dark_mode_wallpaper_hyperos), stringResource(R.string.dark_mode_wallpaper_coloros)),
+          selectedIndex = style?.ordinal ?: 0,
+          enabled = inScope && style != null,
+          onSelectedIndexChange = { model.wallpaperDimmingStrength.setStyle(WallpaperDimStyle.entries[it]) },
+          modifier = Modifier.testTag("wallpaper-dimming.style"))
+        val strengthPress = rememberOs4PressSource()
+        BasicComponent(title = stringResource(if (style == WallpaperDimStyle.COLOR_OS)
+          R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
+          summary = stringResource(R.string.wallpaper_dimming_strength_entry),
+          enabled = inScope, holdDownState = show && inScope, onClick = { show = true },
+          interactionSource = strengthPress,
+          endActions = { Os4TrailingChevron() },
+          modifier = Modifier.testTag("wallpaper-dimming.strength").glassPress(strengthPress, inScope))
+      }
+    }
   }
   WallpaperDimmingStrengthSheet(show && inScope, { show = false }, model.wallpaperDimmingStrength,
     model.wallpaperPreviews)
@@ -161,14 +167,15 @@ private fun WallpaperDimmingStrengthSheet(
   Os4DetailsSheet(show, onDismiss, title = stringResource(if (colorOs)
     R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
     endAction = {
-      val label = stringResource(R.string.wallpaper_dimming_preview_refresh)
-      KeiHomeIconButton(onClick = refresh, enabled = !previewState.refreshing,
-        modifier = Modifier.testTag("wallpaper-dimming.refresh")) {
-        Icon(MiuixIcons.Glass.Refresh, label)
-      }
+      Os4RefreshIconButton(
+        busy = previewState.refreshing,
+        onClick = refresh,
+        contentDescription = stringResource(R.string.wallpaper_dimming_preview_refresh),
+        modifier = Modifier.testTag("wallpaper-dimming.refresh"),
+      )
     },
     headerBottomContent = {
-      if (separate != false) {
+      Os4AnimatedVisibility(visible = separate != false, label = "wallpaper-dimming-tabs") {
         Os4ViewTabs(
           listOf(stringResource(R.string.wallpaper_dimming_home), stringResource(R.string.wallpaper_dimming_lock)),
           selectedTab, { selected = it },
@@ -185,22 +192,32 @@ private fun WallpaperDimmingStrengthSheet(
     Text(stringResource(if (separate == false) R.string.wallpaper_dimming_shared else R.string.wallpaper_dimming_live),
       style = MiuixTheme.textStyles.body2,
       color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    if (colorOs) {
-      Text(stringResource(R.string.dark_mode_wallpaper_fixed, percent),
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    } else SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
-      title = stringResource(R.string.wallpaper_dimming_strength),
-      valueText = stringResource(R.string.wallpaper_dimming_percent, percent),
-      enabled = strengths != null && separate != null,
-      onValueChange = { settings.set(selectedTab == 1, it.roundToInt().coerceIn(0, 100), separate == true) },
-      modifier = Modifier.testTag("wallpaper-dimming.percent"))
-    if (state.failed) {
-      Text(stringResource(if (strengths == null) R.string.theme_effects_read_failed
-        else R.string.theme_effects_save_failed), color = MiuixTheme.colorScheme.error)
-      BasicComponent(title = stringResource(R.string.launcher_labels_retry), onClick = {
-        settings.retry()
-        attempt++
-      })
+    AnimatedContent(
+      targetState = colorOs,
+      transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(130)) },
+      label = "wallpaper-dimming-control",
+    ) { fixedStyle ->
+      if (fixedStyle) {
+        Text(stringResource(R.string.dark_mode_wallpaper_fixed, percent),
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      } else {
+        SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
+          title = stringResource(R.string.wallpaper_dimming_strength),
+          valueText = stringResource(R.string.wallpaper_dimming_percent, percent),
+          enabled = strengths != null && separate != null,
+          onValueChange = { settings.set(selectedTab == 1, it.roundToInt().coerceIn(0, 100), separate == true) },
+          modifier = Modifier.testTag("wallpaper-dimming.percent"))
+      }
+    }
+    Os4AnimatedVisibility(visible = state.failed, label = "wallpaper-dimming-error") {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(if (strengths == null) R.string.theme_effects_read_failed
+          else R.string.theme_effects_save_failed), color = MiuixTheme.colorScheme.error)
+        BasicComponent(title = stringResource(R.string.launcher_labels_retry), onClick = {
+          settings.retry()
+          attempt++
+        })
+      }
     }
   }
 }

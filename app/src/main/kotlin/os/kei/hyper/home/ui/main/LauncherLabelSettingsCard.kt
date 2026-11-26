@@ -12,6 +12,8 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherLabelMode
 import os.kei.hyper.home.status.LauncherRuntimeCapabilities
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -32,18 +34,20 @@ internal fun LauncherLabelSettingsCard(model: HomeViewModel) {
     if (framework.readFailed) DesktopFeatureStatus.READ_FAILED
     else desktopLabelStatus(state, runtime, inScope, now, version, scopeChecking),
     state.pending ?: state.saved, refreshes[5])
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     OverlaySpinnerPreference(title = stringResource(R.string.launcher_labels_title),
       summary = stringResource(R.string.launcher_labels_summary),
       items = listOf(R.string.launcher_labels_native, R.string.launcher_labels_marquee, R.string.launcher_labels_two_lines)
         .map { DropdownItem(text = stringResource(it)) },
-      selectedIndex = (state.saved ?: LauncherLabelMode.NATIVE).ordinal,
+      selectedIndex = (state.pending ?: state.saved ?: LauncherLabelMode.NATIVE).ordinal,
       enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported, scopeChecking),
       onSelectedIndexChange = { model.launcherLabels.save(LauncherLabelMode.entries[it]) })
     DesktopSettingProgress(status, tag = "desktop.feature.labels.progress")
-    if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !scopeChecking && !state.saving && (state.pending == null || supported != false), onClick = {
-        state.pending?.let(model.launcherLabels::save) ?: run { model.readLauncherLabelSettings() }
-      })
+    Os4AnimatedVisibility(visible = state.failed && inScope, label = "launcher-labels-retry") {
+      BasicComponent(title = stringResource(R.string.launcher_labels_retry),
+        enabled = !scopeChecking && !state.saving && (state.pending == null || supported != false), onClick = {
+          state.pending?.let(model.launcherLabels::save) ?: run { model.readLauncherLabelSettings() }
+        })
+    }
   }
 }

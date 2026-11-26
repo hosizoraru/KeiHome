@@ -19,6 +19,8 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.DockGlassCornerStyle
 import os.kei.hyper.home.data.DockGlassOptions
 import os.kei.hyper.home.status.LauncherRuntimeCapabilities
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -72,10 +74,10 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
     choice, refreshes[5])
   val layoutHint = if (!scopeChecking && supported == true && layoutSupported == false)
     "\n" + stringResource(R.string.dock_glass_layout_unavailable) else ""
-  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  Card(modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     SwitchPreference(title = stringResource(R.string.dock_glass_title),
       summary = stringResource(R.string.dock_glass_summary),
-      checked = state.saved?.enabled == true,
+      checked = choice?.enabled == true,
       enabled = controlsEnabled,
       onCheckedChange = {
         lastEdited = DockEditedField.STYLE
@@ -83,76 +85,84 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
       },
       modifier = Modifier.testTag("dock-glass.switch"))
     DockOptionProgress(DockEditedField.STYLE, lastEdited, status)
-    OverlaySpinnerPreference(title = stringResource(R.string.dock_glass_corner_title),
-      summary = stringResource(cornerSummary) + layoutHint,
-      items = styles.map { DropdownItem(text = stringResource(it.labelResource),
-        enabled = desktopDockCornerStyleSupported(it, layoutSupported)) },
-      selectedIndex = styles.indexOf(choice?.cornerStyle ?: DockGlassCornerStyle.RECENTS),
-      enabled = dockControls.cornerChooser,
-      onSelectedIndexChange = { index ->
-        if (dockControls.cornerChooser && choice != null) styles.getOrNull(index)?.let {
-          desktopDockCornerSelection(choice, it, layoutSupported)?.let { selection ->
-            lastEdited = DockEditedField.CORNER
-            model.dockGlass.save(selection)
+    Os4AnimatedVisibility(visible = choice?.enabled == true, label = "dock-glass-options") {
+      androidx.compose.foundation.layout.Column {
+        OverlaySpinnerPreference(title = stringResource(R.string.dock_glass_corner_title),
+          summary = stringResource(cornerSummary) + layoutHint,
+          items = styles.map { DropdownItem(text = stringResource(it.labelResource),
+            enabled = desktopDockCornerStyleSupported(it, layoutSupported)) },
+          selectedIndex = styles.indexOf(choice?.cornerStyle ?: DockGlassCornerStyle.RECENTS),
+          enabled = dockControls.cornerChooser,
+          onSelectedIndexChange = { index ->
+            if (dockControls.cornerChooser && choice != null) styles.getOrNull(index)?.let {
+              desktopDockCornerSelection(choice, it, layoutSupported)?.let { selection ->
+                lastEdited = DockEditedField.CORNER
+                model.dockGlass.save(selection)
+              }
+            }
+          },
+          modifier = Modifier.testTag("dock-glass.corner-style"))
+        DockOptionProgress(DockEditedField.CORNER, lastEdited, status)
+        DockGeometrySlider(value = choice?.verticalPaddingDp ?: 18, range = 0..32,
+          title = stringResource(R.string.dock_glass_padding_title),
+          summary = stringResource(R.string.dock_glass_padding_summary),
+          enabled = dockControls.geometry, onCommit = {
+            lastEdited = DockEditedField.PADDING
+            model.dockGlass.setVerticalPadding(it)
+          },
+          modifier = Modifier.testTag("dock-glass.vertical-padding"))
+        DockOptionProgress(DockEditedField.PADDING, lastEdited, status)
+        DockGeometrySlider(value = choice?.horizontalPaddingDeltaDp ?: 0, range = DockGlassOptions.HORIZONTAL_PADDING_RANGE,
+          title = stringResource(R.string.dock_glass_horizontal_padding_title),
+          summary = stringResource(if (supported == true && horizontalPaddingSupported == false)
+            R.string.dock_glass_horizontal_padding_unavailable else R.string.dock_glass_horizontal_padding_summary),
+          enabled = dockControls.geometry && horizontalPaddingSupported != false, onCommit = {
+            lastEdited = DockEditedField.HORIZONTAL_PADDING
+            model.dockGlass.setHorizontalPadding(it)
+          },
+          modifier = Modifier.testTag("dock-glass.horizontal-padding"))
+        DockOptionProgress(DockEditedField.HORIZONTAL_PADDING, lastEdited, status)
+        DockGeometrySlider(value = choice?.verticalOffsetDp ?: 0, range = -48..96,
+          title = stringResource(R.string.dock_glass_offset_title),
+          summary = stringResource(R.string.dock_glass_offset_summary),
+          enabled = dockControls.geometry, onCommit = {
+            lastEdited = DockEditedField.OFFSET
+            model.dockGlass.setVerticalOffset(it)
+          },
+          modifier = Modifier.testTag("dock-glass.vertical-offset"))
+        DockOptionProgress(DockEditedField.OFFSET, lastEdited, status)
+        Os4AnimatedVisibility(visible = choice?.cornerStyle == DockGlassCornerStyle.CUSTOM, label = "dock-custom-radius") {
+          androidx.compose.foundation.layout.Column {
+            DockGeometrySlider(value = choice?.customRadiusDp ?: 24, range = 0..64,
+              title = stringResource(R.string.dock_glass_radius_title),
+              summary = stringResource(R.string.dock_glass_radius_summary),
+              enabled = dockControls.geometry, onCommit = {
+                lastEdited = DockEditedField.RADIUS
+                model.dockGlass.setCustomRadius(it)
+              },
+              modifier = Modifier.testTag("dock-glass.custom-radius"))
+            DockOptionProgress(DockEditedField.RADIUS, lastEdited, status)
           }
         }
-      },
-      modifier = Modifier.testTag("dock-glass.corner-style"))
-    DockOptionProgress(DockEditedField.CORNER, lastEdited, status)
-    DockGeometrySlider(value = choice?.verticalPaddingDp ?: 18, range = 0..32,
-      title = stringResource(R.string.dock_glass_padding_title),
-      summary = stringResource(R.string.dock_glass_padding_summary),
-      enabled = dockControls.geometry, onCommit = {
-        lastEdited = DockEditedField.PADDING
-        model.dockGlass.setVerticalPadding(it)
-      },
-      modifier = Modifier.testTag("dock-glass.vertical-padding"))
-    DockOptionProgress(DockEditedField.PADDING, lastEdited, status)
-    DockGeometrySlider(value = choice?.horizontalPaddingDeltaDp ?: 0, range = DockGlassOptions.HORIZONTAL_PADDING_RANGE,
-      title = stringResource(R.string.dock_glass_horizontal_padding_title),
-      summary = stringResource(if (supported == true && horizontalPaddingSupported == false)
-        R.string.dock_glass_horizontal_padding_unavailable else R.string.dock_glass_horizontal_padding_summary),
-      enabled = dockControls.geometry && horizontalPaddingSupported != false, onCommit = {
-        lastEdited = DockEditedField.HORIZONTAL_PADDING
-        model.dockGlass.setHorizontalPadding(it)
-      },
-      modifier = Modifier.testTag("dock-glass.horizontal-padding"))
-    DockOptionProgress(DockEditedField.HORIZONTAL_PADDING, lastEdited, status)
-    DockGeometrySlider(value = choice?.verticalOffsetDp ?: 0, range = -48..96,
-      title = stringResource(R.string.dock_glass_offset_title),
-      summary = stringResource(R.string.dock_glass_offset_summary),
-      enabled = dockControls.geometry, onCommit = {
-        lastEdited = DockEditedField.OFFSET
-        model.dockGlass.setVerticalOffset(it)
-      },
-      modifier = Modifier.testTag("dock-glass.vertical-offset"))
-    DockOptionProgress(DockEditedField.OFFSET, lastEdited, status)
-    if (choice?.cornerStyle == DockGlassCornerStyle.CUSTOM) {
-      DockGeometrySlider(value = choice.customRadiusDp, range = 0..64,
-        title = stringResource(R.string.dock_glass_radius_title),
-        summary = stringResource(R.string.dock_glass_radius_summary),
-        enabled = dockControls.geometry, onCommit = {
-          lastEdited = DockEditedField.RADIUS
-          model.dockGlass.setCustomRadius(it)
-        },
-        modifier = Modifier.testTag("dock-glass.custom-radius"))
-      DockOptionProgress(DockEditedField.RADIUS, lastEdited, status)
+        BasicComponent(title = stringResource(R.string.dock_glass_reset),
+          summary = stringResource(R.string.dock_glass_reset_summary) + layoutHint,
+          enabled = dockControls.resetGeometry,
+          onClick = {
+            lastEdited = DockEditedField.RESET
+            model.dockGlass.resetGeometry()
+          },
+          modifier = Modifier.testTag("dock-glass.reset-geometry"))
+        DockOptionProgress(DockEditedField.RESET, lastEdited, status)
+      }
     }
-    BasicComponent(title = stringResource(R.string.dock_glass_reset),
-      summary = stringResource(R.string.dock_glass_reset_summary) + layoutHint,
-      enabled = dockControls.resetGeometry,
-      onClick = {
-        lastEdited = DockEditedField.RESET
-        model.dockGlass.resetGeometry()
-      },
-      modifier = Modifier.testTag("dock-glass.reset-geometry"))
-    DockOptionProgress(DockEditedField.RESET, lastEdited, status)
-    if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !scopeChecking && !state.saving && (state.pending?.let {
-        desktopDockSaveSupported(it, supported, layoutSupported, horizontalPaddingSupported)
-      } ?: true), onClick = {
-        state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()
-      })
+    Os4AnimatedVisibility(visible = state.failed && inScope, label = "dock-retry") {
+      BasicComponent(title = stringResource(R.string.launcher_labels_retry),
+        enabled = !scopeChecking && !state.saving && (state.pending?.let {
+          desktopDockSaveSupported(it, supported, layoutSupported, horizontalPaddingSupported)
+        } ?: true), onClick = {
+          state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()
+        })
+    }
   }
 }
 

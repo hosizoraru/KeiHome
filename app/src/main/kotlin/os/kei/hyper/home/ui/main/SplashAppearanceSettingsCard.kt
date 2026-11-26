@@ -8,7 +8,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -40,7 +42,7 @@ internal fun SplashAppearanceSettingsCard(
     state.loading || state.savedChoice == null -> R.string.theme_effects_loading
     else -> null
   }
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     val allowed = inScope && !scopeChecking && !scopeReadFailed &&
       state.canSaveThemeEffects(state.savedChoice != true)
     val description = stringResource(if (showStatus) issue ?: summary else summary)
@@ -53,7 +55,7 @@ internal fun SplashAppearanceSettingsCard(
         explanation = stringResource(help), checked = state.savedChoice == true, enabled = allowed,
         onCheckedChange = onChange, tag = "$tag.switch", helpTag = "$tag.help")
     }
-    if (inScope && (state.readFailed || state.saveFailed)) {
+    Os4AnimatedVisibility(visible = inScope && (state.readFailed || state.saveFailed), label = "$tag-retry") {
       BasicComponent(title = stringResource(R.string.theme_effects_resave_off),
         enabled = !scopeChecking && !scopeReadFailed && state.canSaveThemeEffects(false), onClick = { onChange(false) })
     }

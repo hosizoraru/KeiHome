@@ -48,14 +48,17 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.os4Toggleable
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -66,6 +69,8 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassCard
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Info
@@ -304,12 +309,13 @@ internal fun NavigationBackdropContent(
                 !hasRoom -> R.string.nav_backdrop_bilibili_limit
                 else -> R.string.nav_backdrop_bilibili_summary
               }
-              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
                 Os4ExplainedSwitchPreference(title = stringResource(R.string.nav_backdrop_bilibili),
                   summary = stringResource(summary), explanation = stringResource(R.string.nav_backdrop_bilibili_help),
                   checked = artworkOn, enabled = enabled, onCheckedChange = onBilibiliArtwork,
                   tag = "nav-backdrop.bilibili")
-                if (state.bilibiliInScope == false && bilibiliInstalled) {
+                Os4AnimatedVisibility(visible = state.bilibiliInScope == false && bilibiliInstalled,
+                  label = "nav-backdrop-bilibili-scope") {
                   NavigationBackdropLink(R.string.scope_open_manager, null, "nav-backdrop.bilibili.scope",
                     onOpenManager)
                 }
@@ -320,7 +326,8 @@ internal fun NavigationBackdropContent(
         NavigationBackdropPage.APPS -> {
           if (searchVisible) item("search", contentType = "search") {
             Os4SearchField(query, onQueryChange = { query = it }, label = stringResource(R.string.nav_backdrop_search),
-              inputModifier = Modifier.testTag("nav-backdrop.search"))
+              inputModifier = Modifier.testTag("nav-backdrop.search"),
+              modifier = Modifier.animateItem())
           }
           hint("selection", R.string.nav_backdrop_selected, NavigationBackdropPreferences.MAX_PACKAGES)
           if (!editable || (choice.enabled && !supported)) hint("status", statusText)
@@ -334,7 +341,7 @@ internal fun NavigationBackdropContent(
             val bound = artworkOn && app.packageName == BILIBILI_PACKAGE
             val enabled = editable && !bound && (!choice.enabled || supported) &&
               (checked || selected.size < NavigationBackdropPreferences.MAX_PACKAGES)
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = app.label,
                 summary = if (bound) stringResource(R.string.nav_backdrop_bilibili_bound) else app.packageName,
                 modifier = Modifier.testTag("nav-backdrop.app:${app.packageName}")
@@ -355,7 +362,7 @@ internal fun NavigationBackdropContent(
       summary = stringResource(R.string.nav_backdrop_explanation),
       modifier = Modifier.testTag("nav-backdrop.help.sheet")) {
       SmallTitle(stringResource(R.string.nav_backdrop_how_to))
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_select),
           summary = stringResource(R.string.nav_backdrop_step_select_summary))
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_enable),
@@ -407,8 +414,10 @@ private fun NavigationBackdropAppMenus(origin: AppOrigin, sort: AppSort, reverse
 
 @Composable
 private fun NavigationBackdropLink(title: Int, summary: String?, tag: String, onClick: () -> Unit) {
+  val press = rememberOs4PressSource()
   BasicComponent(title = stringResource(title), summary = summary, onClick = onClick,
-    modifier = Modifier.testTag(tag),
+    interactionSource = press,
+    modifier = Modifier.testTag(tag).glassPress(press),
     endActions = { Os4TrailingChevron() })
 }
 

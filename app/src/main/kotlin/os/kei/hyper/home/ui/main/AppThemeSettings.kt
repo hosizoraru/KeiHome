@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.main
 
 import android.content.res.Resources
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +43,7 @@ import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.AppTopBarBlur
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -151,6 +153,40 @@ private fun ThemeAppearancePreview(title: String, dark: Boolean, wide: Boolean, 
   selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
   val scheme = MiuixTheme.colorScheme
   val accent = scheme.primary
+  val borderColor by animateColorAsState(
+    targetValue = if (selected) accent else Color.Transparent,
+    animationSpec = Os4Motion.colorSpring(),
+    label = "theme-preview-border",
+  )
+  val labelColor by animateColorAsState(
+    targetValue = if (selected) accent else scheme.onSurfaceSecondary,
+    animationSpec = Os4Motion.colorSpring(),
+    label = "theme-preview-label",
+  )
+  val gradientTop by animateColorAsState(
+    targetValue = when {
+      !dark -> Color(0xFF406EFF)
+      darkStyle == AppDarkStyle.ENHANCED -> Color(0xFF1F387E)
+      else -> Color(0xFF2D4EC2)
+    },
+    animationSpec = Os4Motion.colorSpring(),
+    label = "theme-preview-top",
+  )
+  val gradientBottom by animateColorAsState(
+    targetValue = when {
+      !dark -> Color(0xFF55B9FA)
+      darkStyle == AppDarkStyle.ENHANCED -> Color(0xFF2B609A)
+      else -> Color(0xFF3E89C8)
+    },
+    animationSpec = Os4Motion.colorSpring(),
+    label = "theme-preview-bottom",
+  )
+  val panelColor by animateColorAsState(
+    targetValue = if (dark) Color.Black.copy(alpha = if (darkStyle == AppDarkStyle.ENHANCED) 0.34f else 0.24f)
+      else Color.White.copy(alpha = 0.24f),
+    animationSpec = Os4Motion.colorSpring(),
+    label = "theme-preview-panel",
+  )
   Card(
     modifier = modifier.semantics(mergeDescendants = true) {
       role = Role.RadioButton
@@ -164,23 +200,16 @@ private fun ThemeAppearancePreview(title: String, dark: Boolean, wide: Boolean, 
   ) {
     Box(
       Modifier.fillMaxWidth()
-        .squircleBorder(width = 3.dp, color = if (selected) accent else Color.Transparent, cornerRadius = 26.dp)
+        .squircleBorder(width = 3.dp, color = borderColor, cornerRadius = 26.dp)
         .padding(6.dp),
     ) {
       Canvas(Modifier.fillMaxWidth().aspectRatio(if (wide) 1.75f else 1f).squircleClip(20.dp)) {
-        val gradient = when {
-          !dark -> listOf(Color(0xFF406EFF), Color(0xFF55B9FA))
-          darkStyle == AppDarkStyle.ENHANCED -> listOf(Color(0xFF1F387E), Color(0xFF2B609A))
-          else -> listOf(Color(0xFF2D4EC2), Color(0xFF3E89C8))
-        }
-        drawRect(Brush.verticalGradient(gradient))
+        drawRect(Brush.verticalGradient(listOf(gradientTop, gradientBottom)))
         val illustrationWidth = size.width * if (wide) 0.72f else 1f
         val start = (size.width - illustrationWidth) / 2f
         val unitX = illustrationWidth / 680f
         val unitY = size.height / 680f
         val cornerUnit = minOf(unitX, unitY)
-        val panelColor = if (dark) Color.Black.copy(alpha = if (darkStyle == AppDarkStyle.ENHANCED) 0.34f else 0.24f)
-          else Color.White.copy(alpha = 0.24f)
         val panelStroke = if (dark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.22f)
         val lineColor = if (dark) Color.White.copy(alpha = 0.36f) else Color(0xFF285ABC).copy(alpha = 0.58f)
         val subLineColor = if (dark) Color.White.copy(alpha = 0.22f) else Color(0xFF285ABC).copy(alpha = 0.36f)
@@ -202,7 +231,7 @@ private fun ThemeAppearancePreview(title: String, dark: Boolean, wide: Boolean, 
     Text(
       text = title,
       modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-      color = if (selected) accent else scheme.onSurfaceSecondary,
+      color = labelColor,
       style = MiuixTheme.textStyles.body2,
       fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
       textAlign = TextAlign.Center,

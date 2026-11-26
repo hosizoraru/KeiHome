@@ -22,8 +22,10 @@ import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppPreferencesState
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -218,15 +220,19 @@ internal fun SettingsContent(
     }
     if (pageScroll || pagerMode) {
       SmallTitle(stringResource(R.string.app_interaction_title), modifier = Modifier.semantics { heading() })
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
         if (pageScroll) SwitchPreference(title = stringResource(R.string.browser_page_scroll),
           checked = preferences.pageUserScroll, onCheckedChange = onPageUserScrollChange)
-        if (pagerMode) Os4DropdownPreference(title = stringResource(R.string.browser_pager_mode),
-          summary = stringResource(R.string.browser_pager_hint),
-          items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross)
-            .map { stringResource(it) }, selectedIndex = preferences.pagerGesture.ordinal,
-          enabled = preferences.pageUserScroll,
-          onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
+        if (pagerMode) {
+          Os4AnimatedVisibility(visible = preferences.pageUserScroll || query.isNotBlank(), label = "settings-pager-mode") {
+            Os4DropdownPreference(title = stringResource(R.string.browser_pager_mode),
+              summary = stringResource(R.string.browser_pager_hint),
+              items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross)
+                .map { stringResource(it) }, selectedIndex = preferences.pagerGesture.ordinal,
+              enabled = preferences.pageUserScroll,
+              onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
+          }
+        }
       }
     }
     if (clear && section != SettingsSection.CACHE) {

@@ -75,6 +75,7 @@ internal class WallpaperDimmingControl(
   }
 
   fun start() {
+    registrations.own { surfaces?.clear() }
     val events = object : BroadcastReceiver() {
       override fun onReceive(context: Context, intent: Intent) = request(force = true)
     }

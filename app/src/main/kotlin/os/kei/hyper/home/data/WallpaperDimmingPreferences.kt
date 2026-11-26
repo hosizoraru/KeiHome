@@ -35,6 +35,14 @@ internal data class WallpaperDimStrengths(
   }
 }
 
+/** Additional black overlay alpha needed on top of an already platform-dimmed wallpaper surface. */
+internal fun wallpaperOverlayDimAlpha(targetAmount: Float, baselineAmount: Float): Float {
+  val target = targetAmount.coerceIn(0f, 1f)
+  val baseline = baselineAmount.coerceIn(0f, 1f)
+  if (target <= baseline || baseline >= 1f) return 0f
+  return ((target - baseline) / (1f - baseline)).coerceIn(0f, 1f)
+}
+
 internal object WallpaperDimmingPreferences {
   const val GROUP = "wallpaper_dimming"
   const val KEY = "follow_dark_mode"

@@ -45,6 +45,7 @@ internal class SystemUiAppIconRuntime(
   @Volatile private var cache: CrossSurfaceIconCache? = null
   @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
   @Volatile private var folded: SystemUiFoldedIconReplay? = null
+  @Volatile private var nativeCaches: SystemUiNativeIconCaches? = null
   private val foldGuard = SystemUiHookGuard { reportFailure("native folded icon payload", it) }
   private val foldedRequest = ThreadLocal<Boolean>()
   private val foldedSources = LinkedHashMap<String, java.lang.ref.WeakReference<Bitmap>>()
@@ -82,6 +83,21 @@ internal class SystemUiAppIconRuntime(
     } finally { lifecycle.leave() }
   }
 
+  /**
+   * Main thread, like the framework's own theme-change check: ThemeZipFile readers are not
+   * synchronized with its reopen, and SystemUI reads native icons on this thread.
+   */
+  private val refreshNative = Runnable {
+    if (stopped || !lifecycle.enter()) return@Runnable
+    try {
+      guard.run(Unit) {
+        val dropped = nativeCaches?.refresh() ?: return@run
+        report(Log.INFO, TAG, "Native app-icon caches refreshed; dropped=${dropped.size}")
+        statusBar?.adoptNative(dropped)
+      }
+    } finally { lifecycle.leave() }
+  }
+
   // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
   @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
   fun start() {
@@ -91,7 +107,8 @@ internal class SystemUiAppIconRuntime(
     // Match the tracked-view bound so replay cannot churn a smaller wanted set.
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
       refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true,
-      onReady = { queueReplay(refreshRows = true) })
+      onReady = { queueReplay(refreshRows = true) },
+      beforeAppearanceReload = { main.post(refreshNative) })
     cache = iconCache
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     foldGuard.run(Unit) {
@@ -210,6 +227,9 @@ internal class SystemUiAppIconRuntime(
           }
         })
       statusBar = runtime
+      guard.run(Unit) {
+        nativeCaches = SystemUiNativeIconCaches(requireNotNull(nativeManager), statusProfile.nativeCaches, currentUser)
+      }
       replace(statusProfile.consumer, "$HOOK_ID.statusbar-descriptor.v1") { chain ->
         val owner = chain.thisObject ?: return@replace chain.proceed()
         val entry = chain.getArg(0) ?: return@replace chain.proceed()
@@ -633,6 +653,8 @@ internal class SystemUiAppIconRuntime(
     }
     // Keep the stopped probe gate until hook retirement drains already-admitted native calls.
     main.removeCallbacks(replay)
+    main.removeCallbacks(refreshNative)
+    nativeCaches = null
     replayQueued.set(false)
     bindings.clear()
     val iconCache = cache ?: return stoppedStatus

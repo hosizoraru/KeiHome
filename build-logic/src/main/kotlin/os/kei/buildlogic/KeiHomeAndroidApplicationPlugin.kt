@@ -99,6 +99,9 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
         shaders = false
       }
 
+      // The store already compresses each object. AssetManager.openFd needs a seekable APK entry.
+      androidResources.noCompress.add("kicons")
+
       packaging {
         jniLibs {
           excludes += "**/libandroidx.graphics.path.so"

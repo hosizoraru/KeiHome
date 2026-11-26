@@ -1,14 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import android.text.format.DateFormat
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +31,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
@@ -50,20 +46,22 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun RefreshFeedback(model: HomeViewModel, page: Int) {
   val result by remember(model, page) { model.refreshResults.map { it[page] }.distinctUntilChanged() }
     .collectAsStateWithLifecycle(initialValue = null)
-  val value = result ?: return
   val context = LocalContext.current
-  val time = remember(value.completedAt, context) { DateFormat.getTimeFormat(context).format(Date(value.completedAt)) }
-  val message = if (value.failed) R.string.refresh_partial else when (page) {
-    0 -> R.string.refresh_status_completed
-    1 -> R.string.refresh_apps_completed
-    3 -> R.string.refresh_icon_packs_completed
-    5 -> R.string.desktop_refresh_completed
-    else -> R.string.refresh_monet_completed
+  Os4AnimatedVisibility(visible = result != null, label = "refresh-feedback") {
+    val value = result ?: return@Os4AnimatedVisibility
+    val time = remember(value.completedAt, context) { DateFormat.getTimeFormat(context).format(Date(value.completedAt)) }
+    val message = if (value.failed) R.string.refresh_partial else when (page) {
+      0 -> R.string.refresh_status_completed
+      1 -> R.string.refresh_apps_completed
+      3 -> R.string.refresh_icon_packs_completed
+      5 -> R.string.desktop_refresh_completed
+      else -> R.string.refresh_monet_completed
+    }
+    Text(stringResource(message, time),
+      modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
+      style = MiuixTheme.textStyles.footnote2,
+      color = if (value.failed) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
   }
-  Text(stringResource(message, time),
-    modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
-    style = MiuixTheme.textStyles.footnote2,
-    color = if (value.failed) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
 }
 
 private data class IconPackRefreshFeedbackState(
@@ -95,14 +93,13 @@ internal fun IconPackRefreshFeedback(model: HomeViewModel, section: String? = nu
   val time = remember(feedback.result?.completedAt, context, locales, use24HourTime) {
     feedback.result?.let { DateFormat.getTimeFormat(context).format(Date(it.completedAt)) }
   }
-  AnimatedVisibility(
+  Os4AnimatedVisibility(
     visible = feedback.loading || feedback.result != null || phase == RefreshPhase.FAILED,
-    enter = fadeIn(tween(160)) + expandVertically(tween(180), expandFrom = Alignment.Top),
-    exit = fadeOut(tween(120)) + shrinkVertically(tween(180), shrinkTowards = Alignment.Top),
+    label = "icon-pack-refresh-card",
   ) {
     Card(Modifier.fillMaxWidth().testTag("icon-packs.refresh"),
       insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-      Column(Modifier.animateContentSize(tween(180)).semantics { liveRegion = LiveRegionMode.Polite },
+      Column(Modifier.os4ContentSize().semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
           Crossfade(targetState = phase, modifier = Modifier.size(24.dp),

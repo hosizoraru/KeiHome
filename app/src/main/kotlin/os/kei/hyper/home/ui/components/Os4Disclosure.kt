@@ -1,12 +1,6 @@
 package os.kei.hyper.home.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -15,7 +9,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -46,7 +39,7 @@ internal fun Os4DisclosureHeader(
   val pressSource = rememberOs4PressSource()
   val rotation by animateFloatAsState(
     targetValue = if (expanded) -90f else 90f,
-    animationSpec = spring(dampingRatio = 1f, stiffness = 500f),
+    animationSpec = Os4Motion.stateSpring(),
     label = "disclosure-chevron",
   )
   val indicator: @Composable RowScope.() -> Unit = {
@@ -75,13 +68,7 @@ internal fun Os4DisclosureHeader(
 
 @Composable
 internal fun Os4DisclosureContent(expanded: Boolean, content: @Composable ColumnScope.() -> Unit) {
-  AnimatedVisibility(
-    visible = expanded,
-    enter = expandVertically(
-      spring(dampingRatio = 1f, stiffness = 500f), expandFrom = Alignment.Top,
-    ) + fadeIn(),
-    exit = shrinkVertically(
-      spring(dampingRatio = 1f, stiffness = 500f), shrinkTowards = Alignment.Top,
-    ) + fadeOut(),
-  ) { Column(Modifier.fillMaxWidth(), content = content) }
+  Os4AnimatedVisibility(visible = expanded, label = "disclosure-content") {
+    Column(Modifier.fillMaxWidth(), content = content)
+  }
 }

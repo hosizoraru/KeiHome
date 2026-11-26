@@ -1,5 +1,11 @@
 package os.kei.hyper.home.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -52,9 +58,19 @@ internal fun IconPreviewComparison(
   modifier: Modifier = Modifier,
   content: @Composable (dark: Boolean, modifier: Modifier) -> Unit,
 ) {
-  Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-    if (mode != IconPreviewMode.DARK) content(false, Modifier.weight(1f))
-    if (mode != IconPreviewMode.LIGHT) content(true, Modifier.weight(1f))
+  AnimatedContent(
+    targetState = mode,
+    modifier = modifier.fillMaxWidth(),
+    transitionSpec = {
+      (fadeIn(tween(180)) togetherWith fadeOut(tween(130)))
+        .using(SizeTransform(clip = false) { _, _ -> Os4Motion.revealSpring() })
+    },
+    label = "icon-preview-mode",
+  ) { active ->
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+      if (active != IconPreviewMode.DARK) content(false, Modifier.weight(1f))
+      if (active != IconPreviewMode.LIGHT) content(true, Modifier.weight(1f))
+    }
   }
 }
 

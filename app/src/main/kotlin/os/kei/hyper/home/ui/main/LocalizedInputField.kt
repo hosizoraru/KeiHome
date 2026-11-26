@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -94,15 +96,25 @@ internal fun LocalizedInputField(
       Row(Modifier.fillMaxWidth().background(color, CircleShape)
         .heightIn(min = SearchBarDefaults.InputFieldMinHeight),
         verticalAlignment = Alignment.CenterVertically) {
-        if (leadingIcon != null) leadingIcon() else Icon(
-          modifier = Modifier.padding(
-            start = SearchBarDefaults.LeadingIconStartPadding,
-            end = SearchBarDefaults.LeadingIconEndPadding,
-          ),
-          imageVector = MiuixIcons.Glass.Search,
-          tint = MiuixTheme.colorScheme.onSurfaceContainerHigh,
-          contentDescription = null,
-        )
+        Crossfade(
+          targetState = leadingIcon != null,
+          animationSpec = tween(150),
+          label = "input-leading-icon",
+        ) { hasCustomLeading ->
+          if (hasCustomLeading) {
+            leadingIcon?.invoke()
+          } else {
+            Icon(
+              modifier = Modifier.padding(
+                start = SearchBarDefaults.LeadingIconStartPadding,
+                end = SearchBarDefaults.LeadingIconEndPadding,
+              ),
+              imageVector = MiuixIcons.Glass.Search,
+              tint = MiuixTheme.colorScheme.onSurfaceContainerHigh,
+              contentDescription = null,
+            )
+          }
+        }
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
           if (query.isEmpty() && !expanded) Text(label,
             style = MiuixTheme.textStyles.main.merge(textStyle),

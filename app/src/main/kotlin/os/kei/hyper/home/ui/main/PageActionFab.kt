@@ -1,8 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -26,6 +27,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.ui.components.Os4FloatingToolbar
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
@@ -38,8 +42,12 @@ internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit
   modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false,
   description: String = label,
   trailingIcon: Boolean = false, onHeightChanged: (Int) -> Unit = {}) {
-  val foreground = if (enabled || busy) MiuixTheme.colorScheme.onPrimary
-    else MiuixTheme.colorScheme.onSurfaceSecondary
+  val foreground by animateColorAsState(
+    targetValue = if (enabled || busy) MiuixTheme.colorScheme.onPrimary
+      else MiuixTheme.colorScheme.onSurfaceSecondary,
+    animationSpec = Os4Motion.colorSpring(),
+    label = "page-action-fg",
+  )
   val processing = if (busy) stringResource(R.string.action_label_processing) else null
   Os4FloatingToolbar(modifier = modifier.wrapContentWidth().heightIn(min = 56.dp)
     .onSizeChanged { onHeightChanged(it.height) }
@@ -54,7 +62,8 @@ internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit
     },
     primary = enabled || busy) {
     Row(Modifier.heightIn(min = 56.dp)
-      .clickable(enabled = enabled && !busy, onClick = onClick)
+      .os4Clickable(enabled = enabled && !busy, cornerRadius = 28.dp, onClick = onClick)
+      .os4ContentSize()
       .padding(horizontal = 16.dp, vertical = 14.dp),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       val symbol: @Composable () -> Unit = {

@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 
 internal const val DESKTOP_OPERATION_TIMEOUT_MS = 30_000L
@@ -41,7 +42,7 @@ internal fun DesktopSettingProgress(
   modifier: Modifier = Modifier,
   tag: String? = null,
 ) {
-  if (desktopSettingProgressVisible(status)) {
+  Os4AnimatedVisibility(visible = desktopSettingProgressVisible(status), label = "desktop-setting-progress") {
     LinearProgressIndicator(modifier = modifier
       .then(if (tag != null) Modifier.testTag(tag) else Modifier)
       .fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp))

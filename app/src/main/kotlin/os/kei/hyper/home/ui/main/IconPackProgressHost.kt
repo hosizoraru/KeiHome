@@ -1,5 +1,6 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,8 +25,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -40,9 +44,17 @@ internal fun IconPackProgressHost(model: HomeViewModel, applyStep: IconPackStep?
     progress?.step == IconPackStep.APPLYING
   var backgrounded by remember(catalog.nativeImporting, progress?.operation) { mutableStateOf(false) }
   var cancelling by remember(progress?.operation, progress?.cancellable) { mutableStateOf(false) }
-  if (progress != null && !(waiting && backgrounded)) {
+  val active = if (progress != null && !(waiting && backgrounded)) {
+    if (cancelling) progress.advance(IconPackStep.CANCELLING, progress.percent) else progress
+  } else null
+  var retained by remember { mutableStateOf<IconPackOperationProgress?>(null) }
+  if (active != null) retained = active
+  val shown = active ?: retained
+  if (shown != null) {
     IconPackProgressDialog(
-      if (cancelling) progress.advance(IconPackStep.CANCELLING, progress.percent) else progress,
+      progress = shown,
+      show = active != null,
+      onDismissFinished = { if (active == null) retained = null },
       onCancel = {
         cancelling = true
         if (catalog.preparing) model.cancelIconPackPreparation() else model.applePacks.cancel()
@@ -57,6 +69,8 @@ internal fun IconPackProgressDialog(
   progress: IconPackOperationProgress,
   onCancel: () -> Unit,
   onBackground: (() -> Unit)? = null,
+  show: Boolean = true,
+  onDismissFinished: (() -> Unit)? = null,
 ) {
   val title = stringResource(when (progress.operation) {
     IconPackOperation.LOCAL_IMPORT -> R.string.pack_progress_local_title
@@ -64,11 +78,16 @@ internal fun IconPackProgressDialog(
     IconPackOperation.SYSTEM_IMPORT -> R.string.pack_progress_system_title
     IconPackOperation.AUTO_APPLY -> R.string.pack_progress_apply_title
   })
+  val animatedFraction by animateFloatAsState(
+    targetValue = (progress.measuredPercent / 100f).coerceIn(0f, 1f),
+    animationSpec = Os4Motion.stateSpring(),
+    label = "pack-progress-bar",
+  )
   Scaffold(containerColor = Color.Transparent) {
-    Os4Dialog(show = true, title = title, onDismissRequest = {}, centered = true, dismissible = false,
-      sampleBackdrop = false,
+    Os4Dialog(show = show, title = title, onDismissRequest = {}, onDismissFinished = onDismissFinished,
+      centered = true, dismissible = false, sampleBackdrop = false,
       modifier = Modifier.testTag("icon-pack.progress")) {
-      Column(Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+      Column(Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(rememberScrollState()).os4ContentSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -79,8 +98,8 @@ internal fun IconPackProgressDialog(
           Text(stringResource(R.string.pack_progress_percentage, progress.percent),
             modifier = Modifier.testTag("icon-pack.progress.percent"), style = MiuixTheme.textStyles.subtitle)
         }
-        LinearProgressIndicator(progress = { progress.measuredPercent / 100f })
-        if (progress.total > 0 || (progress.inKiB && progress.done > 0)) {
+        LinearProgressIndicator(progress = { animatedFraction })
+        Os4AnimatedVisibility(visible = progress.total > 0 || (progress.inKiB && progress.done > 0)) {
           val count = when {
             !progress.inKiB -> stringResource(R.string.coloros_generation_count, progress.done, progress.total)
             progress.total > 0 -> stringResource(R.string.pack_progress_kib, progress.done, progress.total)
@@ -90,14 +109,18 @@ internal fun IconPackProgressDialog(
             modifier = Modifier.testTag("icon-pack.progress.count"),
             style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        progress.item?.takeIf { it.isNotBlank() }?.let {
-          Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Os4AnimatedVisibility(visible = !progress.item.isNullOrBlank()) {
+          Text(progress.item.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        if (progress.cancellable) Os4DialogButton(stringResource(R.string.coloros_generation_cancel), onCancel,
-          modifier = Modifier.fillMaxWidth().testTag("icon-pack.progress.cancel"))
-        if (onBackground != null) Os4DialogButton(stringResource(R.string.pack_progress_background), onBackground,
-          modifier = Modifier.fillMaxWidth().testTag("icon-pack.progress.background"))
+        Os4AnimatedVisibility(visible = progress.cancellable) {
+          Os4DialogButton(stringResource(R.string.coloros_generation_cancel), onCancel,
+            modifier = Modifier.fillMaxWidth().testTag("icon-pack.progress.cancel"))
+        }
+        Os4AnimatedVisibility(visible = onBackground != null) {
+          Os4DialogButton(stringResource(R.string.pack_progress_background), { onBackground?.invoke() },
+            modifier = Modifier.fillMaxWidth().testTag("icon-pack.progress.background"))
+        }
       }
     }
   }

@@ -27,6 +27,7 @@ import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 internal fun Os4LazyColumn(
   state: LazyListState,
   modifier: Modifier = Modifier,
+  listModifier: Modifier = Modifier,
   contentPadding: PaddingValues = PaddingValues(0.dp),
   verticalArrangement: Arrangement.Vertical = Arrangement.Top,
   topAppBarScrollBehavior: ScrollBehavior? = null,
@@ -36,7 +37,8 @@ internal fun Os4LazyColumn(
     derivedStateOf { state.canScrollForward || state.canScrollBackward }
   }
   Box(modifier) {
-    LazyColumn(state = state, overscrollEffect = null, modifier = Modifier.fillMaxSize(),
+    LazyColumn(state = state, overscrollEffect = null,
+      modifier = Modifier.fillMaxSize().then(listModifier),
       contentPadding = contentPadding, verticalArrangement = verticalArrangement, content = content)
     if (scrollable) {
       // The narrow native hit strip stays in the outer margin, away from trailing controls.

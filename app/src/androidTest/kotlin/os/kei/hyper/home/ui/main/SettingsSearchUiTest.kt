@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -32,6 +33,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.core.app.ApplicationProvider
@@ -94,7 +96,8 @@ class SettingsSearchUiTest {
     }
     val input = rule.onNode(hasSetTextAction(), useUnmergedTree = true)
     input.performTextReplacement(context.getString(R.string.theme_effects_title))
-    rule.onNodeWithTag("theme-effects.switch").assertExists().assertIsEnabled().performClick()
+    rule.onNodeWithTag("theme-effects.switch").assertExists().assertIsEnabled()
+      .performSemanticsAction(SemanticsActions.OnClick)
     rule.runOnIdle { assertEquals(true, requested) }
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertDoesNotExist()
     input.performTextReplacement("no-such-setting-789")

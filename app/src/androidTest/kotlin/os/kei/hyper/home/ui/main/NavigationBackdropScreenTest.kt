@@ -110,7 +110,8 @@ class NavigationBackdropScreenTest {
     var enabled = false
     show(choice = choice, state = state, onBilibiliArtwork = { enabled = it })
     scrollToArtwork()
-    rule.onNodeWithTag("nav-backdrop.bilibili").assertIsEnabled().performScrollTo().performClick()
+    rule.onNodeWithTag("nav-backdrop.bilibili").assertIsEnabled().performScrollTo()
+      .performSemanticsAction(SemanticsActions.OnClick)
     rule.runOnIdle { assertEquals(true, enabled) }
   }
 

@@ -58,7 +58,7 @@ internal fun Os4ExplainedSwitchPreference(
         fontSize = MiuixTheme.textStyles.headline1.fontSize, fontWeight = FontWeight.Medium,
         color = if (enabled) titleColor.color else titleColor.disabledColor)
       val helpDescription = stringResource(R.string.preference_help_for, title)
-      IconButton(onClick = { showHelp = true }, minWidth = 48.dp, minHeight = 28.dp,
+      IconButton(onClick = { showHelp = true }, minWidth = 32.dp, minHeight = 28.dp,
         modifier = Modifier.testTag("$helpTag.open").semantics { contentDescription = helpDescription }) {
         Icon(MiuixIcons.Glass.Info, contentDescription = null,
           modifier = Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)

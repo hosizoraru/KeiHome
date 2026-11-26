@@ -2,12 +2,15 @@ package os.kei.hyper.home.ui.main
 
 import android.content.Context
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -17,6 +20,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
 import io.github.libxposed.service.HookedTarget
 import java.util.Locale
@@ -27,6 +31,7 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class ThemeEffectsCardTest {
@@ -40,8 +45,10 @@ class ThemeEffectsCardTest {
     val requests = mutableListOf<Boolean>()
     composeTestRule.setContent {
       KeiHomeTheme {
-        ThemeEffectsCard(ThemeEffectsUiState(savedChoice = false, saving = true),
-          framework(systemUiInScope = true), onCheckedChange = { requests.add(it) })
+        KeiHomeScaffold(Modifier.fillMaxSize()) {
+          ThemeEffectsCard(ThemeEffectsUiState(savedChoice = false, saving = true),
+            framework(systemUiInScope = true), onCheckedChange = { requests.add(it) })
+        }
       }
     }
 
@@ -70,7 +77,7 @@ class ThemeEffectsCardTest {
     }
 
     toggle().assertIsOff().assertIsEnabled()
-    composeTestRule.onNodeWithTag("theme-effects.switch").performClick()
+    composeTestRule.onNodeWithTag("theme-effects.switch").performSemanticsAction(SemanticsActions.OnClick)
     composeTestRule.runOnIdle { assertEquals(true, requested) }
     toggle().assertIsOff()
     composeTestRule.runOnIdle { state = state.copy(saving = true) }
@@ -176,7 +183,7 @@ class ThemeEffectsCardTest {
     composeTestRule.onNodeWithText(savedStatus(
       false, moduleStatus(R.string.theme_effects_system_target_status, R.string.theme_effects_target_pending),
     )).assertExists()
-    composeTestRule.onNodeWithTag("theme-effects.switch").performClick()
+    composeTestRule.onNodeWithTag("theme-effects.switch").performSemanticsAction(SemanticsActions.OnClick)
 
     composeTestRule.runOnIdle {
       status = framework(systemUiInScope = true, systemUiTarget = null)
@@ -184,7 +191,7 @@ class ThemeEffectsCardTest {
     toggle().assertIsEnabled()
     composeTestRule.onNodeWithText(context.getString(R.string.theme_effects_system_scope_needed)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.theme_effects_system_ui_scope_needed)).assertDoesNotExist()
-    composeTestRule.onNodeWithTag("theme-effects.switch").performClick()
+    toggle().performClick()
     composeTestRule.runOnIdle {
       assertEquals(listOf(true, true), requests)
       state = state.copy(unavailable = true)

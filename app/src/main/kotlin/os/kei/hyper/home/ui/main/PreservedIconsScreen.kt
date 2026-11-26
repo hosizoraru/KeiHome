@@ -287,8 +287,8 @@ internal fun PreservedIconsPage(
       modifier = Modifier.testTag("preserved-icons.pull-to-refresh")) {
     Os4LazyColumn(state = list, modifier = Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .keiHomeTopBarScroll(behavior, overScrollEnabled = !loading && !refreshing)
-      .testTag("preserved-icons.list"),
+      .keiHomeTopBarScroll(behavior, overScrollEnabled = !loading && !refreshing),
+      listModifier = Modifier.testTag("preserved-icons.list"),
       contentPadding = listPadding,
       topAppBarScrollBehavior = behavior,
       verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -89,11 +89,14 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
         if (differs(selectedPath(false), selectedPath(true)) ||
           differs("fancy_icons/$name/day.png", "fancy_icons/$name/night.png")) nights += name
         val manifest = zip.getEntry("fancy_icons/$name/manifest.xml") ?: return@forEach
-        val xml = zip.getInputStream(manifest).use { String(it.readNBytes(256 * 1024)) }
+        val xmlBytes = zip.getInputStream(manifest).use { it.readNBytes(256 * 1024) }
+        val xml = String(xmlBytes, Charsets.UTF_8)
         val paletteBindings = isGeneratedPaletteSelector(xml)
         if (paletteBindings &&
           zip.getEntry("fancy_icons/$name/mask.png") != null) palettes += name
-        if (!paletteBindings && (!xml.contains("src=\"day.png\"") || !xml.contains("src=\"night.png\""))) dynamic += name
+        if (!paletteBindings &&
+          runCatching { os.kei.hyper.home.iconpack.NativeMamlPair.parse(xmlBytes) }.getOrNull() == null
+        ) dynamic += name
       }
     }
     IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(),

@@ -91,8 +91,9 @@ internal fun MonetPaletteDetails(
         val roles = remember(palette, dark, choice) { MonetSchemes.iconRoles(palette, dark, choice) }
         Os4AnimatedVisibility(visible = visible && roles != null, label = "monet-role-${if (dark) "dark" else "light"}") {
           val resolved = roles ?: return@Os4AnimatedVisibility
-          val foregroundRole = if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND
-          val backgroundRole = if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND
+          val sourceDark = choice?.iconAppearance?.sourceDarkMode(dark) ?: dark
+          val foregroundRole = if (sourceDark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND
+          val backgroundRole = if (sourceDark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND
           Column {
             Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
               modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -100,14 +101,14 @@ internal fun MonetPaletteDetails(
             MonetCopyableColor(
               label = if (choice?.iconOverrides?.containsKey(foregroundRole) == true) roleName(foregroundRole)
                 else stringResource(R.string.monet_details_foreground,
-                  familyName(foregroundRole.family(choice)), foregroundRole.tone),
+                  familyName(foregroundRole.effectiveFamily(choice)), foregroundRole.effectiveTone(choice)),
               color = resolved.foreground,
               modifier = Modifier.testTag("monet.role.${if (dark) "dark" else "light"}.foreground"),
             )
             MonetCopyableColor(
               label = if (choice?.iconOverrides?.containsKey(backgroundRole) == true) roleName(backgroundRole)
                 else stringResource(R.string.monet_details_background,
-                  familyName(backgroundRole.family(choice)), backgroundRole.tone),
+                  familyName(backgroundRole.effectiveFamily(choice)), backgroundRole.effectiveTone(choice)),
               color = resolved.background,
               modifier = Modifier.testTag("monet.role.${if (dark) "dark" else "light"}.background"),
             )

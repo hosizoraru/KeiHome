@@ -30,17 +30,22 @@ internal enum class MonetIconRole(val palette: MonetPaletteFamily, val tone: Int
   fun family(choice: MonetCustomization?): MonetPaletteFamily =
     if (background) choice?.backgroundFamily ?: palette else palette
 
-  fun color(choice: MonetCustomization?, sample: (String, Int) -> Int?): Int? {
-    choice?.iconOverrides?.get(this)?.let { return it }
-    val inspiration = choice?.style == MonetSchemeStyle.COLOROS_INSPIRATION
-    val selectedTone = if (inspiration) when (this) {
+  fun effectiveFamily(choice: MonetCustomization?): MonetPaletteFamily =
+    if (choice?.style == MonetSchemeStyle.COLOROS_INSPIRATION &&
+      this == DARK_BACKGROUND && choice.backgroundFamily == null
+    ) MonetPaletteFamily.PRIMARY
+    else family(choice)
+
+  fun effectiveTone(choice: MonetCustomization?): Int =
+    if (choice?.style == MonetSchemeStyle.COLOROS_INSPIRATION) when (this) {
       LIGHT_FOREGROUND -> 40
       LIGHT_BACKGROUND -> 95
       DARK_FOREGROUND -> 80
       DARK_BACKGROUND -> 20
     } else tone
-    val selectedFamily = if (inspiration && this == DARK_BACKGROUND && choice.backgroundFamily == null)
-      MonetPaletteFamily.PRIMARY else family(choice)
-    return sample(selectedFamily.key, selectedTone)
+
+  fun color(choice: MonetCustomization?, sample: (String, Int) -> Int?): Int? {
+    choice?.iconOverrides?.get(this)?.let { return it }
+    return sample(effectiveFamily(choice).key, effectiveTone(choice))
   }
 }

@@ -419,7 +419,7 @@ internal class IconPackRenderer(
       drawable.setBounds(0, 0, sizePx, sizePx)
       val background = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
       try {
-        Canvas(background).drawPath(nativeMask?.pathFor(drawable) ?: drawable.iconMask,
+        Canvas(background).drawPath((previewMask ?: nativeMask)?.pathFor(drawable) ?: drawable.iconMask,
           Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
         val foreground = ColorOsFallbackRenderer(context).rasterize(drawable, false, sizePx,
           mask = background, monochrome = true, check = check)
@@ -569,11 +569,9 @@ internal class IconPackRenderer(
     try {
       drawable.bounds = fit(drawable.intrinsicWidth.takeIf { it > 0 } ?: size,
         drawable.intrinsicHeight.takeIf { it > 0 } ?: size, size)
-      val canvas = Canvas(output)
-      nativeMask?.pathFor(drawable)?.let { canvas.clipPath(it) }
-      drawable.draw(canvas)
+      drawable.draw(Canvas(output))
       check()
-      return output
+      return IconMaskPolicy.clip(output, nativeMask).also { if (it !== output) output.recycle() }
     } catch (failure: Exception) { output.recycle(); throw failure }
   }
 

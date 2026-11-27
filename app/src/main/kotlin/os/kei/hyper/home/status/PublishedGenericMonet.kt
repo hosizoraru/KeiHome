@@ -116,18 +116,23 @@ internal object PublishedGenericMonet {
         try {
           val bounds = Rect(0, 0, size, size)
           val canvas = Canvas(output)
-          shape?.let { canvas.clipPath(it.pathForBounds(bounds)) }
           val layerBounds = NativeLayerViewport.bounds(bounds)
           val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
           layers.forEach { check(); canvas.drawBitmap(it, null, layerBounds, paint) }
-          val image = ByteArrayOutputStream().also {
-            check()
-            check(output.compress(Bitmap.CompressFormat.PNG, 100, it))
-          }.toByteArray()
+          val clipped = IconMaskPolicy.clip(output, shape)
+          val image = try {
+            ByteArrayOutputStream().also {
+              check()
+              check(clipped.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }.toByteArray()
+          } finally { if (clipped !== output) clipped.recycle() }
           val foreground = if (prefix.isEmpty()) {
             output.eraseColor(0)
             canvas.drawBitmap(layers.last(), null, layerBounds, paint)
-            IntArray(size * size).also { output.getPixels(it, 0, size, 0, 0, size, size) }
+            val clippedFg = IconMaskPolicy.clip(output, shape)
+            try {
+              IntArray(size * size).also { clippedFg.getPixels(it, 0, size, 0, 0, size, size) }
+            } finally { if (clippedFg !== output) clippedFg.recycle() }
           } else null
           return NativePair(image, foreground)
         } finally { output.recycle() }
@@ -202,9 +207,20 @@ internal object PublishedGenericMonet {
         val size = bitmap.width
         val pixels = IntArray(size * size)
         bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-        val plate by lazy { GenericMonetMask.background(pixels, size, check) }
+        val plate by lazy {
+          val maskAlpha = paddingCoverage(size)
+          if (maskAlpha != null) {
+            IntArray(pixels.size) { i ->
+              if (i % size == 0) check()
+              val alpha = minOf(pixels[i] ushr 24, maskAlpha[i])
+              (alpha shl 24) or 0x00ffffff
+            }
+          } else {
+            GenericMonetMask.background(pixels, size, check)
+          }
+        }
         val extracted = nativeDay?.foreground?.let { GenericMonetMask.layeredForeground(it, plate, size, check) }
-          ?: GenericMonetMask.foreground(pixels, size, check) ?: continue
+          ?: GenericMonetMask.foreground(pixels, size, plate, check) ?: continue
         val foreground = if (insetFullBleed)
           GenericMonetMask.insetFullBleed(extracted, size, paddingCoverage(size), check) else extracted
         fun png(colors: IntArray): ByteArray {

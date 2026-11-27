@@ -237,14 +237,13 @@ internal data class IconPreviewColors(val lightBackground: Int, val lightForegro
   val darkBackground: Int, val darkForeground: Int)
 
 internal fun previewColors(snapshot: MonetPaletteSnapshot?): IconPreviewColors? {
-  fun tone(family: String, tone: Int) = snapshot?.families?.firstOrNull { it.name == family }
-    ?.colors?.firstOrNull { it.tone == tone }?.value
-  val choice = snapshot?.customization?.takeIf { snapshot.customizationActive }
-  fun color(role: MonetIconRole) = role.color(choice, ::tone)
-  return IconPreviewColors(color(MonetIconRole.LIGHT_BACKGROUND) ?: return null,
-    color(MonetIconRole.LIGHT_FOREGROUND) ?: return null,
-    color(MonetIconRole.DARK_BACKGROUND) ?: return null,
-    color(MonetIconRole.DARK_FOREGROUND) ?: return null)
+  val palette = snapshot?.families?.flatMap { family ->
+    family.colors.mapNotNull { color -> color.tone?.let { "${family.name}$it" to color.value } }
+  }?.toMap()?.takeIf { it.isNotEmpty() } ?: return null
+  val choice = snapshot.customization?.takeIf { snapshot.customizationActive }
+  val light = os.kei.hyper.home.data.MonetSchemes.iconRoles(palette, dark = false, choice = choice) ?: return null
+  val dark = os.kei.hyper.home.data.MonetSchemes.iconRoles(palette, dark = true, choice = choice) ?: return null
+  return IconPreviewColors(light.background, light.foreground, dark.background, dark.foreground)
 }
 
 @Composable

@@ -37,7 +37,7 @@ internal enum class IconPackAppearance {
 
   fun tintColor(argb: Int, systemDarkMode: Boolean): Int {
     if (this != DIM_AT_NIGHT || !systemDarkMode) return argb
-    fun channel(shift: Int) = ((argb ushr shift and 255) * 214 / 255) shl shift
+    fun channel(shift: Int) = (((argb ushr shift and 255) * 214 + 127) / 255) shl shift
     return (argb and -0x1000000) or channel(16) or channel(8) or channel(0)
   }
 

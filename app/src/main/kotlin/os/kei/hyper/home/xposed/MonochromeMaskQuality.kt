@@ -1,7 +1,24 @@
 package os.kei.hyper.home.xposed
 
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.DrawableWrapper
+import android.graphics.drawable.LayerDrawable
+
 /** Inspect alpha, including transparent padding around incorrectly declared full-color bitmaps. */
 internal object MonochromeMaskQuality {
+  fun containsBitmapDrawable(drawable: Drawable?, depth: Int = 0): Boolean {
+    if (drawable == null || depth > 8) return false
+    if (drawable is BitmapDrawable) return true
+    if (drawable is DrawableWrapper) return containsBitmapDrawable(drawable.drawable, depth + 1)
+    if (drawable is LayerDrawable) {
+      for (i in 0 until drawable.numberOfLayers) {
+        if (containsBitmapDrawable(drawable.getDrawable(i), depth + 1)) return true
+      }
+    }
+    return false
+  }
+
   fun isUnusable(pixels: IntArray, width: Int, height: Int, bitmap: Boolean): Boolean {
     if (width < 1 || height < 1 || width.toLong() * height != pixels.size.toLong()) return false
     val firstAlpha = pixels.first() ushr 24

@@ -79,6 +79,7 @@ internal data class IconMaskPolicy(
       bitmap: Bitmap,
       mask: NativeAdaptiveIconMask?,
       check: () -> Unit = {},
+      recycleSource: Boolean = true,
     ): Bitmap {
       if (mask == null) return bitmap
       check()
@@ -87,7 +88,7 @@ internal data class IconMaskPolicy(
       bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
       if (pixels.indices.none { Color.alpha(pixels[it]) > alpha[it] }) return bitmap
       check()
-      return clip(bitmap, mask).also { if (it !== bitmap) bitmap.recycle() }
+      return clip(bitmap, mask).also { if (recycleSource && it !== bitmap) bitmap.recycle() }
     }
 
     private fun coverage(

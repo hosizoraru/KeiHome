@@ -73,6 +73,7 @@ class CurrentIconSnapshotSelectionTest {
     for (path in listOf(
       "fancy_icons/com.uninstalled.app/manifest.xml",
       "animating_icons/com.uninstalled.app/fancy/manifest.xml",
+      "layer_animating_icons/com.uninstalled.app/config.xml",
       "res/drawable-xxhdpi/com.uninstalled.app/config.xml",
     )) {
       assertFalse(path, selection.includes(path))
@@ -83,7 +84,7 @@ class CurrentIconSnapshotSelectionTest {
   @Test fun unfamiliarNonIconLayoutsRemainIncludedWithoutGuessingPackageOwners() {
     val selection = CurrentIconSnapshotSelection(emptySet())
     for (path in listOf(
-      "custom/com.uninstalled.app/asset.png", "layer_animating_icons/com.uninstalled.app/config.xml",
+      "custom/com.uninstalled.app/asset.png",
       "res/mipmap/com.uninstalled.app.png", "res/raw/com.uninstalled.app.dat",
       "com.uninstalled.app.xml", "vendor/config/com.uninstalled.app",
     )) {
@@ -145,6 +146,8 @@ class CurrentIconSnapshotSelectionTest {
     "fancy_icons/$name/images/iconBg_0.png",
     "animating_icons/$name/fancy/manifest.xml",
     "animating_icons/$name/quiet/image.png",
+    "layer_animating_icons/$name/config.xml",
+    "layer_animating_icons/$name/0/quiet/quietImage.png",
     "res/drawable/$name.png",
     "res/drawable-xxhdpi/$name.png",
     "res/drawable-night-640dpi-v35/$name.png",

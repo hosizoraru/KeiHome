@@ -73,13 +73,19 @@ internal object GenericMonetMask {
     }
   }
 
-  fun foreground(pixels: IntArray, size: Int, check: () -> Unit = {}): IntArray? {
-    require(size in 1..512 && pixels.size == size * size)
+  fun foreground(
+    pixels: IntArray, size: Int, check: () -> Unit = {},
+  ): IntArray? = foreground(pixels, size, plate = null, check = check)
+
+  fun foreground(
+    pixels: IntArray, size: Int, plate: IntArray?, check: () -> Unit = {},
+  ): IntArray? {
+    require(size in 1..512 && pixels.size == size * size && (plate == null || plate.size == pixels.size))
     FlatIconStencil.prove(pixels, size, check)?.let { stencil ->
-      val plate = background(pixels, size, check)
+      val effectivePlate = plate ?: background(pixels, size, check)
       return IntArray(pixels.size) { i ->
         if (i % size == 0) check()
-        val alpha = ((plate[i] ushr 24) * (stencil.ink[i].toInt() and 255) + 127) / 255
+        val alpha = ((effectivePlate[i] ushr 24) * (stencil.ink[i].toInt() and 255) + 127) / 255
         (alpha shl 24) or 0x00ffffff
       }
     }
@@ -124,9 +130,9 @@ internal object GenericMonetMask {
     var peak = 255
     while (peak > 0 && remaining >= histogram[peak]) remaining -= histogram[peak--]
     if (!cutout && peak < 24) return null // A uniform plate has no recoverable mark.
-    val plate = background(pixels, size, check)
+    val effectivePlate = plate ?: background(pixels, size, check)
     return IntArray(pixels.size) { i ->
-      val alpha = plate[i] ushr 24
+      val alpha = effectivePlate[i] ushr 24
       val mask = if (cutout) alpha else
         (alpha * ((contrasts[i] - 12).toFloat() / (peak - 12)).coerceIn(0f, 1f)).roundToInt()
       (mask shl 24) or 0x00ffffff

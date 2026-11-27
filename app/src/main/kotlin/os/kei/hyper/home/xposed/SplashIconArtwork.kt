@@ -109,7 +109,10 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
           // HyperOS can keep SystemUI's own configuration pinned across a global toggle.
           application.contentResolver.registerContentObserver(
             Settings.Secure.getUriFor("ui_night_mode"), false, nightModeObserver)
+          application.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(NativePaletteIcon.STATE_KEY), false, nightModeObserver)
         } catch (failure: Exception) {
+          try { application.contentResolver.unregisterContentObserver(nightModeObserver) } catch (_: Exception) { }
           application.unregisterComponentCallbacks(callbacks)
           throw failure
         }

@@ -218,9 +218,12 @@ internal class IconPackExporter(private val context: Context, private val limits
             if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) throw IconPackException("PNG encoding failed")
           }.toByteArray()
         } finally { bitmap.recycle() }
+        val maskShape = maskPolicy?.resolve(null)
         fun scaledPng(bitmap: Bitmap): ByteArray {
           val scaled = Bitmap.createScaledBitmap(bitmap, sizePx, sizePx, true)
-          return encodePng(if (scaled === bitmap) bitmap.copy(Bitmap.Config.ARGB_8888, false) else scaled)
+          val owned = if (scaled === bitmap) bitmap.copy(Bitmap.Config.ARGB_8888, false) else scaled
+          val finalBitmap = if (maskShape != null) IconMaskPolicy.clipIfExceeds(owned, maskShape, check) else owned
+          return encodePng(finalBitmap)
         }
         var paletteBackground = mask?.let(::scaledPng)
         IconPackRenderer(context, colorOsSources).open(pack, darkMode, colorOsFallback,
@@ -450,8 +453,9 @@ internal class IconPackExporter(private val context: Context, private val limits
       check()
       success = true
       return IconPackExportResult(archive, verified.nativeIconsSha256!!, covered, skipped, names.size, darkMode,
-        preservesNativeResources = true, colorOsPackages = extra?.first.orEmpty(),
-        nativeAdaptationTargets = extra?.second.orEmpty(), fallbackPaletteNames = paletteNames)
+        preservesNativeResources = true, colorOsPackages = extra?.colorOsPackages.orEmpty(),
+        nativeAdaptationTargets = extra?.nativeAdaptationTargets.orEmpty(),
+        fallbackPaletteNames = paletteNames + extra?.paletteNames.orEmpty())
     } finally {
       nested.delete()
       if (!success) archive.delete()
@@ -591,18 +595,24 @@ internal class IconPackExporter(private val context: Context, private val limits
     return paletteNames
   }
 
+  private data class ColorOsFallbackAdditions(
+    val colorOsPackages: Set<String>,
+    val nativeAdaptationTargets: Set<IconPackComponent>,
+    val paletteNames: Set<String>,
+  )
+
   /** Add only uncovered names; supplied native animations, night trees and artwork stay authoritative. */
   private fun appendColorOsFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
     fallback: IconPackDescriptor, style: SystemIconFallback, size: Int,
     maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>, recommendedMappings: RecommendedIconMappings,
     packageMappingExclusions: Set<String>,
-    check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
+    check: () -> Unit): ColorOsFallbackAdditions {
     require(fallback.colorOsProfile != null && fallback.format == IconPackFormat.CLASSIC_ZIP)
     val protected = java.util.zip.ZipFile(archive).use { source ->
       covered + nativeFallbackProtectedNames(source.entries().asSequence().map { it.name })
     }
     val missing = targets.filter { target -> nativeLauncherIconNames(target).none { it in protected } }
-    if (missing.isEmpty()) return emptySet<String>() to emptySet<IconPackComponent>()
+    if (missing.isEmpty()) return ColorOsFallbackAdditions(emptySet(), emptySet(), emptySet())
     // The outer export already expanded offline targets and resolved their ownership.
     val day = export(fallback, missing, false, size, style, installedOnly = true,
       maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings,
@@ -614,6 +624,7 @@ internal class IconPackExporter(private val context: Context, private val limits
         maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings,
         packageMappingExclusions = packageMappingExclusions, check = check)
       val addedNames = linkedSetOf<String>()
+      val addedPaletteNames = linkedSetOf<String>()
       val systemNames = linkedSetOf<String>()
       var perfectSource: String? = null
       SpoolIconEntries.open(archive.parentFile, limits).use { additions ->
@@ -634,9 +645,10 @@ internal class IconPackExporter(private val context: Context, private val limits
               val second = dark.getInputStream(other).use { it.readBytes() }
               val mask = day.monochrome[name]
               val background = day.monochromeBackgrounds[name] ?: day.paletteBackground
-              val pair = if (mask != null && background != null)
+              val pair = if (mask != null && background != null) {
+                addedPaletteNames.add(name)
                 NativePaletteIcon.entries(name, first, second, mask, background)
-              else NativeDayNightIcon.artworkEntries(name, first, second, requiresNativeDescriptor = name in systemNames)
+              } else NativeDayNightIcon.artworkEntries(name, first, second, requiresNativeDescriptor = name in systemNames)
               additions.append(pair, check)
               addedNames.add(name)
             }
@@ -661,10 +673,13 @@ internal class IconPackExporter(private val context: Context, private val limits
       }
       check()
       check(copy.renameTo(archive)) { "Cannot publish native ColorOS fallback copy" }
-      return (day.colorOsPackages + night.colorOsPackages).filterTo(linkedSetOf()) { it in addedNames } to
-        (day.nativeAdaptationTargets + night.nativeAdaptationTargets).filterTo(linkedSetOf()) {
+      return ColorOsFallbackAdditions(
+        colorOsPackages = (day.colorOsPackages + night.colorOsPackages).filterTo(linkedSetOf()) { it in addedNames },
+        nativeAdaptationTargets = (day.nativeAdaptationTargets + night.nativeAdaptationTargets).filterTo(linkedSetOf()) {
           nativeLauncherIconNames(it).none { name -> name in protected }
-        }
+        },
+        paletteNames = addedPaletteNames,
+      )
     } finally { copy.delete(); day.archive.delete(); night?.archive?.delete() }
   }
 

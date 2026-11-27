@@ -334,7 +334,7 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       val pixels = IntArray(ICON_SIZE * ICON_SIZE)
       bitmap.getPixels(pixels, 0, ICON_SIZE, 0, 0, ICON_SIZE, ICON_SIZE)
       if (MonochromeMaskQuality.isUnusable(pixels, ICON_SIZE, ICON_SIZE,
-          bitmap = drawable is BitmapDrawable)) {
+          bitmap = MonochromeMaskQuality.containsBitmapDrawable(drawable))) {
         MonochromeAssessment(
           status = IconSupportStatus.UNKNOWN,
           fallbackRecommended = true,

@@ -12,7 +12,8 @@ internal class CurrentIconSnapshotSelection(names: Set<String>) {
     val pieces = path.removePrefix("nightmode/").split('/')
     val name = when {
       pieces.size >= 3 &&
-        (pieces[0] == "fancy_icons" || pieces[0] == "animating_icons") -> pieces[1]
+        (pieces[0] == "fancy_icons" || pieces[0] == "animating_icons" ||
+          pieces[0] == "layer_animating_icons") -> pieces[1]
       pieces.size >= 3 && pieces[0] == "res" &&
         (pieces[1] == "drawable" || pieces[1].startsWith("drawable-")) -> when {
           pieces.size == 3 && pieces[2].endsWith(".png") -> pieces[2].removeSuffix(".png")

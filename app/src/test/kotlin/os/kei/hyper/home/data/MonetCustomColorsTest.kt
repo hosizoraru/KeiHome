@@ -107,4 +107,19 @@ class MonetCustomColorsTest {
       assertEquals(value shr 8 and 255, value and 255)
     }
   }
+
+  @Test fun effectiveRoleFamilyAndToneReflectColorOsInspirationAndDimRounding() {
+    val inspiration = MonetCustomization(style = MonetSchemeStyle.COLOROS_INSPIRATION)
+    assertEquals(MonetPaletteFamily.PRIMARY, MonetIconRole.LIGHT_FOREGROUND.effectiveFamily(inspiration))
+    assertEquals(40, MonetIconRole.LIGHT_FOREGROUND.effectiveTone(inspiration))
+    assertEquals(95, MonetIconRole.LIGHT_BACKGROUND.effectiveTone(inspiration))
+    assertEquals(MonetPaletteFamily.PRIMARY, MonetIconRole.DARK_BACKGROUND.effectiveFamily(inspiration))
+    assertEquals(20, MonetIconRole.DARK_BACKGROUND.effectiveTone(inspiration))
+    val standard = MonetCustomization(style = MonetSchemeStyle.TONAL_SPOT)
+    assertEquals(MonetPaletteFamily.SECONDARY, MonetIconRole.DARK_BACKGROUND.effectiveFamily(standard))
+    assertEquals(30, MonetIconRole.LIGHT_FOREGROUND.effectiveTone(standard))
+    // Matches NativeColorOsDynamicIcon.calendarColor rounding: (0x0a * 214 + 127) / 255 = 8, etc.
+    assertEquals(0xFF086BD3.toInt(), IconPackAppearance.DIM_AT_NIGHT.tintColor(0xFF0A7FFB.toInt(), true))
+    assertEquals(0xFF0A7FFB.toInt(), IconPackAppearance.DIM_AT_NIGHT.tintColor(0xFF0A7FFB.toInt(), false))
+  }
 }

@@ -1,7 +1,9 @@
 package os.kei.hyper.home.xposed
 
+import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
 import android.util.Pair
 import io.github.libxposed.api.XposedInterface
@@ -118,8 +120,7 @@ internal class SplashBackgroundRuntime(
       // HyperOS type 6 overlays windowBackground on the modern splash color.
       // Clone only a plain backing layer; preserve the artwork above it.
       val drawable = result.second as? android.graphics.drawable.Drawable ?: return@nativeResult result
-      val night = current.context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-        Configuration.UI_MODE_NIGHT_YES
+      val night = isDarkMode(current.context)
       val adapted = SplashBackgroundDrawable.adapt(drawable, night)
       if (adapted === drawable) result else Pair(result.first, adapted)
     })
@@ -143,8 +144,7 @@ internal class SplashBackgroundRuntime(
   }
 
   private fun adapt(context: Context, color: Int): Int {
-    val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-      Configuration.UI_MODE_NIGHT_YES
+    val night = isDarkMode(context)
     val adapted = SplashBackgroundPolicy.adapt(color, night)
     if (adapted != color && appliedLogged.compareAndSet(false, true)) {
       Log.i(TAG,
@@ -152,6 +152,18 @@ internal class SplashBackgroundRuntime(
     }
     return adapted
   }
+
+  private fun isDarkMode(context: Context): Boolean =
+    when ((context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.nightMode) {
+      UiModeManager.MODE_NIGHT_YES -> true
+      UiModeManager.MODE_NIGHT_NO -> false
+      else -> {
+        val global = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        (if (global == Configuration.UI_MODE_NIGHT_UNDEFINED)
+          context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        else global) == Configuration.UI_MODE_NIGHT_YES
+      }
+    }
 
   companion object {
     private const val DRAWER = "com.android.wm.shell.startingsurface.SplashscreenContentDrawer"

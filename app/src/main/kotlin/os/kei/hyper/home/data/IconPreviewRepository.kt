@@ -8,6 +8,9 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
@@ -224,7 +227,8 @@ internal fun renderIconPreview(
     val unusable = try {
       val pixels = IntArray(96 * 96)
       sample.getPixels(pixels, 0, 96, 0, 0, 96, 96)
-      MonochromeMaskQuality.isUnusable(pixels, 96, 96, bitmap = layer is BitmapDrawable)
+      MonochromeMaskQuality.isUnusable(pixels, 96, 96,
+        bitmap = MonochromeMaskQuality.containsBitmapDrawable(layer))
     } finally {
       sample.recycle()
       layer.bounds = layerBounds
@@ -233,14 +237,28 @@ internal fun renderIconPreview(
     checkCancelled()
 
     // AdaptiveIconDrawable.draw() fills its layer buffer black. Draw ONLY the real mono layer
-    // onto transparent pixels, retaining the adaptive child bounds and the device icon mask.
+    // onto transparent pixels, retaining the adaptive child bounds and applying an antialiased mask.
     val rendered = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     try {
-      val canvas = Canvas(rendered)
-      canvas.clipPath(adaptive.iconMask)
-      layer.draw(canvas)
+      layer.draw(Canvas(rendered))
       checkCancelled()
-      rendered.extractAlpha()
+      val clipped = if (colorMask != null) {
+        IconMaskPolicy.clip(rendered, colorMask)
+      } else {
+        Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { masked ->
+          val maskCanvas = Canvas(masked)
+          val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+          maskCanvas.drawPath(adaptive.iconMask, paint)
+          paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+          maskCanvas.drawBitmap(rendered, 0f, 0f, paint)
+          paint.xfermode = null
+        }
+      }
+      try {
+        clipped.extractAlpha()
+      } finally {
+        if (clipped !== rendered) clipped.recycle()
+      }
     } finally {
       rendered.recycle()
     }

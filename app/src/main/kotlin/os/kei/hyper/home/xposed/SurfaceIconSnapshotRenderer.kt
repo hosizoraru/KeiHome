@@ -113,11 +113,15 @@ internal object SurfaceIconSnapshotRenderer {
     val root = "fancy_icons/$name/"
     val manifest = bytes(root + "manifest.xml", 64 * 1024)
     if (manifest != null) {
-      // Older KeiHome calendars used this fixed accent/text pair. Authenticate the
-      // entire template after that finite substitution, without interpreting foreign MAML.
+      // Older KeiHome calendars used this fixed accent/text pair (and its night-dimmed variant).
+      // Authenticate the entire template after that finite substitution, without interpreting foreign MAML.
       val legacyCalendar = NativeColorOsDynamicIcon.kindOfManifest(
-        manifest.toString(Charsets.UTF_8).replace("#FF0A7FFB", "#FF1969FF")
-          .replace("#FF000000", "#FF101010").toByteArray(Charsets.UTF_8),
+        manifest.toString(Charsets.UTF_8)
+          .replace("#FF1969FF", "#FF0A7FFB")
+          .replace("#FF101010", "#FF000000")
+          .replace("#FF1558D6", "#FF086BD3")
+          .replace("#FF0D0D0D", "#FF000000")
+          .toByteArray(Charsets.UTF_8),
       ) == NativeColorOsDynamicIcon.Kind.CALENDAR
       val dynamic = legacyCalendar || NativeColorOsDynamicIcon.kindOfManifest(manifest) != null ||
         NativeAppleDynamicIcon.kindOfManifest(manifest) != null
@@ -315,10 +319,12 @@ internal object SurfaceIconSnapshotRenderer {
                 val hour = date.get(Calendar.HOUR).toFloat()
                 val minute = date.get(Calendar.MINUTE).toFloat()
                 val second = date.get(Calendar.SECOND).toFloat()
-                val angle = when {
-                  a["src"]!!.contains("hour") -> hour * 30 + minute / 2 + second / 120
-                  a["src"]!!.contains("minute") -> minute * 6 + second / 10
-                  a["src"]!!.contains("second") -> second * 6
+                val angle = when (a["angle"]) {
+                  "#hour12*30+#minute/2" -> hour * 30f + minute / 2f
+                  "#minute*6" -> minute * 6f
+                  "#hour12*30+#minute/2+#second/120" -> hour * 30f + minute / 2f + second / 120f
+                  "#minute*6+#second/10" -> minute * 6f + second / 10f
+                  "#second*6" -> second * 6f
                   else -> 0f
                 }
                 val save = canvas.save()

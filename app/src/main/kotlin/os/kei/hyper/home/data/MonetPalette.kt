@@ -4,7 +4,9 @@ import android.app.WallpaperManager
 import android.content.Context
 import android.provider.Settings
 import androidx.annotation.ColorInt
+import java.util.Locale
 import org.json.JSONObject
+import os.kei.hyper.home.xposed.MonetColorPolicy
 
 internal enum class MonetReadState {
   AVAILABLE,
@@ -46,7 +48,7 @@ internal data class MonochromeIconSettings(
   @ColorInt val colorArgb: Int?,
 ) {
   val colorHex: String?
-    get() = colorArgb?.let { "#%08X".format(it) }
+    get() = colorArgb?.let { "#%08X".format(Locale.ROOT, it) }
 }
 
 internal data class MonetPaletteSnapshot(
@@ -129,7 +131,7 @@ internal class MonetPaletteReader(context: Context) {
     val customization = MonetCustomization.decode(readSetting(MonetAction.Setting.CUSTOMIZATION.key))
     val wallpaper = readWallpaperColors()
     val monochrome = readMonochromeSettings()
-    val ownedColor = readSetting(MonetAction.Setting.AUTO_COLOR.key)?.toIntOrNull()
+    val ownedColor = MonetColorPolicy.parseColor(readSetting(MonetAction.Setting.AUTO_COLOR.key))
     val active = customization != null && monochrome.enabled == true && ownedColor != null &&
       ownedColor == monochrome.colorArgb
     val frameworkPalette = readFrameworkPalette()
@@ -281,12 +283,7 @@ internal class MonetPaletteReader(context: Context) {
       "0" -> false
       else -> null
     }
-    val colorArgb = readSystemSetting(KEY_MONOCHROME_COLOR)
-      ?.toLongOrNull()
-      ?.takeIf {
-        it >= Int.MIN_VALUE.toLong() && it <= UInt.MAX_VALUE.toLong()
-      }
-      ?.toInt()
+    val colorArgb = MonetColorPolicy.parseColor(readSystemSetting(KEY_MONOCHROME_COLOR))
     return MonochromeIconSettings(enabled = enabled, colorArgb = colorArgb)
   }
 

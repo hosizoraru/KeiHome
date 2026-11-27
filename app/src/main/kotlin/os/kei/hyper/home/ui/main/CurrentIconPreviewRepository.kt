@@ -62,22 +62,7 @@ internal class CurrentIconPreviewRepository(
         publishedMask(it, file, source.revision, epoch)
       }
       val original = originals.load(app, colorMask = mask)
-      val key = Key(source.revision, source.pack.id,
-        "original:${app.packageName}:${app.userId}:${original.light?.generationId}:${original.dark?.generationId}",
-        file.absolutePath, file.length(), file.lastModified(), Configuration(application.resources.configuration),
-        app.packageName, app.userId)
-      requests[(key.hashCode() and Int.MAX_VALUE) % requests.size].withLock {
-        synchronized(lock) { cache.get(key) }?.let { return@withContext it }
-        running.withPermit {
-          currentCoroutineContext().ensureActive()
-          if (mask == null) return@withContext original
-          val result = original.copy(light = original.light?.let { IconMaskPolicy.clip(it, mask) },
-            dark = original.dark?.let { IconMaskPolicy.clip(it, mask) }, maskPathData = mask.pathData)
-          currentCoroutineContext().ensureActive()
-          synchronized(lock) { if (generation == epoch) cache.put(key, result) }
-          result
-        }
-      }
+      return@withContext if (mask == null) original else original.copy(maskPathData = mask.pathData)
     }
   }
 
@@ -114,7 +99,7 @@ internal class CurrentIconPreviewRepository(
               val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
                 BitmapFactory.Options().apply { inSampleSize = sample; inScaled = false }) ?: return null
               return if (!colored) bitmap
-              else IconMaskPolicy.clip(bitmap, applied).also { if (it !== bitmap) bitmap.recycle() }
+              else IconMaskPolicy.clipIfExceeds(bitmap, applied, check = { caller.ensureActive() })
             }
             if (name in source.paletteNames) {
               mono = png("fancy_icons/$name/mask.png")
@@ -128,8 +113,12 @@ internal class CurrentIconPreviewRepository(
           }
           if (day == null || night == null) {
             val pair = loadArtwork(source.pack, entry)
-            day = day ?: pair.light?.let { IconMaskPolicy.clip(it, mask) }
-            night = night ?: pair.dark?.let { IconMaskPolicy.clip(it, mask) }
+            day = day ?: pair.light?.let {
+              IconMaskPolicy.clipIfExceeds(it, mask, check = { caller.ensureActive() }, recycleSource = false)
+            }
+            night = night ?: pair.dark?.let {
+              IconMaskPolicy.clipIfExceeds(it, mask, check = { caller.ensureActive() }, recycleSource = false)
+            }
           }
           caller.ensureActive()
           val result = AppIconPreviews(day, night, mono, mono, backgroundMask = background,

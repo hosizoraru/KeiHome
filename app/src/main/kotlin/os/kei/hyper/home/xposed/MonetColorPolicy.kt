@@ -1,9 +1,9 @@
 package os.kei.hyper.home.xposed
 
 import android.content.res.Configuration
-import kotlin.math.pow
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetIconRole
+import os.kei.hyper.home.data.MonetSchemes
 
 internal data class IconColors(val foreground: Int, val background: Int)
 
@@ -63,21 +63,6 @@ internal object MonetColorPolicy {
     }
   }
 
-  fun isLegiblePair(foreground: Int, background: Int): Boolean {
-    if (foreground ushr 24 != 0xff || background ushr 24 != 0xff) return false
-    val foregroundLuminance = luminance(foreground)
-    val backgroundLuminance = luminance(background)
-    return (maxOf(foregroundLuminance, backgroundLuminance) + 0.05) /
-      (minOf(foregroundLuminance, backgroundLuminance) + 0.05) >= MIN_CONTRAST
-  }
-
-  private fun luminance(color: Int): Double {
-    fun linear(component: Int): Double {
-      val value = component / 255.0
-      return if (value <= 0.04045) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
-    }
-    return 0.2126 * linear(color ushr 16 and 0xff) +
-      0.7152 * linear(color ushr 8 and 0xff) +
-      0.0722 * linear(color and 0xff)
-  }
+  fun isLegiblePair(foreground: Int, background: Int): Boolean =
+    MonetSchemes.opaqueContrastRatio(foreground, background)?.let { it >= MIN_CONTRAST } == true
 }

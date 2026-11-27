@@ -278,8 +278,7 @@ internal class ColorOsFallbackRenderer(
         drawLayer(canvas, mono, NativeLayerViewport.bounds(Rect(0, 0, sizePx, sizePx)), false, check)
         val pixels = IntArray(sizePx * sizePx)
         output.getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
-        var bitmapLayer = false
-        visit(mono, check) { if (it is BitmapDrawable) bitmapLayer = true }
+        val bitmapLayer = MonochromeMaskQuality.containsBitmapDrawable(mono)
         if (MonochromeMaskQuality.isUnusable(pixels, sizePx, sizePx, bitmapLayer)) {
           throw Unavailable(SkipReason.UNUSABLE_MONOCHROME)
         }

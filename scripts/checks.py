@@ -214,6 +214,12 @@ GROUPS = {
         "os.kei.hyper.home.iconpack.SystemIconFallbackEdgeTest")),
     "hook-lifecycle": ("jvm", "Generation retirement bookkeeping (no device action)", (
         "ModuleRetirementMaintenanceTest",)),
+    "monet": ("jvm", "Monet state machine, schemes, custom colors, palette JSON, masks, and transport", (
+        "MonetActionTest", "MonetSchemesTest", "MonetCustomColorsTest", "MonetCustomizationTest",
+        "MonetPaletteJsonTest", "MonetColorPolicyTest", "MonetMaskRetentionTest",
+        "MonetPreservedSelectionTest", "MonetPublicationTest", "GeneratedPalettePublicationTest",
+        "LauncherLabelLeaseTest", "NativeMonetClientTest", "NativeMonetSocketBrokerTest",
+        "GenericMonetMaskTest")),
     "release-jvm": ("jvm", "Full JVM suite; opt in for broad changes or releases", ()),
 }
 

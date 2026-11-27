@@ -77,10 +77,6 @@ internal data class MonetPaletteSnapshot(
       .distinct()
       .size
 
-  // Kept as short aliases for the status surface and older UI tests.
-  val wallpaperColors: List<Int>
-    get() = wallpaper.colors
-
   val families: List<MonetColorFamily>
     get() = activePalette.families
 }
@@ -328,14 +324,4 @@ private val FRAMEWORK_MONET_TONES = listOf(
   50 to 95,
   10 to 99,
   0 to 100,
-)
-
-internal val MonetThemeStyles = listOf(
-  "TONAL_SPOT",
-  "VIBRANT",
-  "EXPRESSIVE",
-  "SPRITZ",
-  "RAINBOW",
-  "FRUIT_SALAD",
-  "MONOCHROMATIC",
 )

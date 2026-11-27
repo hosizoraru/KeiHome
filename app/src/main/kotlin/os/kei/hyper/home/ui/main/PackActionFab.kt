@@ -22,20 +22,16 @@ import os.kei.hyper.home.ui.components.Os4Motion
 @Composable
 internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   onHeightChanged: (Int) -> Unit = {}) {
-  if (page != 2 && page != 3) return
+  if (page != 3) return
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
-  val monet by model.monet.collectAsStateWithLifecycle()
-  val inspiration = preferences.monetInspiration ?:
-    (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
-      runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
-  val update = page == 3 && when (section) {
+  val update = when (section) {
     "home", "fallback", "fallback-settings", "extra-icons" -> true
     else -> false
   }
-  val generate = page == 3 && section == "coloros"
+  val generate = section == "coloros"
   val busy = state.nativeImporting != null
   // Read the observed report before deciding visibility so a later source discovery animates the FAB in.
   val activeSource = runtime.report?.iconTheme?.localId
@@ -43,7 +39,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
     ?.takeIf { section != "extra-icons" || state.extraIconPreparation == (it.token to preferences.extraIconPackages) }
     else null
   val context = LocalContext.current
-  val visible = (update || generate || (page == 2 && inspiration)) &&
+  val visible = (update || generate) &&
     (!update || (activeSource != null &&
       model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents) != null))
   LaunchedEffect(visible) {
@@ -59,7 +55,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
       runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
     val description = stringResource(if (busy && state.preparing) R.string.pack_action_preparing
       else if (busy) R.string.icon_pack_importing else if (pending != null) R.string.pack_apply_native else if (update)
-      R.string.pack_action_update else if (generate) R.string.pack_action_install else R.string.pack_action_inspiration)
+      R.string.pack_action_update else R.string.pack_action_install)
     val label = stringResource(when {
       busy && state.preparing -> R.string.action_label_preparing
       busy -> R.string.action_label_processing
@@ -76,7 +72,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
       modifier = Modifier.testTag("icon-packs.$section.action"), enabled = ready, busy = busy, onClick = {
         if (pending != null) {
           openNativeThemeDetail(context, requireNotNull(pending.localId))
-        } else if (update) model.updateCurrentSystemFallback() else model.applyColorOs(page == 2)
+        } else if (update) model.updateCurrentSystemFallback() else model.applyColorOs(false)
       })
   }
 }

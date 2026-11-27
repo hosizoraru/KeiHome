@@ -142,28 +142,37 @@ internal fun MonetPicker(
   val candidatePairs by produceState<Map<Int, os.kei.hyper.home.data.MonetIconRoles>>(emptyMap(), colors, preferredStyle) {
     value = withContext(Dispatchers.Default) {
       if (preferredStyle != MonetSchemeStyle.COLOROS_INSPIRATION) emptyMap()
-      else colors.mapNotNull { candidate ->
-        ensureActive()
-        MonetSchemes.iconRoles(MonetSchemes.generate(candidate, preferredStyle), false,
-          MonetCustomization(style = preferredStyle))?.let { candidate to it }
-      }.toMap()
+      else {
+        val previewChoice = MonetCustomization(style = preferredStyle)
+        colors.mapNotNull { candidate ->
+          ensureActive()
+          MonetSchemes.iconRolesForSeed(
+            seed = candidate,
+            style = preferredStyle,
+            dark = false,
+            choice = previewChoice,
+          )?.let { candidate to it }
+        }.toMap()
+      }
     }
   }
-  val schemes = key(seed, preferredStyle) {
-    produceState<Map<MonetSchemeStyle, Map<String, Int>>>(emptyMap()) {
+  val styleSwatches = key(seed, preferredStyle) {
+    produceState<Map<MonetSchemeStyle, List<Int>>>(emptyMap()) {
       value = withContext(Dispatchers.Default) {
-        if (seed == null) emptyMap() else (preferredStyle?.let { listOf(it) } ?:
-          MonetSchemeStyle.entries.filterNot { it == MonetSchemeStyle.COLOROS_INSPIRATION }).associateWith {
-          ensureActive()
-          MonetSchemes.generate(seed, it)
-        }
+        if (seed == null || preferredStyle != null) emptyMap()
+        else MonetSchemeStyle.entries
+          .filterNot { it == MonetSchemeStyle.COLOROS_INSPIRATION }
+          .associateWith {
+            ensureActive()
+            MonetSchemes.previewSwatches(seed, it)
+          }
       }
     }.value
   }
-  val customKey = Triple(seed, choice.style, choice.paletteOverrides)
-  val customPalette by produceState<Pair<Any?, Map<String, Int>?>>(null to null, customKey) {
-    value = customKey to withContext(Dispatchers.Default) {
-      if (seed == null || choice.paletteOverrides.isEmpty()) null
+  val paletteKey = Triple(seed, choice.style, choice.paletteOverrides)
+  val generatedPalette by produceState<Pair<Any?, Map<String, Int>?>>(null to null, paletteKey, choice.source) {
+    value = paletteKey to withContext(Dispatchers.Default) {
+      if (seed == null || (choice.source == MonetSeedSource.SYSTEM_COLOR && choice.paletteOverrides.isEmpty())) null
       else MonetSchemes.generate(seed, choice.style, choice.paletteOverrides)
     }
   }
@@ -171,8 +180,9 @@ internal fun MonetPicker(
     snapshot?.frameworkPalette?.families?.flatMap { family ->
       family.colors.mapNotNull { color -> color.tone?.let { "${family.name}$it" to color.value } }
     }?.toMap()
-  } else if (choice.paletteOverrides.isEmpty()) schemes[choice.style]
-    else customPalette.second.takeIf { customPalette.first == customKey }
+  } else {
+    generatedPalette.second.takeIf { generatedPalette.first == paletteKey }
+  }
   val legible = remember(palette, choice) {
     palette != null && listOf(false, true).all { dark ->
       MonetSchemes.iconRoles(palette, dark, choice)?.contrastRatio?.let { it >= 4.5 } == true
@@ -278,7 +288,7 @@ internal fun MonetPicker(
           colors.forEachIndexed { index, color ->
             val pair = if (preferredStyle != null && choice.source == MonetSeedSource.SYSTEM_COLOR)
               palette?.let { MonetSchemes.iconRoles(it, false, choice) } else candidatePairs[color]
-            val hex = "#%06X".format(color and 0xFFFFFF)
+            val hex = "#%06X".format(java.util.Locale.ROOT, color and 0xFFFFFF)
             val selectedColor = seed == color
             MonetSurfaceCard(
               modifier = Modifier.testTag("monet.seed.$index").semantics {
@@ -318,7 +328,7 @@ internal fun MonetPicker(
     }).chunked(columns).forEach { styles ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         styles.forEach { style ->
-          val sample = schemes[style]
+          val swatches = styleSwatches[style]
           val isSelected = choice.style == style
           MonetSurfaceCard(
             modifier = Modifier.weight(1f).testTag("monet.style.${style.name}")
@@ -331,16 +341,16 @@ internal fun MonetPicker(
             Row(verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp)) {
               val accent by animateColorAsState(
-                sample?.get("primary60")?.let(::Color) ?: MiuixTheme.colorScheme.primary,
+                swatches?.getOrNull(0)?.let(::Color) ?: MiuixTheme.colorScheme.primary,
                 Os4Motion.colorSpring(), label = "monet-style-accent")
               val secondary by animateColorAsState(
-                sample?.get("secondary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                swatches?.getOrNull(1)?.let(::Color) ?: MiuixTheme.colorScheme.surface,
                 Os4Motion.colorSpring(), label = "monet-style-secondary")
               val tertiary by animateColorAsState(
-                sample?.get("tertiary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                swatches?.getOrNull(2)?.let(::Color) ?: MiuixTheme.colorScheme.surface,
                 Os4Motion.colorSpring(), label = "monet-style-tertiary")
               val neutral by animateColorAsState(
-                sample?.get("neutral90")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                swatches?.getOrNull(3)?.let(::Color) ?: MiuixTheme.colorScheme.surface,
                 Os4Motion.colorSpring(), label = "monet-style-neutral")
               Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(30.dp)) {
@@ -493,16 +503,7 @@ private fun IconPalettePreview(
 }
 
 @Composable
-private fun styleName(style: MonetSchemeStyle): String = stringResource(when (style) {
-  MonetSchemeStyle.TONAL_SPOT -> R.string.monet_style_tonal
-  MonetSchemeStyle.VIBRANT -> R.string.monet_style_vibrant
-  MonetSchemeStyle.NEUTRAL -> R.string.monet_style_neutral
-  MonetSchemeStyle.MONOCHROME -> R.string.monet_style_mono
-  MonetSchemeStyle.EXPRESSIVE -> R.string.monet_style_expressive
-  MonetSchemeStyle.RAINBOW -> R.string.monet_style_rainbow
-  MonetSchemeStyle.FRUIT_SALAD -> R.string.monet_style_fruit_salad
-  MonetSchemeStyle.COLOROS_INSPIRATION -> R.string.pack_style_inspiration
-})
+private fun styleName(style: MonetSchemeStyle): String = monetStyleLabel(style)
 
 @Composable
 private fun styleDescription(style: MonetSchemeStyle): String = stringResource(when (style) {

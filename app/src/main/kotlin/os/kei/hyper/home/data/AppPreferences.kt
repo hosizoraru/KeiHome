@@ -22,6 +22,7 @@ internal enum class ColorOsStyle(val key: String) {
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
   val usesMonet: Boolean get() = this == INSPIRATION
   val artworkKey: String get() = if (usesMonet) "classic" else key
+  fun builtinKey(artPlus: Boolean): String = "coloros-$artworkKey-art-${if (usesMonet || artPlus) "on" else "off"}"
   fun importSourceId(assetId: String, appearance: IconPackAppearance): String =
     "coloros:$key:${appearance.name}:$assetId"
 }
@@ -435,7 +436,7 @@ internal class AppPreferences internal constructor(
     val key = "coloros_prepared_$sourceId"
     if (confirmedPalette == null && !preferences.contains(key)) return
     val monet = confirmedPalette ?: preferences.getBoolean(key, false)
-    preferences.edit().putBoolean("coloros_component_$localId", monet).apply()
+    preferences.edit().putBoolean("coloros_component_$localId", monet).remove(key).apply()
     state.update { it.copy(colorOsComponents = it.colorOsComponents + (localId to monet)) }
   }
 

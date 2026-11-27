@@ -208,7 +208,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         }
       }
       "coloros" -> {
-        item("settings") { ColorOsSettings(model, importReady) }
+        item("settings") { ColorOsSettings(model) }
       }
       else -> {
         item("search") {

@@ -30,27 +30,33 @@ import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-private fun monetStyleLabel(style: String?): String = when (style) {
-  "TONAL_SPOT" -> stringResource(R.string.monet_style_tonal)
-  "VIBRANT" -> stringResource(R.string.monet_style_vibrant)
-  "NEUTRAL", "SPRITZ" -> stringResource(R.string.monet_style_neutral)
-  "MONOCHROME", "MONOCHROMATIC" -> stringResource(R.string.monet_style_mono)
-  "EXPRESSIVE" -> stringResource(R.string.monet_style_expressive)
-  "RAINBOW" -> stringResource(R.string.monet_style_rainbow)
-  "FRUIT_SALAD" -> stringResource(R.string.monet_style_fruit_salad)
-  "COLOROS_INSPIRATION" -> stringResource(R.string.pack_style_inspiration)
+internal fun monetStyleLabel(style: os.kei.hyper.home.data.MonetSchemeStyle): String = stringResource(when (style) {
+  os.kei.hyper.home.data.MonetSchemeStyle.TONAL_SPOT -> R.string.monet_style_tonal
+  os.kei.hyper.home.data.MonetSchemeStyle.VIBRANT -> R.string.monet_style_vibrant
+  os.kei.hyper.home.data.MonetSchemeStyle.NEUTRAL -> R.string.monet_style_neutral
+  os.kei.hyper.home.data.MonetSchemeStyle.MONOCHROME -> R.string.monet_style_mono
+  os.kei.hyper.home.data.MonetSchemeStyle.EXPRESSIVE -> R.string.monet_style_expressive
+  os.kei.hyper.home.data.MonetSchemeStyle.RAINBOW -> R.string.monet_style_rainbow
+  os.kei.hyper.home.data.MonetSchemeStyle.FRUIT_SALAD -> R.string.monet_style_fruit_salad
+  os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION -> R.string.pack_style_inspiration
+})
+
+@Composable
+internal fun monetStyleLabel(style: String?): String = when (style) {
+  "TONAL_SPOT" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.TONAL_SPOT)
+  "VIBRANT" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.VIBRANT)
+  "NEUTRAL", "SPRITZ" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.NEUTRAL)
+  "MONOCHROME", "MONOCHROMATIC" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.MONOCHROME)
+  "EXPRESSIVE" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.EXPRESSIVE)
+  "RAINBOW" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.RAINBOW)
+  "FRUIT_SALAD" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.FRUIT_SALAD)
+  "COLOROS_INSPIRATION" -> monetStyleLabel(os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION)
   else -> style?.takeIf { it.isNotBlank() } ?: stringResource(R.string.monet_unknown)
 }
 
 @Composable
-private fun paletteStatus(snapshot: MonetPaletteSnapshot?, readFailed: Boolean): String = when {
-  readFailed -> stringResource(R.string.monet_unavailable)
-  snapshot == null -> stringResource(R.string.monet_loading)
-  snapshot.launcherPalette.state == MonetReadState.AVAILABLE ||
-    snapshot.frameworkPalette.state == MonetReadState.AVAILABLE ->
-    stringResource(R.string.monet_palette_available)
-  else -> stringResource(R.string.monet_unavailable)
-}
+private fun paletteStatus(readFailed: Boolean): String =
+  stringResource(if (readFailed) R.string.monet_unavailable else R.string.monet_loading)
 
 @Composable
 internal fun MonetDetailCard(
@@ -64,7 +70,7 @@ internal fun MonetDetailCard(
     if (snapshot == null || readFailed) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-          text = paletteStatus(snapshot, readFailed),
+          text = paletteStatus(readFailed),
           style = MiuixTheme.textStyles.body1,
           color = MiuixTheme.colorScheme.onSurfaceSecondary,
         )
@@ -87,7 +93,7 @@ internal fun MonetDetailCard(
       if (snapshot.wallpaper.state == MonetReadState.AVAILABLE) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           snapshot.wallpaper.colors.forEach { color ->
-            val hex = "#%06X".format(color and 0xFFFFFF)
+            val hex = "#%06X".format(java.util.Locale.ROOT, color and 0xFFFFFF)
             val description = stringResource(R.string.monet_wallpaper_color_description, hex)
             Box(
               modifier = Modifier
@@ -220,7 +226,7 @@ private fun MonetFamilySwatch(family: MonetColorFamily) {
         .filter { it.tone in listOf(0, 20, 40, 60, 80, 100) }
         .take(6)
         .forEach { color ->
-          val hex = "#%08X".format(color.value)
+          val hex = "#%08X".format(java.util.Locale.ROOT, color.value)
           val description = color.tone?.let { tone ->
             stringResource(R.string.monet_swatch_tone_description, name, tone, hex)
           } ?: stringResource(R.string.monet_swatch_description, name, hex)

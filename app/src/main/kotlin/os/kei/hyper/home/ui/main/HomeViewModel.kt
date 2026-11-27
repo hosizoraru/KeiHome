@@ -237,8 +237,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       }
     }
   }
+  private val monetController = MonetController(
+    application = application,
+    scope = viewModelScope,
+    preferences = preferences,
+    activeThemeLocalId = { runtime.value.report?.iconTheme?.localId },
+    colorOsPaletteUnavailable = ::colorOsPaletteUnavailable,
+  )
   val monet: StateFlow<MonetUiState>
-    field = MutableStateFlow(MonetUiState())
+    get() = monetController.state
   val themeEffects: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val launcherLabels = LauncherLabelSettings(viewModelScope) { framework.value.launcherLabelsInScope() }
@@ -276,8 +283,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val refreshResults: StateFlow<Map<Int, PageRefreshResult>>
     field = MutableStateFlow(emptyMap())
 
-  private val paletteReader = MonetPaletteReader(application)
-  private val paletteMutex = Mutex()
   private val runtimeMutex = Mutex()
   private val iconPacksMutex = Mutex()
   private val themeEffectsMutex = Mutex()
@@ -298,7 +303,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private var pendingAppFullPreviewRevision: Long? = null
   private var observedAppTheme: String? = null
   private var scanJob: Job? = null
-  private var applyJob: Job? = null
   private var packageChangeJob: Job? = null
   private val pendingPackageRefresh = PendingPackageRefresh()
   private val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(
@@ -468,6 +472,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         lowBrightnessContrast.reset()
         wallpaperDimmingStrength.reset()
         if (service == null && !binding.waiting) initialActivation.observe(null)
+        if (service == null) monetController.cancelPendingApply()
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4)
             launch { readRuntimeStatus(includeIconTheme = visiblePage != 5) }
@@ -621,7 +626,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
           return@launch
         }
-        if (page in 0..3) readRuntimeStatus(true, force = true)
+        val wallpaperRefreshed = if (page == 2) {
+          coroutineScope {
+            val statusJob = launch { readRuntimeStatus(true, force = true) }
+            val refreshed = async { monetController.refreshWallpaper() }.await()
+            statusJob.join()
+            refreshed
+          }
+        } else {
+          if (page in 0..3) readRuntimeStatus(true, force = true)
+          true
+        }
         if (page == 3) {
           readThemeEffects()
           packPreviews.clear()
@@ -629,7 +644,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           packRepository.invalidateInstalled()
           readIconPacks()
         }
-        val wallpaperRefreshed = if (page == 2) refreshWallpaper() else true
         readPalette()
         if (page == 0 || page == 1) {
           pendingAppRefresh.add()
@@ -669,26 +683,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   internal fun previewCacheBytes(): Long =
     previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes() +
       perfectPacks.customStaticPreviews.sizeBytes()
-
-  private suspend fun refreshWallpaper(): Boolean {
-    val service = FrameworkConnection.service.value ?: return false
-    return try {
-      val request = withContext(Dispatchers.IO) { MonetAction.requestPaletteRefresh(service) }
-      kotlinx.coroutines.withTimeoutOrNull(4_000) {
-        var completed = false
-        while (!completed) {
-          completed = withContext(Dispatchers.IO) {
-            android.provider.Settings.Secure.getString(getApplication<Application>().contentResolver,
-              MonetAction.PALETTE_REFRESHED)?.toLongOrNull() == request.revision
-          }
-          if (!completed) delay(250)
-        }
-        true
-      } == true
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (_: Exception) { false }
-  }
 
   private fun packageChanged(packageName: String, user: UserHandle) {
     val serial = getApplication<Application>().getSystemService(android.os.UserManager::class.java)
@@ -1298,38 +1292,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  private suspend fun readPalette() = paletteMutex.withLock {
-    try {
-      val result = withContext(Dispatchers.IO) { paletteReader.read() }
-      monet.update { it.copy(snapshot = result, readFailed = false) }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (_: Exception) { monet.update { it.copy(readFailed = true) } }
-  }
+  private suspend fun readPalette() = monetController.readPalette()
 
-  fun applyMonet(choice: MonetCustomization) {
-    preferences.setMonetInspiration(choice.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION)
-    submitMonet(choice, preserveEnabled = true)
-  }
+  fun applyMonet(choice: MonetCustomization) = monetController.apply(choice)
 
-  fun selectMonetDesign(inspiration: Boolean) {
-    monet.update {
-      if (it.action == MonetActionStatus.APPLIED) it.copy(action = MonetActionStatus.IDLE, submittedChoice = null)
-      else it
-    }
-    preferences.setMonetInspiration(inspiration)
-  }
+  fun selectMonetDesign(inspiration: Boolean) = monetController.selectDesign(inspiration)
 
-  fun setMonetEnabled(enabled: Boolean) {
-    if (enabled && colorOsPaletteUnavailable()) return
-    val choice = monet.value.snapshot?.customization ?: MonetCustomization()
-    val active = runtime.value.report?.iconTheme?.localId
-    val inspiration = preferences.state.value.monetInspiration ?:
-      (active != null && preferences.state.value.colorOsComponents[active] == true)
-    submitMonet(choice.copy(style = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION
-      else choice.style.takeUnless { it == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION }
-        ?: os.kei.hyper.home.data.MonetSchemeStyle.TONAL_SPOT), enabled)
-  }
+  fun setMonetEnabled(enabled: Boolean) = monetController.setEnabled(enabled)
 
   private fun colorOsPaletteUnavailable(): Boolean {
     val active = runtime.value.report?.iconTheme?.localId ?: return false
@@ -1344,10 +1313,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       .takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
     preferences.setColorOsStyle(style)
     if (style.usesMonet) preferences.setMonetInspiration(true)
-    val key = "coloros-${style.artworkKey}-art-${if (style.usesMonet || selected.colorOsArtPlus) "on" else "off"}"
+    val key = style.builtinKey(selected.colorOsArtPlus)
     fun publish(pack: IconPackDescriptor) {
       // An ordinary ColorOS component has no palette template.
-      if (!style.usesMonet) submitMonet(monet.value.snapshot?.customization ?: MonetCustomization(), false)
+      if (!style.usesMonet) monetController.disableForNonMonetColorOs()
       importNativeIconPack(pack.copy(id = style.importSourceId(pack.id, selected.iconPackAppearance),
         displayName = colorOsDisplayName(style, selected.colorOsArtPlus)), includePalette = style.usesMonet)
     }
@@ -1382,43 +1351,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private fun colorOsDisplayName(style: ColorOsStyle, art: Boolean): String =
     if (style.usesMonet) getApplication<Application>().getString(os.kei.hyper.home.R.string.pack_style_inspiration)
     else "ColorOS · ${getApplication<Application>().getString(colorOsStyleLabel(style))} · ART${if (art) "+" else "-"}"
-
-  private fun submitMonet(choice: MonetCustomization, enabled: Boolean = true, preserveEnabled: Boolean = false) {
-    if (enabled && colorOsPaletteUnavailable()) return
-    val service = FrameworkConnection.service.value ?: return
-    applyJob?.cancel()
-    val submitted = choice.copy(iconAppearance = preferences.state.value.iconPackAppearance)
-    monet.update { it.copy(action = MonetActionStatus.APPLYING, submittedChoice = submitted) }
-    applyJob = viewModelScope.launch {
-      try {
-        val request = withContext(Dispatchers.IO) {
-          MonetAction.submit(service, submitted, enabled,
-            preserveEnabled = preserveEnabled)
-        }
-        // Continue waiting across navigation/configuration changes, including a late native ACK.
-        val started = android.os.SystemClock.elapsedRealtime()
-        while (android.os.SystemClock.elapsedRealtime() - started < MonetAction.REQUEST_LIFETIME_MS &&
-          FrameworkConnection.service.value === service) {
-          if (withContext(Dispatchers.IO) { MonetAction.isApplied(getApplication<Application>().contentResolver, request) }) {
-            monet.update { it.copy(action = MonetActionStatus.APPLIED) }
-            readPalette()
-            return@launch
-          }
-          if (android.os.SystemClock.elapsedRealtime() - started >= 3_000) {
-            monet.update { it.copy(action = MonetActionStatus.UNCONFIRMED) }
-          }
-          delay(500)
-        }
-        monet.update { it.copy(action = MonetActionStatus.UNCONFIRMED) }
-      } catch (cancellation: CancellationException) {
-        throw cancellation
-      } catch (_: UnsupportedOperationException) {
-        monet.update { it.copy(action = MonetActionStatus.UNAVAILABLE) }
-      } catch (_: Exception) {
-        monet.update { it.copy(action = MonetActionStatus.FAILED) }
-      }
-    }
-  }
 
   override fun onCleared() {
     packageObserver.close()

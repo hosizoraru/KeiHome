@@ -46,57 +46,54 @@ import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: Boolean = false) {
+internal fun ColorOsSettings(model: HomeViewModel) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val state by model.iconPacks.collectAsStateWithLifecycle()
-  val style = if (inspiration) ColorOsStyle.INSPIRATION else preferences.colorOsStyle
-    .takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
-  val art = inspiration || preferences.colorOsArtPlus
-  val key = "coloros-${style.artworkKey}-art-${if (art) "on" else "off"}"
+  val style = preferences.colorOsStyle.takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
+  val art = preferences.colorOsArtPlus
+  val key = style.builtinKey(art)
   val card = state.packs.firstOrNull { it.pack.builtinKey == key }
   val busy = state.nativeImporting != null
   Column(Modifier.os4ContentSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    if (!inspiration) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(vertical = 16.dp)) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
-          items(ColorOsStyle.entries.filterNot { it.usesMonet }, key = { it.key }) { option ->
-            val preview = state.packs.firstOrNull {
-              it.pack.builtinKey == "coloros-${option.key}-art-${if (art) "on" else "off"}"
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(vertical = 16.dp)) {
+      LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
+        items(ColorOsStyle.entries.filterNot { it.usesMonet }, key = { it.key }) { option ->
+          val preview = state.packs.firstOrNull {
+            it.pack.builtinKey == option.builtinKey(art)
+          }
+          val selected = option == style
+          val borderColor by animateColorAsState(
+            if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
+            Os4Motion.colorSpring(),
+            label = "coloros-style-border",
+          )
+          val labelColor by animateColorAsState(
+            if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+            Os4Motion.colorSpring(),
+            label = "coloros-style-label",
+          )
+          val tileScale by animateFloatAsState(
+            if (selected) 1.03f else 1f,
+            Os4Motion.stateSpring(),
+            label = "coloros-style-scale",
+          )
+          Column(Modifier.width(82.dp).graphicsLayer { scaleX = tileScale; scaleY = tileScale }
+            .squircleBorder(2.dp, borderColor, 18.dp)
+            .os4Clickable(enabled = !busy, cornerRadius = 18.dp) { model.preferences.setColorOsStyle(option) }
+            .padding(6.dp).semantics { this.selected = selected },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            (preview?.pack?.entries?.firstOrNull { it.component?.packageName == "com.android.camera" }
+              ?: preview?.previewEntries?.firstOrNull())?.let {
+              PackStyleThumbnail(preview!!.pack, it, model.packPreviews, preferences.iconPackAppearance)
             }
-            val selected = option == style
-            val borderColor by animateColorAsState(
-              if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
-              Os4Motion.colorSpring(),
-              label = "coloros-style-border",
-            )
-            val labelColor by animateColorAsState(
-              if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-              Os4Motion.colorSpring(),
-              label = "coloros-style-label",
-            )
-            val tileScale by animateFloatAsState(
-              if (selected) 1.03f else 1f,
-              Os4Motion.stateSpring(),
-              label = "coloros-style-scale",
-            )
-            Column(Modifier.width(82.dp).graphicsLayer { scaleX = tileScale; scaleY = tileScale }
-              .squircleBorder(2.dp, borderColor, 18.dp)
-              .os4Clickable(enabled = !busy, cornerRadius = 18.dp) { model.preferences.setColorOsStyle(option) }
-              .padding(6.dp).semantics { this.selected = selected },
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.spacedBy(6.dp)) {
-              (preview?.pack?.entries?.firstOrNull { it.component?.packageName == "com.android.camera" }
-                ?: preview?.previewEntries?.firstOrNull())?.let {
-                PackStyleThumbnail(preview!!.pack, it, model.packPreviews, preferences.iconPackAppearance)
-              }
-              Text(stringResource(colorOsStyleLabel(option)), style = MiuixTheme.textStyles.footnote2,
-                color = labelColor)
-            }
+            Text(stringResource(colorOsStyleLabel(option)), style = MiuixTheme.textStyles.footnote2,
+              color = labelColor)
           }
         }
       }
     }
-    Os4AnimatedVisibility(card != null && !inspiration) {
+    Os4AnimatedVisibility(card != null) {
       if (card != null) Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(14.dp)) {
         Crossfade(targetState = Triple(style, art, card), animationSpec = tween(200), label = "coloros-preview-card") { (currentStyle, _, previewCard) ->
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -116,11 +113,11 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
-    if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,
+    IconPackAppearancePreference(preferences.iconPackAppearance,
       model.preferences::setIconPackAppearance, !busy, compact = true,
       staticAppearance = preferences.staticAppearanceIcons,
       onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons)
-    if (!inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       SwitchPreference(title = stringResource(R.string.pack_art_plus),
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,
         enabled = !busy, onCheckedChange = model.preferences::setColorOsArtPlus)

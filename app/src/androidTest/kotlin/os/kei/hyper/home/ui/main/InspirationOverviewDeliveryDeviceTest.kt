@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.Assume
 import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.BuildConfig
@@ -17,6 +18,11 @@ import os.kei.hyper.home.MainActivity
 @RunWith(AndroidJUnit4::class)
 class InspirationOverviewDeliveryDeviceTest {
   @Test(timeout = 360_000) fun overviewCanPublishWithoutFirstOpeningTheCatalog() {
+    val args = InstrumentationRegistry.getArguments()
+    Assume.assumeTrue(
+      "Opt-in live device delivery test; pass -e keihome.liveDelivery=true to run",
+      args.getString("keihome.liveDelivery") == "true",
+    )
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     ActivityScenario.launch(MainActivity::class.java).use { scenario ->
       lateinit var model: HomeViewModel

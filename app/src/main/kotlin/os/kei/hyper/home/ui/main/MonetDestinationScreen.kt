@@ -84,8 +84,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, on
   val ordinary = colorOsComponents == false
   val paletteNames = browser.takeIf { it?.revision == runtime.report?.iconTheme?.previewKey }?.paletteNames
   val locked = colorOsPaletteLocked(ordinary, paletteNames)
-  val inspiration = preferences.monetInspiration ?:
-    (monet.snapshot?.customization?.style == MonetSchemeStyle.COLOROS_INSPIRATION || colorOsComponents == true)
+  val inspiration = resolveMonetInspiration(preferences.monetInspiration, monet.snapshot, colorOsComponents)
 
   val pager = rememberPagerState { MonetTabs.size }
   val scope = rememberCoroutineScope()
@@ -300,8 +299,21 @@ private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runt
     }
   }
   Os4AnimatedVisibility(visible = inspiration, label = "monet-inspiration-install") {
+    val inspirationPrefix = os.kei.hyper.home.data.ColorOsStyle.INSPIRATION
+      .importSourceId("", preferences.iconPackAppearance)
+    val inspirationCard = packs.packs.firstOrNull {
+      it.pack.builtinKey == os.kei.hyper.home.data.ColorOsStyle.INSPIRATION.builtinKey(true)
+    }
+    val inspirationResult = packs.nativeResult?.takeIf { !busy && it.sourceId != sourceId }?.takeIf {
+      if (inspirationCard == null) it.sourceId.startsWith(inspirationPrefix)
+      else it.sourceId == preferences.systemIconFallback.sourceId(
+        os.kei.hyper.home.data.ColorOsStyle.INSPIRATION.importSourceId(
+          inspirationCard.pack.id, preferences.iconPackAppearance,
+        ),
+      )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(stringResource(R.string.pack_style_inspiration), style = MiuixTheme.textStyles.body1)
           Text(stringResource(R.string.monet_inspiration_install_summary),
@@ -309,11 +321,32 @@ private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runt
           top.yukonga.miuix.kmp.basic.TextButton(
             text = stringResource(R.string.pack_action_inspiration),
             modifier = Modifier.fillMaxWidth().testTag("monet.inspiration.install"),
-            enabled = ready && !packs.preparing && packs.nativeImporting == null && framework.snapshot?.themesInScope == true,
+            enabled = ready && !packs.preparing && packs.nativeImporting == null,
             onClick = { model.applyColorOs(inspiration = true) })
+          if (inspirationCard == null && packs.scanned && !packs.isSectionLoading("coloros")) {
+            Text(stringResource(R.string.pack_local_unavailable), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+          if (source == null) {
+            packs.error?.takeIf { it.isNotBlank() }?.let { message ->
+              Text(message, modifier = Modifier.testTag("coloros.generation.error")
+                .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.error)
+            }
+          }
+          inspirationResult?.let { currentResult ->
+            if (currentResult.imported) {
+              NativeThemeLink(currentResult, preferences.autoApplyIconPack, enabled = !busy,
+                manualFallback = preferences.manualThemeFallback)
+            } else {
+              Text(stringResource(currentResult.failureLabel()), style = MiuixTheme.textStyles.footnote1,
+                color = if (currentResult.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+              if (currentResult.pending) PackInlineAction(stringResource(R.string.icon_pack_recheck),
+                onClick = model::recheckNativeIconImport)
+            }
+          }
         }
       }
-      ColorOsSettings(model, ready, inspiration = true)
     }
   }
 }

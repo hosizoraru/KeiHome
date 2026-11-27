@@ -112,17 +112,24 @@ internal class PerfectPackController(
   val state = mutableState.asStateFlow()
   private val mutablePreview = MutableStateFlow(PerfectPackPreviewState())
   val previewState = mutablePreview.asStateFlow()
+  val customStaticPreviews = PerfectCustomStaticPreviewCache(repository::readCustomStatic)
   suspend fun readCustomStatic(id: String) = repository.readCustomStatic(id)
 
   suspend fun saveCustomStatic(id: String, pair: PerfectCustomStatic, create: Boolean) {
     val ids = repository.saveCustomStatic(id, pair, create)
+    customStaticPreviews.invalidate(id)
     mutableState.update { it.copy(customStaticIds = ids, customStaticRevision = it.customStaticRevision + 1,
       error = null) }
   }
 
   suspend fun deleteCustomStatic(id: String) {
     val ids = repository.deleteCustomStatic(id)
+    customStaticPreviews.invalidate(id)
     mutableState.update { it.copy(customStaticIds = ids, customStaticRevision = it.customStaticRevision + 1) }
+  }
+
+  fun clearCustomStaticPreviews() {
+    customStaticPreviews.clear()
   }
   @Volatile private var loaded = false
   private var loadJob: Job? = null

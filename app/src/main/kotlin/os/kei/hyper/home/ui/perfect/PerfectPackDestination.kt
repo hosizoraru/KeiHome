@@ -89,7 +89,7 @@ internal fun PerfectPackDestination(vm: HomeViewModel, initialTab: PerfectPackTa
       }
       PerfectPackTab.PREVIEW -> PerfectPackPreviewScreen(vm, onBack, openResources, pageBackdrop,
         bottomInset, active = tab == page)
-      PerfectPackTab.CUSTOM -> PerfectCustomStaticScreen(vm.perfectPacks, pageBackdrop, bottomInset,
+      PerfectPackTab.CUSTOM -> PerfectCustomStaticScreen(vm, pageBackdrop, bottomInset,
         onBack, active = tab == page, onGenerate = { selectTab(PerfectPackTab.GENERATE) })
     }
   }

@@ -47,6 +47,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
+import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.iconpack.IconPackArtwork
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -96,6 +97,22 @@ private val IconPackEntry.quietSnapshot: Boolean
   get() = (light as? IconPackArtwork.Archive)?.snapshot == true ||
     (dark as? IconPackArtwork.Archive)?.snapshot == true
 
+internal fun installedAppLabels(capabilities: List<InstalledIconCapability>?): Map<String, String> {
+  val list = capabilities.orEmpty()
+  if (list.isEmpty()) return emptyMap()
+  val preferred = list.groupBy { it.packageName }.mapValues { (_, values) ->
+    (values.firstOrNull { it.personalProfile } ?: values.first()).label
+  }
+  return buildMap {
+    putAll(preferred)
+    list.forEach { app ->
+      nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName)).forEach {
+        putIfAbsent(it, preferred.getValue(app.packageName))
+      }
+    }
+  }
+}
+
 @Composable
 internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit,
   backdrop: LayerBackdrop?, bottomBar: @Composable () -> Unit, active: Boolean) {
@@ -103,19 +120,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   val preview by vm.perfectPacks.previewState.collectAsStateWithLifecycle()
   val maskRevision by vm.packPreviews.revision.collectAsStateWithLifecycle()
   val apps by vm.apps.collectAsStateWithLifecycle()
-  val labels = remember(apps.capabilities) {
-    val preferred = apps.capabilities.orEmpty().groupBy { it.packageName }.mapValues { (_, values) ->
-      (values.firstOrNull { it.personalProfile } ?: values.first()).label
-    }
-    buildMap {
-      putAll(preferred)
-      apps.capabilities.orEmpty().forEach { app ->
-        nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName)).forEach {
-          putIfAbsent(it, preferred.getValue(app.packageName))
-        }
-      }
-    }
-  }
+  val labels = remember(apps.capabilities) { installedAppLabels(apps.capabilities) }
   var query by key(state.options.style) { rememberSaveable { mutableStateOf("") } }
   var filter by rememberSaveable { mutableIntStateOf(0) }
   var nightOnly by rememberSaveable { mutableStateOf(false) }
@@ -126,6 +131,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   var showInspection by remember { mutableStateOf(false) }
   val sort = PerfectPreviewSort.entries.firstOrNull { it.name == sortName } ?: PerfectPreviewSort.ORIGINAL
   val locales = LocalConfiguration.current.locales.toLanguageTags()
+  LaunchedEffect(vm, locales) { vm.ensureAppsLoaded(locales) }
   val style = state.options.style.takeUnless { it.isBlank() || it == "default" }
     ?: stringResource(R.string.perfect_icons_style_default)
   val pack = preview.pack?.takeIf {

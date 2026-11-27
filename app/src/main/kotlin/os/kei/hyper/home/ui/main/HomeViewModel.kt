@@ -487,6 +487,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  /** Ensures installed-app capabilities are populated for subpages outside tabs 0..1. */
+  fun ensureAppsLoaded(localeTags: String) {
+    locale = localeTags
+    if (apps.value.capabilities == null && !pendingAppRefresh.isPending) pendingAppRefresh.add()
+    if (appsDirty || scannedLocale != locale || apps.value.capabilities == null) scanApps()
+  }
+
   /** Called only while the activity is STARTED; switching pages cancels its old polling jobs. */
   suspend fun observePage(page: Int, localeTags: String): Unit = coroutineScope {
     val observation = ++pageObservation
@@ -652,6 +659,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     previews.clear()
     packPreviews.clear()
     currentPreviews.clear()
+    perfectPacks.clearCustomStaticPreviews()
     apps.update { it.copy(previewGeneration = it.previewGeneration + 1) }
   }
 
@@ -659,7 +667,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   internal suspend fun perfectStorageUsage() = perfectPacks.storageUsage()
 
   internal fun previewCacheBytes(): Long =
-    previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes()
+    previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes() +
+      perfectPacks.customStaticPreviews.sizeBytes()
 
   private suspend fun refreshWallpaper(): Boolean {
     val service = FrameworkConnection.service.value ?: return false
@@ -1416,5 +1425,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     overlayObserver.close()
     launcherApps?.unregisterCallback(packageCallback)
     previews.clear()
+    perfectPacks.clearCustomStaticPreviews()
   }
 }

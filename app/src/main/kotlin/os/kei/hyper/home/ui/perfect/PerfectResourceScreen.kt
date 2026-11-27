@@ -580,3 +580,35 @@ private fun ResourceToolbarButton(tag: String, label: String, icon: ImageVector,
       modifier = Modifier.testTag("perfect.resources.$tag"), content = content)
   }
 }
+
+@Composable
+internal fun PerfectResourceConfirmations(state: PerfectPackState, busy: Boolean,
+  confirmDelete: Boolean, confirmClearCache: Boolean,
+  onDismissDelete: () -> Unit, onDismissClearCache: () -> Unit,
+  onDelete: () -> Unit, onClearCache: () -> Unit) {
+  val context = LocalContext.current
+  Os4ActionDialog(show = confirmDelete,
+    title = stringResource(R.string.perfect_git_delete),
+    summary = stringResource(R.string.perfect_git_delete_confirm,
+      Formatter.formatFileSize(context, state.resourceBytes)),
+    onDismissRequest = onDismissDelete, icon = actionIcon(PageActionIcon.CLEAR),
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissDelete,
+        tag = "icon-packs.perfect.cancel-delete"),
+      Os4DialogAction(stringResource(R.string.perfect_git_delete_proceed),
+        enabled = confirmDelete && !busy, onClick = {
+          if (confirmDelete && !busy) { onDismissDelete(); onDelete() }
+        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-delete")))
+  Os4ActionDialog(show = confirmClearCache,
+    title = stringResource(R.string.perfect_icons_clear_cache),
+    summary = stringResource(R.string.perfect_git_clear_cache_confirm,
+      Formatter.formatFileSize(context, state.cacheBytes)),
+    onDismissRequest = onDismissClearCache, icon = actionIcon(PageActionIcon.CLEAR),
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissClearCache,
+        tag = "icon-packs.perfect.cancel-clear-cache"),
+      Os4DialogAction(stringResource(R.string.perfect_icons_clear_cache),
+        enabled = confirmClearCache && !busy, onClick = {
+          if (confirmClearCache && !busy) { onDismissClearCache(); onClearCache() }
+        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-clear-cache")))
+}

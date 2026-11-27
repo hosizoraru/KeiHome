@@ -60,9 +60,11 @@ import os.kei.hyper.home.ui.perfect.PerfectPackOptions
 import os.kei.hyper.home.ui.perfect.PerfectPackState
 import os.kei.hyper.home.ui.perfect.PerfectResourceConfirmations
 import os.kei.hyper.home.ui.perfect.PerfectResourceContent
-import os.kei.hyper.home.ui.perfect.PerfectResourceStorageCard
 import os.kei.hyper.home.ui.perfect.PerfectResourceStyleDialogState
 import os.kei.hyper.home.ui.perfect.PerfectSyncBadges
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.platform.testTag
+import top.yukonga.miuix.kmp.basic.BasicComponent
 
 class PerfectGitUiTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
@@ -446,10 +448,19 @@ class PerfectGitUiTest {
       backHost.Provide {
         KeiHomeTheme {
           KeiHomeScaffold(Modifier.fillMaxSize()) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-              PerfectResourceStorageCard(state, busy,
-                onRequestClearCache = { confirmCache = true },
-                onRequestDelete = { confirmDelete = true })
+            Column(Modifier.fillMaxSize().padding(padding)) {
+              BasicComponent(
+                title = context.getString(R.string.perfect_icons_clear_cache),
+                enabled = !busy && state.cacheBytes > 0,
+                onClick = { confirmCache = true },
+                modifier = Modifier.testTag("icon-packs.perfect.clear-cache"),
+              )
+              BasicComponent(
+                title = context.getString(R.string.perfect_git_delete),
+                enabled = !busy && state.resourceBytes > 0,
+                onClick = { confirmDelete = true },
+                modifier = Modifier.testTag("icon-packs.perfect.delete-resources"),
+              )
             }
             PerfectResourceConfirmations(state, busy, confirmDelete, confirmCache,
               onDismissDelete = { confirmDelete = false },

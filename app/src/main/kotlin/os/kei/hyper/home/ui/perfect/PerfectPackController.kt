@@ -70,8 +70,6 @@ internal data class PerfectPackState(
   val clearingCache: Boolean = false,
   val deletingResources: Boolean = false,
   val previewLoading: Boolean = false,
-  val clearedBytes: Long? = null,
-  val deletedBytes: Long? = null,
   val progress: PerfectIconProgress? = null,
   val cacheBytes: Long = 0,
   val resourceBytes: Long = 0,
@@ -272,18 +270,15 @@ internal class PerfectPackController(
     }.also { loadJob = it; it.start() }
   }
 
-  suspend fun cacheBytes(): Long = repository.cacheBytes()
-
   internal suspend fun storageUsage(): DiskCacheUsage = repository.storageUsage()
 
   fun clearDownloads() {
     if (state.value.busy) return
-    mutableState.update { it.copy(clearingCache = true, clearedBytes = null, error = null) }
+    mutableState.update { it.copy(clearingCache = true, error = null) }
     scope.launch {
       try {
-        val cleared = repository.clearDownloadCache()
+        repository.clearDownloadCache()
         mutablePreview.value = PerfectPackPreviewState()
-        mutableState.update { it.copy(clearedBytes = cleared) }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
@@ -308,16 +303,16 @@ internal class PerfectPackController(
 
   private fun removeResources(styles: Set<String>?) {
     if (state.value.busy) return
-    mutableState.update { it.copy(deletingResources = true, deletedBytes = null, progress = null, error = null) }
+    mutableState.update { it.copy(deletingResources = true, progress = null, error = null) }
     scope.launch {
       try {
-        val bytes = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
           if (styles == null) repository.deleteResources()
           else repository.removeStyles(styles) { progress ->
             mutableState.update { it.copy(progress = progress) }
           }
         }
-        mutableState.update { it.copy(deletedBytes = bytes, clearedBytes = null, progress = null) }
+        mutableState.update { it.copy(progress = null) }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
@@ -409,10 +404,6 @@ internal class PerfectPackController(
     }.also { checkJob = it; it.start() }
   }
 
-  fun refreshCatalog(forceDownload: Boolean = false) {
-    syncStyles(setOf(state.value.selectedStyle), forceDownload)
-  }
-
   fun downloadStyles(styles: Set<String>) {
     if (styles.isEmpty()) return
     syncStyles(styles.map { it.ifEmpty { "default" } }.toSet(), forceDownload = false)
@@ -425,8 +416,7 @@ internal class PerfectPackController(
 
   private fun syncStyles(styles: Set<String>, forceDownload: Boolean) {
     if (!canStart()) return
-    mutableState.update { it.copy(refreshing = true, progress = null, clearedBytes = null,
-      deletedBytes = null, error = null, syncingStyles = styles,
+    mutableState.update { it.copy(refreshing = true, progress = null, error = null, syncingStyles = styles,
       syncStartedAtElapsedMillis = SystemClock.elapsedRealtime()) }
     scope.launch {
       try {
@@ -466,7 +456,7 @@ internal class PerfectPackController(
     }
     val options = state.value.options
     val keepLatest = keepLatestGeneratedPacks()
-    mutableState.update { it.copy(generating = true, progress = null, clearedBytes = null, error = null) }
+    mutableState.update { it.copy(generating = true, progress = null, error = null) }
     scope.launch {
       var failure = PerfectPackError.INSTALLED
       try {

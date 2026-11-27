@@ -81,10 +81,8 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import java.util.Locale
 import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.LocalSearchError
@@ -120,7 +118,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   }
   var query by key(state.options.style) { rememberSaveable { mutableStateOf("") } }
   var filter by rememberSaveable { mutableIntStateOf(0) }
-  var nightOnly by rememberSaveable { mutableStateOf(filter == 3) }
+  var nightOnly by rememberSaveable { mutableStateOf(false) }
   var installedOnly by rememberSaveable { mutableStateOf(false) }
   var sortName by rememberSaveable { mutableStateOf(PerfectPreviewSort.ORIGINAL.name) }
   var reverse by rememberSaveable { mutableStateOf(false) }
@@ -134,7 +132,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     preview.options == state.options && preview.sourceHash == state.catalog?.sourceHash
   }
   val filters = listOf(R.string.perfect_icons_preview_all, R.string.perfect_icons_preview_static,
-    R.string.perfect_icons_preview_dynamic_filter, R.string.perfect_icons_preview_dark)
+    R.string.perfect_icons_preview_dynamic_filter)
   val byKey = remember(SnapshotIdentity(pack)) { pack?.entries.orEmpty().associateBy { it.key } }
   val rows = remember(SnapshotIdentity(pack), labels) {
     val entries = pack?.entries.orEmpty()
@@ -178,7 +176,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     listState = if (groups != null) listState else loadingListState,
     bottomContent = {
       if (pack != null) os.kei.hyper.home.ui.components.Os4ViewTabs(
-        items = filters.take(3).mapIndexed { index, label ->
+        items = filters.mapIndexed { index, label ->
           val title = stringResource(label)
           groups?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
         }, selectedIndex = view, onSelect = { filter = it; listState.requestScrollToItem(0) },

@@ -3,12 +3,10 @@ package os.kei.hyper.home.ui.perfect
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.text.format.DateFormat
-import android.text.format.Formatter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,13 +36,10 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.ui.components.BlurredBar
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
-import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
-import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4RefreshIconButton
@@ -59,7 +54,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
@@ -217,15 +211,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
                   progress = if (rawProgress != null) animatedProgress else null)
                 progress?.let {
-                  Text(if (state.checking) stringResource(R.string.perfect_git_checking)
-                  else if (it.label.startsWith("source.git:")) stringResource(
-                    R.string.perfect_icons_download_progress, Formatter.formatFileSize(context,
-                      it.label.substringAfter("source.git:").toLongOrNull()?.coerceAtLeast(0) ?: 0))
+                  Text(if (state.checking || it.label == "source.check") stringResource(R.string.perfect_git_checking)
                   else when (it.label) {
-                    "source.download" -> stringResource(R.string.perfect_icons_download_progress,
-                      Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
                     "source.verify" -> stringResource(R.string.perfect_icons_verifying)
-                    "source.check", "source.tree" -> stringResource(R.string.perfect_git_checking)
                     else -> stringResource(R.string.perfect_icons_progress,
                       it.done.coerceAtLeast(0), it.total.coerceAtLeast(0))
                   }, style = MiuixTheme.textStyles.footnote2)
@@ -378,74 +366,6 @@ internal fun perfectSyncTime(millis: Long): String {
 
 private fun copyPerfectRevision(context: android.content.Context, revision: String, label: String) {
   context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(label, revision))
-}
-
-@Composable
-internal fun PerfectResourceConfirmations(state: PerfectPackState, busy: Boolean,
-  confirmDelete: Boolean, confirmClearCache: Boolean,
-  onDismissDelete: () -> Unit, onDismissClearCache: () -> Unit,
-  onDelete: () -> Unit, onClearCache: () -> Unit) {
-  val context = LocalContext.current
-  Os4ActionDialog(show = confirmDelete,
-    title = stringResource(R.string.perfect_git_delete),
-    summary = stringResource(R.string.perfect_git_delete_confirm,
-      Formatter.formatFileSize(context, state.resourceBytes)),
-    onDismissRequest = onDismissDelete, icon = actionIcon(PageActionIcon.CLEAR),
-    actions = listOf(
-      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissDelete,
-        tag = "icon-packs.perfect.cancel-delete"),
-      Os4DialogAction(stringResource(R.string.perfect_git_delete_proceed),
-        enabled = confirmDelete && !busy, onClick = {
-          if (confirmDelete && !busy) { onDismissDelete(); onDelete() }
-        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-delete")))
-  Os4ActionDialog(show = confirmClearCache,
-    title = stringResource(R.string.perfect_icons_clear_cache),
-    summary = stringResource(R.string.perfect_git_clear_cache_confirm,
-      Formatter.formatFileSize(context, state.cacheBytes)),
-    onDismissRequest = onDismissClearCache, icon = actionIcon(PageActionIcon.CLEAR),
-    actions = listOf(
-      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissClearCache,
-        tag = "icon-packs.perfect.cancel-clear-cache"),
-      Os4DialogAction(stringResource(R.string.perfect_icons_clear_cache),
-        enabled = confirmClearCache && !busy, onClick = {
-          if (confirmClearCache && !busy) { onDismissClearCache(); onClearCache() }
-        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-clear-cache")))
-}
-
-@Composable
-internal fun PerfectResourceStorageCard(state: PerfectPackState, busy: Boolean,
-  onRequestClearCache: () -> Unit, onRequestDelete: () -> Unit) {
-  val context = LocalContext.current
-  Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()) {
-    BasicComponent(title = stringResource(R.string.perfect_icons_clear_cache),
-      summary = stringResource(R.string.perfect_icons_clear_cache_summary),
-      endActions = { MetadataPill(Formatter.formatFileSize(context, state.cacheBytes),
-        MiuixTheme.colorScheme.primary) },
-      enabled = !busy && state.cacheBytes > 0, onClick = onRequestClearCache,
-      modifier = Modifier.testTag("icon-packs.perfect.clear-cache"))
-    BasicComponent(title = stringResource(R.string.perfect_git_delete),
-      summary = stringResource(R.string.perfect_git_delete_size,
-        Formatter.formatFileSize(context, state.resourceBytes)),
-      enabled = !busy && (state.resourceBytes > 0 || state.catalog != null || state.remote != null ||
-        state.syncIssue != null),
-      onClick = onRequestDelete,
-      modifier = Modifier.testTag("icon-packs.perfect.delete-resources"))
-    Os4AnimatedVisibility(state.clearingCache) {
-      LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
-    }
-    Os4AnimatedVisibility(state.clearedBytes != null) {
-      state.clearedBytes?.let { bytes ->
-        BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
-          Formatter.formatFileSize(context, bytes)))
-      }
-    }
-    Os4AnimatedVisibility(state.deletedBytes != null) {
-      state.deletedBytes?.let { bytes ->
-        BasicComponent(title = stringResource(R.string.perfect_git_deleted,
-          Formatter.formatFileSize(context, bytes)))
-      }
-    }
-  }
 }
 
 internal fun perfectErrorResource(error: PerfectPackError): Int = when (error) {

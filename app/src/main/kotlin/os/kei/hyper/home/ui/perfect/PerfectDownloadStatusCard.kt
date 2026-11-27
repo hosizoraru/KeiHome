@@ -61,13 +61,11 @@ internal fun PerfectDownloadStatusCard(state: PerfectPackState) {
     progress.label == "source.check" -> R.string.perfect_transfer_checking
     progress.label == "source.tree" -> R.string.perfect_transfer_tree
     progress.label == "source.verify" -> R.string.perfect_transfer_verifying
-    progress.label == "source.download" || progress.label.startsWith("source.git:") ->
-      R.string.perfect_transfer_receiving
+    progress.label == "source.download" -> R.string.perfect_transfer_receiving
     else -> R.string.perfect_transfer_processing
   }
   val count = progress?.takeIf {
-    (it.label.startsWith("source.git:") || it.label == "source.verify") &&
-      it.total > 0 && it.done in 0..it.total
+    it.label == "source.verify" && it.total > 0 && it.done in 0..it.total
   }
   val byteSample = progress?.transferBytes()
   val byteTotal = progress?.takeIf {
@@ -199,7 +197,6 @@ private fun perfectTransferElapsed(startedAt: Long, visible: Boolean): Long? {
 }
 
 private fun PerfectIconProgress.transferBytes(): Long? = when {
-  label.startsWith("source.git:") -> label.removePrefix("source.git:").toLongOrNull()?.takeIf { it >= 0 }
   // Int.MAX_VALUE is a saturated counter, not an exact transfer size.
   label == "source.download" && done in 0 until Int.MAX_VALUE -> done.toLong()
   else -> null

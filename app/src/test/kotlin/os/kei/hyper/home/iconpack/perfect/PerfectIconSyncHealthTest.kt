@@ -2,13 +2,11 @@ package os.kei.hyper.home.iconpack.perfect
 
 import java.io.File
 import java.io.IOException
-import java.io.RandomAccessFile
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Rule
@@ -19,30 +17,27 @@ class PerfectIconSyncHealthTest {
   @get:Rule val temporary = TemporaryFolder()
 
   private class Fixture(val root: File) {
-    val values = mutableMapOf<String, String>()
+    val settings = InMemoryPerfectIconSettings()
+    val values get() = settings.values
     var time = 100L
-    var calls = 0
-    var failure: Exception? = null
-    var beforeDownload: suspend () -> Unit = {}
-    val bytes = PerfectIconRepositoryTest.zip(mapOf(
-      "icons/test.app/0.png" to PerfectIconRepositoryTest.png(1),
-      "icons/test.app/1.png" to PerfectIconRepositoryTest.png(2),
-      "themes/default/icons/test.app.png" to PerfectIconRepositoryTest.png(1)), stored = true)
-    private val settings = object : PerfectIconSettings {
-      override fun read(key: String) = values[key]
-      override fun write(key: String, value: String) { values[key] = value }
-    }
-    val repo get() = PerfectIconRepository(root, object : PerfectIconTransport {
-      override suspend fun download(url: String, destination: File, limit: Long,
-        headers: Map<String, String>, progress: (PerfectIconProgress) -> Unit): PerfectIconHttpResponse {
-        calls++
-        beforeDownload()
-        failure?.let { throw it }
-        destination.writeBytes(bytes)
-        return PerfectIconHttpResponse(200, mapOf("ETag" to "\"test\""))
-      }
-    }, settings, now = { time })
-    fun source(): File = File(root, "source").listFiles()!!.single { it.extension == "zip" }
+    val backend = FakePerfectGitBackend(
+      root,
+      mapOf(
+        "icons/test.app/0.png" to testPng(1),
+        "icons/test.app/1.png" to testPng(2),
+        "themes/default/icons/test.app.png" to testPng(1),
+      ),
+    )
+    val calls get() = backend.fetches
+    var failure: Exception?
+      get() = backend.failure
+      set(value) { backend.failure = value }
+    var beforeDownload: suspend () -> Unit
+      get() = backend.beforeFetch ?: {}
+      set(value) { backend.beforeFetch = value }
+    val repo get() = PerfectIconRepository(root, settings, now = { time }, git = backend)
+    fun packFile(): File = backend.storeDir().listFiles()!!.first { it.extension == "pack" }
+    fun tipFile(): File = File(backend.storeDir(), "tip")
   }
 
   @Test fun journalIsDurableBeforeNetworkAndLocalLoadsDoNotInterruptLiveSync() = runBlocking {
@@ -56,7 +51,7 @@ class PerfectIconSyncHealthTest {
       entered.complete(Unit)
       resume.await()
     }
-    val task = async { f.repo.catalog(true) }
+    val task = async { f.repo.catalog(true, styles = setOf("default")) }
     entered.await()
     // Use a second history reader rather than acquiring the busy repository mutex.
     val live = PerfectSyncHistory(f.values::get, { key, value -> f.values[key] = value }, { f.time })
@@ -70,35 +65,35 @@ class PerfectIconSyncHealthTest {
 
   @Test fun failedAndCancelledSyncPreserveGoodSourceAcrossRepositoryRecreation() = runBlocking {
     val f = Fixture(temporary.newFolder())
-    val catalog = f.repo.catalog(true)
-    val source = f.source()
-    val original = source.readBytes()
+    val catalog = f.repo.catalog(true, styles = setOf("default"))
+    val pack = f.packFile()
+    val original = pack.readBytes()
     f.time = 200
     f.failure = IOException("offline")
-    try { f.repo.catalog(true, forceDownload = true); fail("Expected failure") } catch (_: IOException) { }
+    try { f.repo.catalog(true, forceDownload = true, styles = setOf("default")); fail("Expected failure") } catch (_: IOException) { }
     assertEquals(PerfectSyncFailure.FAILED, f.repo.syncHistory().issue)
     assertEquals(200L, f.repo.syncHistory().issueAtMillis)
     assertEquals(100L, f.repo.syncHistory().lastSuccessfulSyncAtMillis)
     assertEquals(catalog, f.repo.catalog())
     assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
-    assertArrayEquals(original, source.readBytes())
+    assertArrayEquals(original, pack.readBytes())
     f.time = 40_000
     f.failure = CancellationException("cancel")
-    try { f.repo.catalog(true, forceDownload = true); fail("Expected cancellation") }
+    try { f.repo.catalog(true, forceDownload = true, styles = setOf("default")); fail("Expected cancellation") }
     catch (_: CancellationException) { }
     assertEquals(PerfectSyncFailure.INTERRUPTED, f.repo.syncHistory().issue)
     assertEquals(40_000L, f.repo.syncHistory().issueAtMillis)
-    assertArrayEquals(original, source.readBytes())
+    assertArrayEquals(original, pack.readBytes())
     f.failure = null
     f.time = 50_000
-    f.repo.catalog(true, forceDownload = true)
+    f.repo.catalog(true, forceDownload = true, styles = setOf("default"))
     assertNull(f.repo.syncHistory().issue)
     assertEquals(50_000L, f.repo.syncHistory().lastSuccessfulSyncAtMillis)
   }
 
   @Test fun generationFailureDoesNotBecomeSyncFailure() = runBlocking {
     val f = Fixture(temporary.newFolder())
-    f.repo.catalog(true)
+    f.repo.catalog(true, styles = setOf("default"))
     val before = f.repo.syncHistory()
     try {
       f.repo.generate(PerfectIconOptions(style = "absent"), emptySet()) {}
@@ -111,7 +106,7 @@ class PerfectIconSyncHealthTest {
 
   @Test fun liveGenerationAndLocalReadsPreserveEarlierFailedSync() = runBlocking {
     val f = Fixture(temporary.newFolder())
-    f.repo.catalog(true)
+    f.repo.catalog(true, styles = setOf("default"))
     val history = PerfectSyncHistory(f.values::get, { key, value -> f.values[key] = value }, { f.time })
     f.time = 200
     history.failed()
@@ -131,7 +126,7 @@ class PerfectIconSyncHealthTest {
     val f = Fixture(temporary.newFolder())
     assertEquals(PerfectLocalHealth.MISSING, f.repo.localStatus().health)
     assertEquals(0, f.calls)
-    f.repo.catalog(true)
+    f.repo.catalog(true, styles = setOf("default"))
     val pointer = File(f.root, "catalog.json")
     val original = pointer.readBytes()
     pointer.writeText("{malformed")
@@ -141,13 +136,13 @@ class PerfectIconSyncHealthTest {
     assertEquals(100L, f.repo.syncHistory().lastSuccessfulSyncAtMillis)
     pointer.writeBytes(original)
     assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
-    val source = f.source()
-    val sourceBytes = source.readBytes()
-    source.writeBytes(ByteArray(sourceBytes.size))
+    val pack = f.packFile()
+    val packBytes = pack.readBytes()
+    pack.writeBytes(ByteArray(packBytes.size + 1))
     assertEquals(PerfectLocalHealth.CORRUPT, f.repo.localStatus().health)
-    source.writeBytes(sourceBytes)
+    pack.writeBytes(packBytes)
     assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
-    f.source().delete()
+    f.tipFile().delete()
     assertEquals(PerfectLocalHealth.CORRUPT, f.repo.localStatus().health)
     assertNull(f.repo.catalog())
     pointer.delete()
@@ -155,21 +150,13 @@ class PerfectIconSyncHealthTest {
     assertEquals(1, f.calls)
   }
 
-  @Test fun sourceReadIntegrityFailurePersistsEvenWhenSizeAndZipDirectoryMatch() = runBlocking {
+  @Test fun sourceReadIntegrityFailurePersistsEvenWhenSizeMatches() = runBlocking {
     val f = Fixture(temporary.newFolder())
-    f.repo.catalog(true)
-    val source = f.source()
-    val bytes = source.readBytes()
-    val header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-    RandomAccessFile(source, "rw").use { file ->
-      (0..bytes.size - 30).filter { header.getInt(it) == 0x04034b50 }.forEach { offset ->
-        val payload = offset + 30 + (header.getShort(offset + 26).toInt() and 0xffff) +
-          (header.getShort(offset + 28).toInt() and 0xffff)
-        file.seek(payload.toLong())
-        file.write(bytes[payload].toInt() xor 1)
-      }
-    }
-    // The cheap directory check makes no claim to have rehashed payloads.
+    f.repo.catalog(true, styles = setOf("default"))
+    val pack = f.packFile()
+    val bytes = pack.readBytes()
+    pack.writeBytes(bytes.copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() })
+    // The cheap metadata/size check makes no claim to have rehashed payloads.
     assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
     try {
       f.repo.generate(PerfectIconOptions(), setOf("test.app")) {}
@@ -180,13 +167,37 @@ class PerfectIconSyncHealthTest {
     assertEquals(100L, f.repo.syncHistory().lastSuccessfulSyncAtMillis)
     assertEquals(1, f.calls)
     f.time = 200
-    f.repo.catalog(true, forceDownload = true)
+    f.repo.catalog(true, forceDownload = true, styles = setOf("default"))
     assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
+  }
+
+  @Test fun legacyV2CatalogOnDiskIsTreatedAsMissingAndReplacedCleanlyOnGitSync() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    File(f.root, "source").mkdirs()
+    val legacyZip = File(f.root, "source/${"a".repeat(64)}.zip").apply { writeBytes(ByteArray(16)) }
+    File(f.root, "catalog.json").writeText(JSONObject()
+      .put("version", 2)
+      .put("revision", "1".repeat(40))
+      .put("sourceHash", "a".repeat(64))
+      .put("archiveBytes", 16)
+      .put("styles", JSONArray(listOf("default")))
+      .put("updatedAt", 100)
+      .put("downloadedAt", 100)
+      .put("count", 1)
+      .put("entries", JSONArray())
+      .toString())
+    f.values["knownSourceHash"] = "a".repeat(64)
+    assertNull(f.repo.catalog())
+    assertEquals(PerfectLocalHealth.MISSING, f.repo.localStatus().health)
+    val synced = requireNotNull(f.repo.catalog(refresh = true, styles = setOf("default")))
+    assertTrue(synced.gitBacked)
+    assertEquals(PerfectLocalHealth.READY, f.repo.localStatus().health)
+    assertFalse("Legacy source ZIP must be reclaimed on Git sync", legacyZip.exists())
   }
 
   @Test fun healthyLegacyCatalogSeedsTimestampWithoutErasingFailure() = runBlocking {
     val f = Fixture(temporary.newFolder())
-    f.repo.catalog(true)
+    f.repo.catalog(true, styles = setOf("default"))
     f.values.remove("syncHistoryV1")
     val history = PerfectSyncHistory(f.values::get, { key, value -> f.values[key] = value }, { f.time })
     f.time = 200
@@ -197,19 +208,19 @@ class PerfectIconSyncHealthTest {
     assertEquals(200L, f.repo.syncHistory().issueAtMillis)
   }
 
-  @Test fun cachedHealthInvalidatesWhenSameLengthZipOrCorruptionMarkerChanges() = runBlocking {
+  @Test fun cachedHealthInvalidatesWhenPackOrCorruptionMarkerChanges() = runBlocking {
     val f = Fixture(temporary.newFolder())
     val repo = f.repo
-    repo.catalog(true)
+    repo.catalog(true, styles = setOf("default"))
     repeat(3) { assertEquals(PerfectLocalHealth.READY, repo.localStatus().health) }
-    val source = f.source()
-    val original = source.readBytes()
-    val originalModified = source.lastModified()
-    source.writeBytes(ByteArray(original.size))
-    assertTrue(source.setLastModified(originalModified + 2_000))
+    val pack = f.packFile()
+    val original = pack.readBytes()
+    val originalModified = pack.lastModified()
+    pack.writeBytes(ByteArray(original.size + 1))
+    assertTrue(pack.setLastModified(originalModified + 2_000))
     assertEquals(PerfectLocalHealth.CORRUPT, repo.localStatus().health)
-    source.writeBytes(original)
-    assertTrue(source.setLastModified(originalModified + 4_000))
+    pack.writeBytes(original)
+    assertTrue(pack.setLastModified(originalModified + 4_000))
     assertEquals(PerfectLocalHealth.READY, repo.localStatus().health)
     f.values["corruptSourceHash"] = repo.catalog()!!.sourceHash
     assertEquals(PerfectLocalHealth.CORRUPT, repo.localStatus().health)
@@ -221,9 +232,9 @@ class PerfectIconSyncHealthTest {
   @Test fun damagedHistoryNeverMarksHealthyResourceCorruptOrRewritesIt() = runBlocking {
     val f = Fixture(temporary.newFolder())
     val repo = f.repo
-    repo.catalog(true)
-    val source = f.source()
-    val original = source.readBytes()
+    repo.catalog(true, styles = setOf("default"))
+    val pack = f.packFile()
+    val original = pack.readBytes()
     f.values["syncHistoryV1"] = "{broken"
     assertEquals(PerfectLocalHealth.READY, repo.localStatus().health)
     assertEquals(100L, repo.syncHistory().lastSuccessfulSyncAtMillis)
@@ -232,7 +243,7 @@ class PerfectIconSyncHealthTest {
     assertEquals(PerfectLocalHealth.READY, repo.localStatus().health)
     assertEquals(75L, repo.syncHistory().lastSuccessfulSyncAtMillis)
     assertNull(repo.syncHistory().issue)
-    assertArrayEquals(original, source.readBytes())
+    assertArrayEquals(original, pack.readBytes())
     assertEquals(1, f.calls)
   }
 }

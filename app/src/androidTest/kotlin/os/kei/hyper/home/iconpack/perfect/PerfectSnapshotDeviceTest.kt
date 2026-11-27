@@ -56,14 +56,9 @@ class PerfectSnapshotDeviceTest {
         override fun read(key: String) = values[key]
         override fun write(key: String, value: String) { values[key] = value }
       }
-      var requests = 0
-      val transport = PerfectIconTransport { _, destination, limit, _, _ ->
-        assertEquals("Use the retained archive once", 0, requests++)
-        require(source.length() <= limit)
-        source.copyTo(destination, overwrite = true)
-        PerfectIconHttpResponse(200, emptyMap())
-      }
-      val generator = PerfectIconRepository(File(context.filesDir, "perfect-icons"), transport, settings,
+      val repoRoot = File(context.filesDir, "perfect-icons")
+      val backend = ZipBackedPerfectGitBackend(repoRoot, source)
+      val generator = PerfectIconRepository(repoRoot, settings,
         staticRenderer = { layers, mask, check ->
           PerfectStaticNightRenderer.render(layers, mask, check = check, nativeViewport = layers.size == 2)
         },
@@ -77,9 +72,10 @@ class PerfectSnapshotDeviceTest {
           PerfectStaticNightRenderer.render(listOf(flat), null, equivalentLayers = layers,
             nativeNightComposition = true, check = check)
         },
-        dynamicNightRenderer = { bytes, background, check -> PerfectDynamicNightRenderer.render(bytes, background, check) })
+        dynamicNightRenderer = { bytes, background, check -> PerfectDynamicNightRenderer.render(bytes, background, check) },
+        git = backend)
       val repository = IconPackRepository(context)
-      val catalog = requireNotNull(generator.catalog(refresh = true))
+      val catalog = requireNotNull(generator.catalog(refresh = true, styles = setOf("Hyper", "HyperOSClassic")))
       val allStyles = InstrumentationRegistry.getArguments().getString("perfectHyperAll") == "true"
       for (style in listOf("Hyper", "HyperOSClassic")) {
         assertTrue(style, style in catalog.styles)
@@ -137,7 +133,7 @@ class PerfectSnapshotDeviceTest {
         }
         check(icons.delete())
       }
-      assertEquals(1, requests)
+      assertEquals(1, backend.fetches)
     } finally {
       root.deleteRecursively()
     }
@@ -149,29 +145,16 @@ class PerfectSnapshotDeviceTest {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val input = File(requireNotNull(arguments.getString("perfectSourcePath")))
     require(input.isFile)
-    var requests = 0
     val settings = object : PerfectIconSettings {
       val values = mutableMapOf<String, String>()
       override fun read(key: String) = values[key]
       override fun write(key: String, value: String) { values[key] = value }
     }
-    val transport = PerfectIconTransport { url, destination, limit, headers, progress ->
-      check(url == PerfectIconUrls.SOURCE)
-      check(input.length() <= limit)
-      requests++
-      val etag = requireNotNull(arguments.getString("perfectEtag"))
-      if (headers["If-None-Match"] == etag) {
-        return@PerfectIconTransport PerfectIconHttpResponse(304, mapOf("ETag" to etag))
-      }
-      check(headers.isEmpty())
-      input.inputStream().use { source -> destination.outputStream().use { output -> source.copyTo(output) } }
-      progress(PerfectIconProgress(input.length().toInt(), input.length().toInt(), "source.download"))
-      PerfectIconHttpResponse(200, mapOf("ETag" to etag))
-    }
     val root = File(context.filesDir, "perfect-icons")
-    val repository = PerfectIconRepository(root, transport, settings)
-    val catalog = requireNotNull(repository.catalog(refresh = true))
-    assertEquals(1, requests)
+    val backend = ZipBackedPerfectGitBackend(root, input)
+    val repository = PerfectIconRepository(root, settings, git = backend)
+    val catalog = requireNotNull(repository.catalog(refresh = true, styles = setOf("default", "HyperOS4")))
+    assertEquals(1, backend.fetches)
     assertTrue(catalog.iconCount > 2_000)
     assertTrue(catalog.revision.matches(Regex("[0-9a-f]{40}")))
     assertEquals(input.length(), catalog.archiveBytes)
@@ -214,7 +197,7 @@ class PerfectSnapshotDeviceTest {
     repository.clearDownloadCache()
     assertEquals(0L, repository.cacheBytes())
     assertTrue(repository.previewArchive(PerfectIconOptions(), 24).isFile)
-    assertEquals("All generation, previews and cache repair stay offline", 1, requests)
+    assertEquals("All generation, previews and cache repair stay offline", 1, backend.fetches)
     if (arguments.getString("perfectOnline") == "true") {
       val online = PerfectIconRepository(context)
       val checked = requireNotNull(withTimeout(60_000) { online.catalog(refresh = true) })

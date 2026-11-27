@@ -32,11 +32,9 @@ import os.kei.hyper.home.iconpack.apple.AppleIconClient
 import os.kei.hyper.home.iconpack.apple.AppleIconOptions
 import os.kei.hyper.home.iconpack.apple.AppleIconRepository
 import os.kei.hyper.home.iconpack.apple.AppleIconTransport
-import os.kei.hyper.home.iconpack.perfect.PerfectIconHttpResponse
+import os.kei.hyper.home.iconpack.perfect.FakePerfectGitBackend
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconSettings
-import os.kei.hyper.home.iconpack.perfect.PerfectIconSourceZip
-import os.kei.hyper.home.iconpack.perfect.PerfectIconTransport
 import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectStaticNightRenderer
 
@@ -390,20 +388,15 @@ class PerfectCompletionExportDeviceTest {
       }
       putAll(extraPerfectFiles)
     }
-    private val repository = PerfectIconRepository(repositoryRoot,
-      PerfectIconTransport { _, destination, limit, _, _ ->
-        check(++downloads == 1) { "Completion must remain offline after ZIP bootstrap" }
-        val archive = zip(sourceFiles, PerfectIconSourceZip.PREFIX, "1".repeat(40))
-        check(archive.size.toLong() <= limit)
-        destination.writeBytes(archive)
-        PerfectIconHttpResponse(200)
-      }, settings,
+    private val gitBackend = FakePerfectGitBackend(repositoryRoot, sourceFiles)
+    private val repository = PerfectIconRepository(repositoryRoot, settings,
       staticRenderer = { layers, mask, check ->
         PerfectStaticNightRenderer.render(layers, mask, check = check, nativeViewport = layers.size > 1)
       },
       staticEquivalentRenderer = { flat, layers, mask, check ->
         PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
-      })
+      },
+      git = gitBackend)
     private val exporter = IconPackExporter(context, IconPackLimits(), perfectSources = ::openSource)
     private val stores = IconPackStore(File(root, "imports"))
     private val builtinCatalog by lazy { BuiltinIconPackStore(context.assets).list() }
@@ -428,10 +421,11 @@ class PerfectCompletionExportDeviceTest {
     }
 
     fun acquire() = runBlocking {
-      val catalog = requireNotNull(repository.catalog(refresh = true))
+      val catalog = requireNotNull(repository.catalog(refresh = true, styles = setOf("default", "HyperOS4", STYLE)))
       assertTrue("Bootstrap must include the required default theme", "default" in catalog.downloadedStyles)
       assertTrue(STYLE in catalog.downloadedStyles)
       sourceHash = catalog.sourceHash
+      downloads = gitBackend.fetches
       assertEquals(1, downloads)
     }
 

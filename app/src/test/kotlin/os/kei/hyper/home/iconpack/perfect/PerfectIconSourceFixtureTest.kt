@@ -33,28 +33,17 @@ class PerfectIconSourceFixtureTest {
       assertEquals(identity.getLong("size"), bytes.size.toLong())
       sourceFiles[path] = bytes
     }
-    // Small local ZIP assembled from exact source bytes; no API or raw-file transport exists.
-    sourceFiles["icons/fixture.third.party/0.png"] = PerfectIconRepositoryTest.png(0)
-    sourceFiles["icons/fixture.third.party/1.png"] = PerfectIconRepositoryTest.png(1)
-    val archive = PerfectIconRepositoryTest.zip(sourceFiles, revision)
-    var requests = 0
-    val transport = PerfectIconTransport { url, destination, _, _, _ ->
-      assertEquals(PerfectIconUrls.SOURCE, url)
-      requests++
-      destination.outputStream().use { it.write(archive) }
-      PerfectIconHttpResponse(200)
-    }
-    val values = HashMap<String, String>()
-    val settings = object : PerfectIconSettings {
-      override fun read(key: String) = values[key]
-      override fun write(key: String, value: String) { values[key] = value }
-    }
-    val repo = PerfectIconRepository(temporary.newFolder(), transport, settings)
-    val catalog = repo.catalog(true)!!
+    sourceFiles["icons/fixture.third.party/0.png"] = testPng(0)
+    sourceFiles["icons/fixture.third.party/1.png"] = testPng(1)
+    val root = temporary.newFolder()
+    val backend = FakePerfectGitBackend(root, sourceFiles, revision = revision)
+    val settings = InMemoryPerfectIconSettings()
+    val repo = PerfectIconRepository(root, settings, git = backend)
+    val catalog = repo.catalog(true, styles = setOf("default", "HyperOS4"))!!
     assertEquals(revision, catalog.revision)
     assertTrue(catalog.styles.containsAll(listOf("default", "HyperOS4")))
-    assertEquals(1, catalog.iconCount)
-    assertEquals(1, requests)
+    assertEquals(4, catalog.iconCount)
+    assertEquals(1, backend.fetches)
     val options = PerfectIconOptions(style = "HyperOS4")
     val installed = setOf("com.miui.gallery", "com.android.settings", "com.android.calendar", "mark.via", "mark.via.Shell")
     val first = repo.generate(options, installed) {}
@@ -62,11 +51,11 @@ class PerfectIconSourceFixtureTest {
     assertEquals(2, first.staticCount) // Calendar keeps a static fallback but is counted once as dynamic.
     assertEquals(1, first.dynamicCount)
     assertTrue(first.downloaded > 0)
-    val before = requests
+    val before = backend.fetches
     val again = repo.generate(options, installed) {}
     assertEquals(0, again.downloaded)
     assertEquals(first.downloaded, again.reused)
-    assertEquals("Pinned repeated generation must issue zero HTTP requests", before, requests)
+    assertEquals("Pinned repeated generation must issue zero Git fetches", before, backend.fetches)
     assertEquals(first.file, again.file)
     ZipFile(again.file).use { zip ->
       assertNotNull(zip.getEntry("res/drawable-xxhdpi/com.android.settings/0.png"))

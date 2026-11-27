@@ -299,7 +299,7 @@ class PerfectIconFormatTest {
     ).firstOrNull(File::isFile)
     assumeTrue("Optional cached pzcn snapshot unavailable", file != null)
     ZipFile(file!!).use { zip ->
-      val root = PerfectIconSourceZip.PREFIX
+      val root = "Perfect-Icons-Completion-Project-main/"
       val groupPrefix = "themes/HyperOS4/layer_animating_icons/"
       val commonPrefix = "themes/common/layer_animating_icons/"
       val entries = zip.entries().asSequence().filter { !it.isDirectory &&
@@ -327,7 +327,7 @@ class PerfectIconFormatTest {
     ).firstOrNull(File::isFile)
     assumeTrue("Optional cached pzcn snapshot unavailable", file != null)
     ZipFile(file!!).use { zip ->
-      val root = PerfectIconSourceZip.PREFIX
+      val root = "Perfect-Icons-Completion-Project-main/"
       val entries = zip.entries().asSequence().filter { !it.isDirectory && it.name.startsWith(root) }
         .map { entry ->
           val path = entry.name.removePrefix(root)

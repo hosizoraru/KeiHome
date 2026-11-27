@@ -78,3 +78,17 @@ internal interface PerfectIconSettings {
   fun read(key: String): String?
   fun write(key: String, value: String)
 }
+
+internal data class PerfectIconZipLimits(
+  val compressed: Long = 1024L * 1024 * 1024,
+  val expanded: Long = 2L * 1024 * 1024 * 1024,
+  val entries: Int = 40_000,
+  val ratio: Long = 200,
+)
+
+internal data class PerfectIconSourceEntry(
+  val path: String,
+  val sha: String,
+  val size: Long,
+  val crc: Long = 0,
+)

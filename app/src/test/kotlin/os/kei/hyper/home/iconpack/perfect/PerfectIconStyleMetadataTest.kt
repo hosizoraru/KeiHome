@@ -18,8 +18,7 @@ class PerfectIconStyleMetadataTest {
     override fun write(key: String, value: String) = Unit
   }
 
-  private fun repository(root: File) = PerfectIconRepository(root,
-    PerfectIconTransport { _, _, _, _, _ -> error("Catalog must remain offline") }, settings,
+  private fun repository(root: File) = PerfectIconRepository(root, settings,
     git = PerfectIconGit(File(root, "git")))
 
   private fun legacyCatalog(root: File, hyperSize: Long = 75_000_000) {

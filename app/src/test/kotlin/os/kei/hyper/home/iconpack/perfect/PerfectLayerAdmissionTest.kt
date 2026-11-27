@@ -22,7 +22,7 @@ class PerfectLayerAdmissionTest {
     ).firstOrNull(File::isFile)
     assumeTrue("Optional cached pzcn snapshot unavailable", source != null)
     ZipFile(source!!).use { zip ->
-      val root = PerfectIconSourceZip.PREFIX
+      val root = "Perfect-Icons-Completion-Project-main/"
       val entries = zip.entries().asSequence().filter { !it.isDirectory &&
         (it.name.startsWith(root + "themes/common/layer_animating_icons/") ||
           it.name.startsWith(root + "themes/HyperOS4/layer_animating_icons/")) }

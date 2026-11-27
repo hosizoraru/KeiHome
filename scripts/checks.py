@@ -190,7 +190,7 @@ GROUPS = {
         "PackEventTimeTest",)),
     "perfect-sync": ("jvm", "Sync history, health, cached source and cancellation", (
         "PerfectSyncHistoryTest", "PerfectIconSyncHealthTest", "PerfectLocalHealthProbeTest",
-        "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest", "PerfectGitRepositoryTest",
+        "PerfectIconRepositoryTest", "PerfectGitRepositoryTest",
         "PerfectIconGitTest", "PerfectPackStateTest", "PerfectIconStyleMetadataTest", "PerfectIconStylesTest")),
     "ui-perfect": ("device", "Perfect page options, style actions, transfer status and OS4 confirmations", (
         UI + "PerfectGitUiTest", UI + "PerfectResourceNoticeUiTest", UI + "PerfectConnectionUiTest",

@@ -33,7 +33,13 @@ import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconSettings
-import os.kei.hyper.home.iconpack.perfect.PerfectIconTransport
+import os.kei.hyper.home.iconpack.perfect.PerfectIconGitBackend
+import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
+import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
+import os.kei.hyper.home.iconpack.perfect.PerfectGitReader
+import os.kei.hyper.home.iconpack.perfect.PerfectGitRetained
+import os.kei.hyper.home.iconpack.perfect.PerfectGitSnapshot
+import os.kei.hyper.home.iconpack.perfect.PerfectIconSourceEntry
 import os.kei.hyper.home.ui.perfect.PerfectPackController
 import os.kei.hyper.home.ui.perfect.PerfectPackError
 
@@ -111,15 +117,28 @@ class PerfectPackRecoveryDeviceTest {
     }
     private val repository = PerfectIconRepository(
       File(context.filesDir, "perfect-icons"),
-      PerfectIconTransport { _, _, _, _, _ ->
-        network.incrementAndGet()
-        error("Local publication recovery must not request the network")
-      },
       object : PerfectIconSettings {
         override fun read(key: String): String? = null
         override fun write(key: String, value: String) {
           error("Local publication recovery must not change repository settings")
         }
+      },
+      git = object : PerfectIconGitBackend {
+        override suspend fun check(progress: (PerfectIconProgress) -> Unit): PerfectIconRemote {
+          network.incrementAndGet()
+          error("Local publication recovery must not request the network")
+        }
+        override suspend fun fetch(currentStore: String?, repair: Boolean, styles: Set<String>,
+          progress: (PerfectIconProgress) -> Unit): PerfectGitSnapshot {
+          network.incrementAndGet()
+          error("Local publication recovery must not request the network")
+        }
+        override suspend fun retain(store: String, entries: List<PerfectIconSourceEntry>,
+          progress: (PerfectIconProgress) -> Unit): PerfectGitRetained = error("unused")
+        override fun open(store: String): PerfectGitReader = error("unused")
+        override fun exists(store: String): Boolean = false
+        override fun stamp(store: String): String = ""
+        override fun published(store: String, revision: String) = Unit
       },
     )
     val controller = PerfectPackController(

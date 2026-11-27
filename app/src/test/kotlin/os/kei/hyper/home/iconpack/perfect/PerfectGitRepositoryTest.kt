@@ -88,9 +88,7 @@ class PerfectGitRepositoryTest {
     val settings = Settings()
     val backend = Backend(root)
     var time = 1_800_000_002_000L
-    val repository = PerfectIconRepository(root, PerfectIconTransport { _, _, _, _, _ ->
-      error("Git resource operations must not use archive HTTP")
-    }, settings, now = { time }, git = backend)
+    val repository = PerfectIconRepository(root, settings, now = { time }, git = backend)
   }
 
   @Test fun checkOnlyStoresRemoteMetadataWithoutDownloadingOrMarkingSyncSuccessful() = runBlocking {

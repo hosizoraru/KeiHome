@@ -9,8 +9,6 @@
 constexpr int kHookSuccess = 0;
 constexpr int kHookFailed = 1;
 
-struct NativeSymbolResolver;
-
 bool InitializeLsposedHookBackend(const NativeAPIEntries* entries);
 bool EnsureLsposedMadviseGuard(const char* runtime_name = nullptr);
 int InstallPltHook(void* base_addr, const char* symbol, void* hook_handler,
@@ -28,12 +26,3 @@ int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
                              const uint32_t replacement[4], bool fresh_image);
 int PatchArm64Label16(void* target, const uint32_t expected[4],
                      const uint32_t replacement[4], bool lines, bool fresh_image);
-NativeSymbolResolver* NewNativeSymbolResolver(const char* path,
-                                              void* base_addr);
-void FreeNativeSymbolResolver(NativeSymbolResolver* resolver);
-void* GetNativeBaseAddress(NativeSymbolResolver* resolver);
-void* LookupNativeSymbol(NativeSymbolResolver* resolver, const char* name,
-                         bool prefix, size_t* size);
-// Returns the sole R_AARCH64_JUMP_SLOT for an exact dynamic symbol name.
-// The lookup is read-only and fails closed for missing or ambiguous slots.
-void** LookupNativePltSlot(NativeSymbolResolver* resolver, const char* name);

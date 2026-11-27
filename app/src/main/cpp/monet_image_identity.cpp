@@ -55,6 +55,7 @@ bool StoredEntry(const uint8_t* p, size_t n, const char* entry, size_t* start, s
     if (U16(p+eocd+4) || U16(p+eocd+6) || U16(p+eocd+8) != U16(p+eocd+10)) return false;
     size_t at=U32(p+eocd+16), bytes=U32(p+eocd+12);
     if (at > eocd || bytes > eocd-at) return false;
+    const size_t cd_start = at;
     const size_t end = at+bytes;
     bool found = false;
     for (unsigned i=0; i<U16(p+eocd+10); ++i) {
@@ -69,7 +70,7 @@ bool StoredEntry(const uint8_t* p, size_t n, const char* entry, size_t* start, s
                 U32(p+local) != 0x04034b50 || U16(p+local+8) != 0 ||
                 U16(p+local+26) != name_size) return false;
             const size_t offset=local+30+U16(p+local+26)+U16(p+local+28);
-            if (offset > at || size > at-offset || memcmp(p+local+30, entry, name_size)) return false;
+            if (offset > cd_start || size > cd_start-offset || memcmp(p+local+30, entry, name_size)) return false;
             *start=offset; *length=size; found=true;
         }
         at+=span;

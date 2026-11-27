@@ -4,6 +4,7 @@
 // and verified call relationships. Add/LDR decoders are adapted from that project.
 // Source: https://github.com/wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
 #include "monet_tint_profile.h"
+#include "arm64_entry_filter.h"
 #include "monet_image_identity.h"
 
 #include <string.h>
@@ -133,8 +134,79 @@ uintptr_t Find(const MonetTintImageView& image, Role role, Predicate predicate) 
     }
     return result;
 }
-uintptr_t Find(const MonetTintImageView& image, Role role) {
-    return Find(image, role, [](uintptr_t) { return true; });
+constexpr Role kScannedRoles[] = {
+    kForegroundBuild, kBackgroundClosure, kModeConstructor, kIdentityEquals,
+    kControllerFactory, kControllerAccessor, kControllerOnInit,
+    kRenderSetter, kLayerSetter, kDemoBuild,
+};
+constexpr size_t kScannedRoleCount = sizeof(kScannedRoles) / sizeof(kScannedRoles[0]);
+constexpr size_t kMaxCachedHits = 64u;
+
+struct TintScanIndex {
+    uintptr_t hits[kScannedRoleCount][kMaxCachedHits]{};
+    size_t counts[kScannedRoleCount]{};
+    bool overflowed[kScannedRoleCount]{};
+};
+
+// Build a single two-word rejection prefilter over all primary + variant patterns
+// for the 10 searched roles so the executable image is streamed once instead of 10x.
+constexpr auto MakeTintEntryFilter() {
+    Pattern combined[kScannedRoleCount + sizeof(kTintVariants) / sizeof(kTintVariants[0])]{};
+    size_t idx = 0;
+    for (size_t i = 0; i < kScannedRoleCount; ++i) combined[idx++] = kPatterns[kScannedRoles[i]];
+    for (const auto& v : kTintVariants) combined[idx++] = v.pattern;
+    return MakeArm64EntryFilter(combined);
+}
+
+constexpr size_t ScannedSlot(Role role) {
+    for (size_t i = 0; i < kScannedRoleCount; ++i) {
+        if (kScannedRoles[i] == role) return i;
+    }
+    return kScannedRoleCount;
+}
+
+void BuildTintScanIndex(const MonetTintImageView& image, TintScanIndex* index) {
+    static constexpr auto kFilter = MakeTintEntryFilter();
+    for (size_t i = 0; i < image.readable_range_count; ++i) {
+        const auto& range = image.readable_ranges[i];
+        constexpr size_t kMinSize = 16;
+        if (!range.executable || range.size < kMinSize) continue;
+        for (uintptr_t p = range.begin; p - range.begin <= range.size - kMinSize; p += 4) {
+            if (!kFilter.MayMatch(p)) continue;
+            const uint32_t w0 = Word(p);
+            for (size_t slot = 0; slot < kScannedRoleCount; ++slot) {
+                const Role role = kScannedRoles[slot];
+                if (index->overflowed[slot] || !Prefix(role, w0) || !Matches(image, p, role)) {
+                    continue;
+                }
+                if (index->counts[slot] < kMaxCachedHits) {
+                    index->hits[slot][index->counts[slot]++] = p;
+                } else {
+                    index->overflowed[slot] = true;
+                }
+            }
+        }
+    }
+}
+
+template<typename Predicate>
+uintptr_t FindIndexed(const MonetTintImageView& image, const TintScanIndex& index,
+                      Role role, Predicate predicate) {
+    const size_t slot = ScannedSlot(role);
+    if (slot == kScannedRoleCount || index.overflowed[slot]) {
+        return Find(image, role, predicate);
+    }
+    uintptr_t result = 0;
+    for (size_t i = 0; i < index.counts[slot]; ++i) {
+        const uintptr_t p = index.hits[slot][i];
+        if (!predicate(p)) continue;
+        if (result && result != p) return 0;
+        result = p;
+    }
+    return result;
+}
+uintptr_t FindIndexed(const MonetTintImageView& image, const TintScanIndex& index, Role role) {
+    return FindIndexed(image, index, role, [](uintptr_t) { return true; });
 }
 uintptr_t Call(const MonetTintImageView& image, uintptr_t pc, bool link = true) {
     if (!pc || !Contains(image, pc, 4)) return 0;
@@ -196,10 +268,12 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image, MonetTintProfile* 
         memcmp(reinterpret_cast<void*>(image.snapshot_build_id), note_header, sizeof(note_header))) {
         return Reject(rejection, "invalid live Dart anchors");
     }
-    const uintptr_t foreground = Find(image, kForegroundBuild);
-    const uintptr_t background = Find(image, kBackgroundClosure);
-    const uintptr_t mode = Find(image, kModeConstructor);
-    const uintptr_t identity = Find(image, kIdentityEquals);
+    TintScanIndex scan_index{};
+    BuildTintScanIndex(image, &scan_index);
+    const uintptr_t foreground = FindIndexed(image, scan_index, kForegroundBuild);
+    const uintptr_t background = FindIndexed(image, scan_index, kBackgroundClosure);
+    const uintptr_t mode = FindIndexed(image, scan_index, kModeConstructor);
+    const uintptr_t identity = FindIndexed(image, scan_index, kIdentityEquals);
     if (!foreground || !background || !mode || !identity) return Reject(rejection, "ambiguous tint/widget instruction contracts");
     const uintptr_t ffi = Call(image, mode + 0xd0);
     const uintptr_t getter = Call(image, background + 0x7c);
@@ -229,13 +303,13 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image, MonetTintProfile* 
     const auto same_type = [&](uintptr_t pc) {
         uintptr_t pool = 0; return PoolPair(pc, &pool) && pool == type_pool;
     };
-    const uintptr_t factory = Find(image, kControllerFactory, [&](uintptr_t pc) {
+    const uintptr_t factory = FindIndexed(image, scan_index, kControllerFactory, [&](uintptr_t pc) {
         return same_type(pc + 0x34) && same_type(pc + 0x5c);
     });
-    const uintptr_t accessor = Find(image, kControllerAccessor, [&](uintptr_t pc) {
+    const uintptr_t accessor = FindIndexed(image, scan_index, kControllerAccessor, [&](uintptr_t pc) {
         return TableSlot(pc + 0x10) == field_slot && same_type(pc + 0x38);
     });
-    const uintptr_t on_init = Find(image, kControllerOnInit, [&](uintptr_t pc) {
+    const uintptr_t on_init = FindIndexed(image, scan_index, kControllerOnInit, [&](uintptr_t pc) {
         return TableSlot(pc + 0x20) == field_slot;
     });
     if (!factory || !accessor || !on_init || !same_type(background + 0x60)) {
@@ -262,12 +336,12 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image, MonetTintProfile* 
         return Reject(rejection, "controller/Rx allocation tags changed");
     }
     const auto filter_setter = [&](uintptr_t pc) { return Matches(image, Call(image, pc + 0x24), kFilterEquals); };
-    const uintptr_t render = Find(image, kRenderSetter, filter_setter);
-    const uintptr_t layer = Find(image, kLayerSetter, filter_setter);
+    const uintptr_t render = FindIndexed(image, scan_index, kRenderSetter, filter_setter);
+    const uintptr_t layer = FindIndexed(image, scan_index, kLayerSetter, filter_setter);
     if (!render || !layer || Call(image, render + 0x24) != Call(image, layer + 0x24)) {
         return Reject(rejection, "filter setter/equality graph changed");
     }
-    const uintptr_t demo = Find(image, kDemoBuild, [&](uintptr_t pc) {
+    const uintptr_t demo = FindIndexed(image, scan_index, kDemoBuild, [&](uintptr_t pc) {
         uintptr_t pool = 0; return PoolPair(pc + 0x1d4, &pool) && pool == filter_pool;
     });
     if (!demo) return Reject(rejection, "shared foreground constant relationship changed");

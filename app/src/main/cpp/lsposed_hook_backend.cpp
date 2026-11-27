@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <link.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +23,16 @@ constexpr char kHyperRuntimeName[] = "libhyper_os_flutter.so";
 constexpr size_t kMaxSegments = 16u;
 constexpr size_t kMaxProtectedPages = 128u;
 constexpr size_t kMaxPltSlots = 16u;
+constexpr size_t kMaxMadviseSlots = 8u;
 constexpr size_t kMaxSymbols = 1u << 24;
 constexpr size_t kInlinePatchGuardSpan = 32u;
 
 const NativeAPIEntries* g_lsposed_api = nullptr;
 using MadviseFn = int (*)(void*, size_t, int);
-MadviseFn g_direct_madvise_backup = nullptr;
-volatile uint32_t g_madvise_guard_state = 0u;
-volatile uint32_t g_direct_madvise_guard_state = 0u;
+MadviseFn g_madvise_slot_backups[kMaxMadviseSlots]{};
+uint32_t g_direct_madvise_guard_state = 0u;  // 0 new, 2 installed, 3 failed
+pthread_mutex_t g_madvise_init_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t g_code_patch_mutex = PTHREAD_MUTEX_INITIALIZER;
 volatile uint32_t g_protected_page_lock = 0u;
 uintptr_t g_protected_pages[kMaxProtectedPages]{};
 size_t g_protected_page_count = 0u;
@@ -49,10 +52,6 @@ struct Image {
     char path[512];
 };
 
-struct NativeSymbolResolverImpl {
-    Image image;
-};
-
 struct DynamicView {
     const ElfW(Sym)* symbols;
     const char* strings;
@@ -66,6 +65,12 @@ struct DynamicView {
 
 int PltHookRaw(void* base, const char* symbol, void* replacement,
                void** original);
+bool BuildDynamicView(const Image& image, DynamicView* output);
+bool CollectRelocationSlots(const Image& image, const DynamicView& view,
+                            const ElfW(Rela)* relocations, size_t count,
+                            const char* symbol, void*** slots,
+                            size_t* slot_count);
+bool WritePointerLocked(void** slot, void* value);
 
 size_t PageSize() {
     static size_t value = 0u;
@@ -166,12 +171,21 @@ int GuardedMadviseWith(MadviseFn original, void* address, size_t length,
     return 0;
 }
 
-// One wrapper per hooked slot so each one forwards to its own backup.
-int GuardedMadviseDirect(void* address, size_t length, int advice) {
+// Per-slot wrappers so each .rela.plt / .rela.dyn madvise slot forwards to its
+// own prior target even when another module hooked only one relocation table.
+template <size_t Slot>
+int GuardedMadviseSlot(void* address, size_t length, int advice) {
     return GuardedMadviseWith(
-            __atomic_load_n(&g_direct_madvise_backup, __ATOMIC_ACQUIRE),
+            __atomic_load_n(&g_madvise_slot_backups[Slot], __ATOMIC_ACQUIRE),
             address, length, advice);
 }
+
+constexpr MadviseFn kMadviseSlotTrampolines[kMaxMadviseSlots] = {
+    GuardedMadviseSlot<0>, GuardedMadviseSlot<1>,
+    GuardedMadviseSlot<2>, GuardedMadviseSlot<3>,
+    GuardedMadviseSlot<4>, GuardedMadviseSlot<5>,
+    GuardedMadviseSlot<6>, GuardedMadviseSlot<7>,
+};
 
 bool RangeInImage(const Image& image, uintptr_t address, size_t size,
                   uint32_t required_flags = 0u) {
@@ -248,24 +262,81 @@ bool FindImage(const char* path, uintptr_t base, Image* output) {
     return true;
 }
 
-bool RegisterMadviseGuard(const Image& image) {
-    const uint32_t state = __atomic_load_n(
-            &g_direct_madvise_guard_state, __ATOMIC_ACQUIRE);
-    if (state == 2u) return true;
-    if (state == 1u || state == 3u) return false;
-    uint32_t expected = 0u;
-    if (!__atomic_compare_exchange_n(
-                &g_direct_madvise_guard_state, &expected, uint32_t{1}, false,
-                __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        return expected == 2u;
+bool InstallPerSlotMadviseGuardLocked(const Image& image) {
+    DynamicView view{};
+    if (!BuildDynamicView(image, &view)) return false;
+    void** raw_slots[kMaxPltSlots]{};
+    size_t raw_count = 0u;
+    if (!CollectRelocationSlots(image, view, view.plt_rela,
+                                view.plt_rela_count, "madvise", raw_slots,
+                                &raw_count) ||
+            !CollectRelocationSlots(image, view, view.dyn_rela,
+                                    view.dyn_rela_count, "madvise", raw_slots,
+                                    &raw_count) ||
+            raw_count == 0u) {
+        return false;
     }
-    g_direct_madvise_backup = nullptr;
-    if (PltHookRaw(
-            reinterpret_cast<void*>(image.base), "madvise",
-            reinterpret_cast<void*>(GuardedMadviseDirect),
-            reinterpret_cast<void**>(&g_direct_madvise_backup)) !=
-            kHookSuccess ||
-            g_direct_madvise_backup == nullptr) {
+    void** slots[kMaxMadviseSlots]{};
+    MadviseFn originals[kMaxMadviseSlots]{};
+    size_t slot_count = 0u;
+    for (size_t i = 0u; i < raw_count; ++i) {
+        bool duplicate = false;
+        for (size_t j = 0u; j < slot_count; ++j) {
+            if (slots[j] == raw_slots[i]) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) continue;
+        if (slot_count >= kMaxMadviseSlots) return false;
+        auto* previous = reinterpret_cast<MadviseFn>(
+                __atomic_load_n(raw_slots[i], __ATOMIC_ACQUIRE));
+        if (previous == nullptr ||
+                previous == kMadviseSlotTrampolines[slot_count]) {
+            return false;
+        }
+        slots[slot_count] = raw_slots[i];
+        originals[slot_count] = previous;
+        ++slot_count;
+    }
+    if (slot_count == 0u) return false;
+    for (size_t i = 0u; i < slot_count; ++i) {
+        if (!AddProtectedPage(reinterpret_cast<uintptr_t>(slots[i]))) {
+            return false;
+        }
+    }
+    pthread_mutex_lock(&g_code_patch_mutex);
+    size_t written = 0u;
+    for (; written < slot_count; ++written) {
+        __atomic_store_n(&g_madvise_slot_backups[written], originals[written],
+                         __ATOMIC_RELEASE);
+        if (!WritePointerLocked(
+                    slots[written],
+                    reinterpret_cast<void*>(kMadviseSlotTrampolines[written]))) {
+            break;
+        }
+    }
+    if (written != slot_count) {
+        for (size_t i = 0u; i <= written && i < slot_count; ++i) {
+            void* installed = reinterpret_cast<void*>(kMadviseSlotTrampolines[i]);
+            if (__atomic_load_n(slots[i], __ATOMIC_ACQUIRE) == installed &&
+                    !WritePointerLocked(
+                            slots[i], reinterpret_cast<void*>(originals[i]))) {
+                __android_log_print(
+                    ANDROID_LOG_ERROR, kLogTag,
+                    "failed to restore madvise slot %zu after installation failure",
+                    i);
+            }
+        }
+        pthread_mutex_unlock(&g_code_patch_mutex);
+        return false;
+    }
+    pthread_mutex_unlock(&g_code_patch_mutex);
+    return true;
+}
+
+bool RegisterMadviseGuardLocked(const Image& image) {
+    if (!InstallPerSlotMadviseGuardLocked(image)) {
         __atomic_store_n(&g_direct_madvise_guard_state, uint32_t{3},
                          __ATOMIC_RELEASE);
         __android_log_print(ANDROID_LOG_ERROR, kLogTag,
@@ -281,17 +352,35 @@ bool RegisterMadviseGuard(const Image& image) {
 }
 
 bool install_madvise_hook(const char* runtime_name) {
+    const uint32_t fast = __atomic_load_n(
+            &g_direct_madvise_guard_state, __ATOMIC_ACQUIRE);
+    if (fast == 2u) return true;
+    if (fast == 3u) return false;
+    pthread_mutex_lock(&g_madvise_init_mutex);
+    const uint32_t state = __atomic_load_n(
+            &g_direct_madvise_guard_state, __ATOMIC_ACQUIRE);
+    if (state == 2u) {
+        pthread_mutex_unlock(&g_madvise_init_mutex);
+        return true;
+    }
+    if (state == 3u) {
+        pthread_mutex_unlock(&g_madvise_init_mutex);
+        return false;
+    }
     Image image{};
     const char* requested = runtime_name == nullptr
             ? kHyperRuntimeName : runtime_name;
     if (!FindImage(requested, 0u, &image) &&
             (runtime_name == nullptr ||
              !FindImage(kHyperRuntimeName, 0u, &image))) {
+        pthread_mutex_unlock(&g_madvise_init_mutex);
         __android_log_print(ANDROID_LOG_ERROR, kLogTag,
                             "cannot resolve loaded %s", requested);
         return false;
     }
-    return RegisterMadviseGuard(image);
+    const bool ok = RegisterMadviseGuardLocked(image);
+    pthread_mutex_unlock(&g_madvise_init_mutex);
+    return ok;
 }
 
 uintptr_t RuntimeAddress(const Image& image, ElfW(Addr) value) {
@@ -441,36 +530,16 @@ bool SymbolNameEquals(const DynamicView& view, uint32_t symbol_index,
             memcmp(name, expected, length) == 0;
 }
 
-void** FindUniquePltSlot(const Image& image, const DynamicView& view,
-                         const char* symbol) {
-    if (symbol == nullptr || view.plt_rela == nullptr ||
-            view.plt_rela_count == 0u) {
-        return nullptr;
-    }
-    void** matched = nullptr;
-    for (size_t index = 0u; index < view.plt_rela_count; ++index) {
-        const ElfW(Rela)& relocation = view.plt_rela[index];
-        if (ELF64_R_TYPE(relocation.r_info) != R_AARCH64_JUMP_SLOT) {
-            continue;
-        }
-        const uint32_t symbol_index = ELF64_R_SYM(relocation.r_info);
-        if (!SymbolNameEquals(view, symbol_index, symbol)) continue;
-        const uintptr_t address = RuntimeAddress(image, relocation.r_offset);
-        if (matched != nullptr || address == 0u ||
-                !RangeInImage(image, address, sizeof(void*), PF_R | PF_W)) {
-            return nullptr;
-        }
-        matched = reinterpret_cast<void**>(address);
-    }
-    return matched;
-}
-
 int ReadProtection(uintptr_t address) {
     FILE* maps = fopen("/proc/self/maps", "re");
     if (maps == nullptr) return -1;
     char line[768]{};
     int result = -1;
     while (fgets(line, sizeof(line), maps) != nullptr) {
+        if (strchr(line, '\n') == nullptr) {
+            int ch;
+            while ((ch = fgetc(maps)) != '\n' && ch != EOF) {}
+        }
         unsigned long long begin = 0u;
         unsigned long long end = 0u;
         char permissions[5]{};
@@ -487,7 +556,7 @@ int ReadProtection(uintptr_t address) {
     return result;
 }
 
-bool WritePointer(void** slot, void* value) {
+bool WritePointerLocked(void** slot, void* value) {
     const uintptr_t page = PageStart(reinterpret_cast<uintptr_t>(slot));
     const int protection = ReadProtection(reinterpret_cast<uintptr_t>(slot));
     if (protection < 0 || mprotect(reinterpret_cast<void*>(page), PageSize(),
@@ -553,25 +622,28 @@ int PltHookRaw(void* base, const char* symbol, void* replacement,
             return kHookFailed;
         }
     }
+    pthread_mutex_lock(&g_code_patch_mutex);
     // The replacement can run immediately after the first slot changes.
     __atomic_store_n(original, expected, __ATOMIC_RELEASE);
     size_t written = 0u;
     for (; written < slot_count; ++written) {
-        if (!WritePointer(slots[written], replacement)) break;
+        if (!WritePointerLocked(slots[written], replacement)) break;
     }
     if (written != slot_count) {
-        // WritePointer can fail after writing when restoring protection fails.
+        // WritePointerLocked can fail after writing when restoring protection fails.
         // Only undo slots still owned by us, including the failing slot.
         for (size_t index = 0u; index <= written; ++index) {
             if (__atomic_load_n(slots[index], __ATOMIC_ACQUIRE) == replacement &&
-                    !WritePointer(slots[index], expected)) {
+                    !WritePointerLocked(slots[index], expected)) {
                 __android_log_print(
                     ANDROID_LOG_ERROR, kLogTag,
-                    "failed to restore madvise slot after installation failure");
+                    "failed to restore PLT slot after installation failure");
             }
         }
+        pthread_mutex_unlock(&g_code_patch_mutex);
         return kHookFailed;
     }
+    pthread_mutex_unlock(&g_code_patch_mutex);
     return kHookSuccess;
 }
 
@@ -616,21 +688,30 @@ int PatchArm64Instruction(void* target, uint32_t expected,
             !EnsureLsposedMadviseGuard()) {
         return kHookFailed;
     }
+    pthread_mutex_lock(&g_code_patch_mutex);
     const uintptr_t address = reinterpret_cast<uintptr_t>(target);
     const int protection = ReadProtection(address);
     if (protection < 0 || (protection & PROT_EXEC) == 0 ||
             !AddProtectedPage(address)) {
+        pthread_mutex_unlock(&g_code_patch_mutex);
         return kHookFailed;
     }
 
     uint32_t current = 0u;
     memcpy(&current, target, sizeof(current));
-    if (current == replacement) return kHookSuccess;
-    if (current != expected) return kHookFailed;
+    if (current == replacement) {
+        pthread_mutex_unlock(&g_code_patch_mutex);
+        return kHookSuccess;
+    }
+    if (current != expected) {
+        pthread_mutex_unlock(&g_code_patch_mutex);
+        return kHookFailed;
+    }
 
     const uintptr_t page = PageStart(address);
     if (mprotect(reinterpret_cast<void*>(page), PageSize(),
                  protection | PROT_WRITE) != 0) {
+        pthread_mutex_unlock(&g_code_patch_mutex);
         return kHookFailed;
     }
     __atomic_store_n(static_cast<uint32_t*>(target), replacement,
@@ -639,6 +720,7 @@ int PatchArm64Instruction(void* target, uint32_t expected,
         reinterpret_cast<char*>(target),
         reinterpret_cast<char*>(target) + sizeof(uint32_t));
     if (mprotect(reinterpret_cast<void*>(page), PageSize(), protection) == 0) {
+        pthread_mutex_unlock(&g_code_patch_mutex);
         return kHookSuccess;
     }
     // A failed protection restore happens after the instruction was written.
@@ -652,6 +734,7 @@ int PatchArm64Instruction(void* target, uint32_t expected,
         __android_log_print(ANDROID_LOG_ERROR, kLogTag,
                             "failed to restore code page protection");
     }
+    pthread_mutex_unlock(&g_code_patch_mutex);
     return kHookFailed;
 }
 
@@ -677,8 +760,10 @@ static int PatchExactSequence16(void* target, const uint32_t expected[4],
             auto* start = static_cast<char*>(address);
             __builtin___clear_cache(start, start + size);
         }};
-    return PatchArm64Tail16(target, expected, replacement, fresh_image, ops, kind)
-            ? kHookSuccess : kHookFailed;
+    pthread_mutex_lock(&g_code_patch_mutex);
+    const bool ok = PatchArm64Tail16(target, expected, replacement, fresh_image, ops, kind);
+    pthread_mutex_unlock(&g_code_patch_mutex);
+    return ok ? kHookSuccess : kHookFailed;
 }
 
 int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
@@ -691,63 +776,8 @@ int PatchArm64Label16(void* target, const uint32_t expected[4],
             lines ? Arm64ExactPatchKind::LabelLines : Arm64ExactPatchKind::LabelText);
 }
 
-NativeSymbolResolver* NewNativeSymbolResolver(const char* path, void* base) {
-    auto* resolver = static_cast<NativeSymbolResolverImpl*>(
-            calloc(1u, sizeof(NativeSymbolResolverImpl)));
-    if (resolver == nullptr ||
-            !FindImage(path, reinterpret_cast<uintptr_t>(base),
-                       &resolver->image)) {
-        free(resolver);
-        return nullptr;
-    }
-    return reinterpret_cast<NativeSymbolResolver*>(resolver);
-}
-
-void FreeNativeSymbolResolver(NativeSymbolResolver* resolver) {
-    free(resolver);
-}
-
-void* GetNativeBaseAddress(NativeSymbolResolver* resolver) {
-    auto* bridge = reinterpret_cast<NativeSymbolResolverImpl*>(resolver);
-    return resolver == nullptr ? nullptr
-            : reinterpret_cast<void*>(bridge->image.base);
-}
-
-void* LookupNativeSymbol(NativeSymbolResolver* resolver, const char* name,
-                         bool prefix, size_t* size) {
-    if (resolver == nullptr || name == nullptr || prefix) return nullptr;
-    auto* bridge = reinterpret_cast<NativeSymbolResolverImpl*>(resolver);
-    DynamicView view{};
-    if (!BuildDynamicView(bridge->image, &view)) return nullptr;
-    for (size_t index = 0u; index < view.symbol_count; ++index) {
-        if (!SymbolNameEquals(view, static_cast<uint32_t>(index), name)) continue;
-        const ElfW(Sym)& symbol = view.symbols[index];
-        if (symbol.st_shndx == SHN_UNDEF || symbol.st_value == 0u) return nullptr;
-        const uintptr_t address = RuntimeAddress(bridge->image, symbol.st_value);
-        if (address == 0u || !RangeInImage(bridge->image, address, 1u)) {
-            return nullptr;
-        }
-        if (size != nullptr) *size = symbol.st_size;
-        return reinterpret_cast<void*>(address);
-    }
-    return nullptr;
-}
-
-void** LookupNativePltSlot(NativeSymbolResolver* resolver, const char* name) {
-    if (resolver == nullptr || name == nullptr) return nullptr;
-    auto* bridge = reinterpret_cast<NativeSymbolResolverImpl*>(resolver);
-    DynamicView view{};
-    if (!BuildDynamicView(bridge->image, &view)) return nullptr;
-    return FindUniquePltSlot(bridge->image, view, name);
-}
-
 bool EnsureLsposedMadviseGuard(const char* runtime_name) {
-    if (!install_madvise_hook(runtime_name)) {
-        __atomic_store_n(&g_madvise_guard_state, uint32_t{3}, __ATOMIC_RELEASE);
-        return false;
-    }
-    __atomic_store_n(&g_madvise_guard_state, uint32_t{2}, __ATOMIC_RELEASE);
-    return true;
+    return install_madvise_hook(runtime_name);
 }
 
 bool InitializeLsposedHookBackend(const NativeAPIEntries* entries) {

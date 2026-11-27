@@ -85,17 +85,35 @@ int InstallInlineHook(void*, void*, void** original) {
     *original = fake_image;
     return hook_calls == fail_hook ? kHookFailed : kHookSuccess;
 }
-bool InstallIconHighlightAtLibraryLoad(void*) {
+bool BuildVerifiedDartImage(void*, VerifiedDartImage* out, bool compute_sha256) {
+    *out = {};
+    if (!anchors) return false;
+    const uintptr_t base = reinterpret_cast<uintptr_t>(fake_image);
+    out->base = base;
+    out->snapshot_instructions = base;
+    out->snapshot_build_id = base;
+    out->span = sizeof(fake_image);
+    out->count = 1;
+    out->relative_ranges[0] = {0, sizeof(fake_image), true};
+    out->absolute_tint_ranges[0] = {base, sizeof(fake_image), true};
+    out->absolute_selection_ranges[0] = {base, sizeof(fake_image), true};
+    if (compute_sha256 && HashMonetLibrary("synthetic-host-fixture", out->sha256)) {
+        out->has_sha256 = true;
+    }
+    out->valid = true;
+    return true;
+}
+bool InstallIconHighlightForVerifiedImage(const VerifiedDartImage&) {
     ++other_profile_calls;
     kh_theme_materials_installed = highlight_ok ? 1u : 0u;
     return highlight_ok;
 }
 bool IsTabletLauncherDevice() { return tablet; }
-bool PrepareDockGlassAtLibraryLoad(void*) { ++other_profile_calls; return false; }
+bool PrepareDockGlassForVerifiedImage(const VerifiedDartImage&) { ++other_profile_calls; return false; }
 bool InstallPreparedDockGlass() { return false; }
-bool PrepareLauncherGlassMaterialAtLibraryLoad(void*) { ++other_profile_calls; return false; }
+bool PrepareLauncherGlassMaterialForVerifiedImage(const VerifiedDartImage&) { ++other_profile_calls; return false; }
 bool InstallPreparedLauncherGlassMaterial() { return false; }
-bool InstallLauncherLabelsAtLibraryLoad(void*) { ++other_profile_calls; return false; }
+bool InstallLauncherLabelsForVerifiedImage(const VerifiedDartImage&) { ++other_profile_calls; return false; }
 bool StartNativeMonetPolicyServer() {
     ++server_calls;
     last_capabilities = (kh_monet_installed == 1 ? 1u : 0u) |

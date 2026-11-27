@@ -5,62 +5,17 @@
 #include "launcher_glass_patch.h"
 #include "launcher_glass_policy.h"
 #include "lsposed_hook_backend.h"
+#include "verified_elf_image.h"
 #include <android/log.h>
-#include <dlfcn.h>
-#include <link.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 namespace {
 uint32_t gPhase = 0;
-struct Loaded {
-    uintptr_t base = 0;
-    size_t count = 0, span = 0;
-    bool valid = false;
-    IconHighlightRange ranges[16]{};
-};
-Loaded gImage;
+VerifiedDartImage gImage{};
 LauncherGlassMaterialProfile gProfile{};
 LauncherGlassMaterialChooseSites gExtra{};
-bool Readable(uintptr_t start, size_t size, bool executable) {
-    if (!size || size > UINTPTR_MAX - start) return false;
-    FILE* file = fopen("/proc/self/maps", "re");
-    if (!file) return false;
-    uintptr_t cursor = start;
-    const uintptr_t end = start + size;
-    char line[768];
-    while (cursor < end && fgets(line, sizeof(line), file)) {
-        unsigned long long a, b;
-        char access[5]{};
-        if (sscanf(line, "%llx-%llx %4s", &a, &b, access) != 3 || b <= cursor) continue;
-        if (a > cursor || access[0] != 'r' || (executable && access[2] != 'x')) break;
-        cursor = b < end ? uintptr_t(b) : end;
-    }
-    fclose(file);
-    return cursor == end;
-}
-int FindImage(dl_phdr_info* info, size_t, void*) {
-    if (info->dlpi_addr != gImage.base) return 0;
-    if (info->dlpi_phnum > 64) return 1;
-    for (size_t n = 0; n < info->dlpi_phnum; ++n) {
-        const auto& segment = info->dlpi_phdr[n];
-        if (segment.p_type != PT_LOAD || !(segment.p_flags & PF_R) || !segment.p_memsz)
-            continue;
-        if (gImage.count == 16 || segment.p_vaddr > UINTPTR_MAX - gImage.base ||
-                segment.p_memsz > 128u * 1024u * 1024u ||
-                segment.p_vaddr > 128u * 1024u * 1024u - segment.p_memsz)
-            return 1;
-        const bool executable = segment.p_flags & PF_X;
-        if (!Readable(gImage.base + segment.p_vaddr, segment.p_memsz, executable)) return 1;
-        const size_t end = segment.p_vaddr + segment.p_memsz;
-        gImage.ranges[gImage.count++] = {size_t(segment.p_vaddr), end, executable};
-        if (gImage.span < end) gImage.span = end;
-    }
-    gImage.valid = gImage.count != 0;
-    return 1;
-}
 bool Reject(const char* why) {
     __atomic_store_n(&gPhase, 4u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_WARN, "KeiHomeGlass", "Material policy inactive: %s",
@@ -80,27 +35,28 @@ bool IsLauncherGlassInstalled() {
     return __atomic_load_n(&gPhase, __ATOMIC_ACQUIRE) == 3u &&
             __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u;
 }
-bool PrepareLauncherGlassMaterialAtLibraryLoad(void* handle) {
+bool PrepareLauncherGlassMaterialForVerifiedImage(const VerifiedDartImage& verified) {
     uint32_t expected = 0;
     if (!__atomic_compare_exchange_n(&gPhase, &expected, 1u, false,
             __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return expected == 2u || expected == 3u;
-    void* snapshot = handle ? dlsym(handle, "_kDartIsolateSnapshotInstructions") : nullptr;
-    Dl_info information{};
-    if (!snapshot || !dladdr(snapshot, &information) || !information.dli_fbase)
-        return Reject("Dart instructions identity");
-    gImage.base = reinterpret_cast<uintptr_t>(information.dli_fbase);
-    dl_iterate_phdr(FindImage, nullptr);
-    const IconHighlightImage image{reinterpret_cast<const uint8_t*>(gImage.base),
-        gImage.span, gImage.ranges, gImage.count};
+    if (!verified.valid) return Reject("Dart instructions identity");
+    gImage = verified;
+    const IconHighlightImage image = gImage.HighlightView();
     LauncherLabelProfile labels{};
     const char* why = nullptr;
-    if (!gImage.valid || !ResolveLauncherLabelState(image, &labels, &why) ||
+    if (!ResolveLauncherLabelState(image, &labels, &why) ||
             !ResolveLauncherGlassMaterial(image, labels, &gProfile, &why))
         return Reject(why);
     if (!ResolveLauncherGlassSearchCapsule(image, gProfile, &gExtra, &why))
         return Reject(why);
     __atomic_store_n(&gPhase, 2u, __ATOMIC_RELEASE);
     return true;
+}
+bool PrepareLauncherGlassMaterialAtLibraryLoad(void* handle) {
+    VerifiedDartImage verified{};
+    if (!BuildVerifiedDartImage(handle, &verified, /*compute_sha256=*/false))
+        return Reject("Dart instructions identity");
+    return PrepareLauncherGlassMaterialForVerifiedImage(verified);
 }
 bool InstallPreparedLauncherGlassMaterial() {
     uint32_t expected = 2u;

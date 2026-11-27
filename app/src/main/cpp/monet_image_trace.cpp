@@ -39,7 +39,8 @@ uintptr_t Rva(uint64_t pc) {
     return pc >= g_base && pc-g_base < 128u*1024u*1024u ? uintptr_t(pc)-g_base : 0;
 }
 void Drain(uint32_t* emitted) {
-    const uint32_t count = __atomic_load_n(&kh_image_trace_control.count, __ATOMIC_ACQUIRE);
+    uint32_t count = __atomic_load_n(&kh_image_trace_control.count, __ATOMIC_ACQUIRE);
+    if (count > KH_IMAGE_TRACE_CAPACITY) count = KH_IMAGE_TRACE_CAPACITY;
     for (; *emitted < count; ++*emitted) {
         // Each immutable record is release-published by count. None of its
         // address bits is ever dereferenced here (including disposal PCs).

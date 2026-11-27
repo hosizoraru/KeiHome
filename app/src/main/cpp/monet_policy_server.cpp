@@ -274,33 +274,39 @@ void DisableDockGlass() {
             __atomic_load_n(&kh_dock_glass_corner_style, __ATOMIC_ACQUIRE));
 }
 
+void DisableThemeMaterials() {
+    __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
+}
+
+void DisableLauncherLabels() { SetLauncherLabelMode(0u); }
+
+void DisableLauncherGlass() { RequestLauncherGlassStyle(kLauncherGlassSystem); }
+
+struct PolicyFeatureSlot {
+    uint64_t PolicyState::* expires_at;
+    const uint32_t* installed_flag;
+    void (*revoke)();
+};
+
+constexpr PolicyFeatureSlot kPolicyFeatureSlots[] = {
+    {&PolicyState::launcher_glass_expires_at, &kh_launcher_glass_installed, DisableLauncherGlass},
+    {&PolicyState::dock_glass_expires_at, &kh_dock_glass_installed, DisableDockGlass},
+    {&PolicyState::labels_expires_at, &kh_launcher_labels_installed, DisableLauncherLabels},
+    {&PolicyState::materials_expires_at, &kh_theme_materials_installed, DisableThemeMaterials},
+};
+
 void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
 #endif
-    if (state->launcher_glass_expires_at != 0u &&
-            (now >= state->launcher_glass_expires_at ||
-             __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        RequestLauncherGlassStyle(kLauncherGlassSystem);
-        state->launcher_glass_expires_at = 0u;
-    }
-    if (state->dock_glass_expires_at != 0u &&
-            (now >= state->dock_glass_expires_at ||
-             __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        DisableDockGlass();
-        state->dock_glass_expires_at = 0u;
-    }
-    if (state->labels_expires_at != 0u &&
-            (now >= state->labels_expires_at ||
-             __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        SetLauncherLabelMode(0u);
-        state->labels_expires_at = 0u;
-    }
-    if (state->materials_expires_at != 0u &&
-            (now >= state->materials_expires_at ||
-             __atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
-        state->materials_expires_at = 0u;
+    for (const auto& slot : kPolicyFeatureSlots) {
+        uint64_t& expires = state->*(slot.expires_at);
+        if (expires != 0u &&
+                (now >= expires ||
+                 __atomic_load_n(slot.installed_flag, __ATOMIC_ACQUIRE) != 1u)) {
+            slot.revoke();
+            expires = 0u;
+        }
     }
     if (state->expiration != nullptr && now >= state->expires_at) {
         PolicyAllocation* expired = state->expiration;
@@ -400,18 +406,13 @@ bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_bef
 }
 
 uint64_t NextMaintenanceWake(const PolicyState* state, uint64_t deadline) {
-    if (state->launcher_glass_expires_at != 0u && state->launcher_glass_expires_at < deadline)
-        deadline = state->launcher_glass_expires_at;
-    if (state->dock_glass_expires_at != 0u && state->dock_glass_expires_at < deadline)
-        deadline = state->dock_glass_expires_at;
+    for (const auto& slot : kPolicyFeatureSlots) {
+        const uint64_t expires = state->*(slot.expires_at);
+        if (expires != 0u && expires < deadline) deadline = expires;
+    }
     if (state->expiration != nullptr && state->expires_at < deadline) {
         deadline = state->expires_at;
     }
-    if (state->materials_expires_at != 0u && state->materials_expires_at < deadline) {
-        deadline = state->materials_expires_at;
-    }
-    if (state->labels_expires_at != 0u && state->labels_expires_at < deadline)
-        deadline = state->labels_expires_at;
     return deadline;
 }
 
@@ -665,13 +666,10 @@ void* PolicyWorker(void* data) {
     }
     free(server->policies.expiration);
     server->policies.expiration = nullptr;
-    __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
-    server->policies.materials_expires_at = 0u;
-    server->policies.labels_expires_at = 0u;
-    RequestLauncherGlassStyle(kLauncherGlassSystem);
-    server->policies.launcher_glass_expires_at = 0u;
-    DisableDockGlass();
-    server->policies.dock_glass_expires_at = 0u;
+    for (const auto& slot : kPolicyFeatureSlots) {
+        slot.revoke();
+        server->policies.*(slot.expires_at) = 0u;
+    }
     PublishPolicy(&server->policies, nullptr);
     __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
     // With the public pointer null, new readers cannot prolong access to an old

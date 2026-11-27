@@ -3,9 +3,12 @@
 
 #include <stdint.h>
 
+struct VerifiedDartImage;
+
 // Called only from the first fresh libapp.so notification, before that image
 // executes Dart. Never invoke on hot attach/backfill or an existing isolate.
 bool InstallIconHighlightAtLibraryLoad(void* handle);
+bool InstallIconHighlightForVerifiedImage(const VerifiedDartImage& verified);
 
 // Policy owner uses these independently of Monet colors/count/flags.
 // Requested true is rejected until the exact patch is actually installed.

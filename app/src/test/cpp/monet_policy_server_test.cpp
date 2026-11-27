@@ -1246,6 +1246,30 @@ int main() {
     TestLauncherGlassLeaseIsolation(9u);
     TestLauncherGlassLeaseIsolation(10u);
     TestLauncherGlassPairCommands();
+    {
+        InstalledFlagSnapshot flags;
+        __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_theme_materials_installed, 1u, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_launcher_glass_installed, 1u, __ATOMIC_RELEASE);
+        PolicyState teardown{};
+        assert(ApplyRequest(&teardown, Request(kNativeLauncherLabelsCommand, 2u, 0u, {}), 10u));
+        assert(ApplyRequest(&teardown, Request(kNativeThemeMaterialsCommand, 1u, 0u, {}), 10u));
+        assert(ApplyRequest(&teardown, DockRequest(1u, 15360u, 1u), 10u));
+        assert(ApplyRequest(&teardown, Request(kNativeLauncherGlassCommand, 2u, 0u, {}), 10u));
+        assert(kh_launcher_label_mode == 2u);
+        assert(kh_theme_materials_enabled == 1u);
+        assert(kh_dock_glass_enabled == 1u);
+        for (const auto& slot : kPolicyFeatureSlots) {
+            slot.revoke();
+            teardown.*(slot.expires_at) = 0u;
+        }
+        assert(kh_launcher_label_mode == 0u);
+        assert(kh_theme_materials_enabled == 0u);
+        assert(kh_dock_glass_enabled == 0u);
+        assert(teardown.labels_expires_at == 0u && teardown.materials_expires_at == 0u &&
+               teardown.dock_glass_expires_at == 0u && teardown.launcher_glass_expires_at == 0u);
+    }
     TestConcurrentReaders();
     puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");
 }

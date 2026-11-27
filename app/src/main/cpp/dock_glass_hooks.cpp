@@ -6,10 +6,8 @@
 #include "dock_glass_modes.h"
 #include "lsposed_hook_backend.h"
 #include "monet_policy_server.h"
+#include "verified_elf_image.h"
 #include <android/log.h>
-#include <dlfcn.h>
-#include <link.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -17,40 +15,11 @@ extern "C" const uint8_t kh_dock_payload_end[];
 extern "C" { uint32_t kh_dock_material_mode=0; uint32_t kh_dock_superellipse_enabled=0; uint64_t kh_dock_recents_corner_bits=0; uint64_t kh_dock_glass_scope_counts[3]={}; }
 namespace {
 uint32_t phase=0;
-struct Loaded { uintptr_t base; IconHighlightRange ranges[16]; size_t count, span; bool valid; };
-bool Readable(uintptr_t start, size_t size, bool exec) {
-    FILE* file = fopen("/proc/self/maps", "re"); if (!file) return false;
-    const uintptr_t end = start + size; uintptr_t cursor = start; char line[768];
-    while (cursor < end && fgets(line, sizeof(line), file)) {
-        unsigned long long a = 0, b = 0; char p[5] = {};
-        if (sscanf(line, "%llx-%llx %4s", &a, &b, p) != 3 || b <= cursor) continue;
-        if (a > cursor || p[0] != 'r' || (exec && p[2] != 'x')) break;
-        cursor = b < end ? uintptr_t(b) : end;
-    }
-    fclose(file); return cursor == end;
-}
-int FindImage(dl_phdr_info* info, size_t, void* opaque) {
-    auto& im = *static_cast<Loaded*>(opaque); if (info->dlpi_addr != im.base) return 0;
-    if (info->dlpi_phnum > 64) return 1;
-    for (size_t i = 0; i < info->dlpi_phnum; ++i) {
-        const auto& p = info->dlpi_phdr[i];
-        if (p.p_type != PT_LOAD || !(p.p_flags & PF_R) || !p.p_memsz) continue;
-        if (im.count == 16 || p.p_vaddr > UINTPTR_MAX - im.base ||
-                p.p_memsz > UINTPTR_MAX - im.base - p.p_vaddr ||
-                p.p_vaddr + p.p_memsz > 128u*1024u*1024u) return 1;
-        const bool exec = p.p_flags & PF_X;
-        if (!Readable(im.base + p.p_vaddr, p.p_memsz, exec)) return 1;
-        const size_t end = p.p_vaddr + p.p_memsz;
-        im.ranges[im.count++] = {size_t(p.p_vaddr), end, exec};
-        if (end > im.span) im.span = end;
-    }
-    im.valid = im.count != 0; return 1;
-}
 bool Reject(const char* why) {
     __android_log_print(ANDROID_LOG_WARN, "KeiHomeDock", "Dock inactive: %s", why);
     return false;
 }
-Loaded loaded{};
+VerifiedDartImage loaded{};
 DockGlassProfile profile{};
 DockGlassRefreshProfile refresh{};
 struct Patch { size_t at; uint32_t expected; const uint8_t* entry; bool link; };
@@ -60,19 +29,21 @@ uint32_t Jump(uintptr_t from,uintptr_t to,bool link) {
     return (link?0x94000000u:0x14000000u)|(uint32_t(delta/4)&0x3ffffffu);
 }
 } // namespace
-bool PrepareDockGlassAtLibraryLoad(void* handle) {
+bool PrepareDockGlassForVerifiedImage(const VerifiedDartImage& verified) {
     uint32_t expected=0;
     if(!__atomic_compare_exchange_n(&phase,&expected,1u,false,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))return expected>=2;
-    void* snapshot=handle?dlsym(handle,"_kDartIsolateSnapshotInstructions"):nullptr;
-    Dl_info info{};
-    if(!snapshot||!dladdr(snapshot,&info)||!info.dli_fbase)return Reject("missing live image");
-    loaded.base=reinterpret_cast<uintptr_t>(info.dli_fbase);
-    dl_iterate_phdr(FindImage,&loaded);
-    const IconHighlightImage image{reinterpret_cast<const uint8_t*>(loaded.base),loaded.span,loaded.ranges,loaded.count};
+    if(!verified.valid)return Reject("missing live image");
+    loaded=verified;
+    const IconHighlightImage image=loaded.HighlightView();
     const char* why=nullptr;
-    if(!loaded.valid||!ResolveDockGlass(image,&profile,&why)||!ResolveDockGlassRefresh(image,profile.labels,&refresh,&why))
+    if(!ResolveDockGlass(image,&profile,&why)||!ResolveDockGlassRefresh(image,profile.labels,&refresh,&why))
         return Reject(why?why:"incomplete image");
     __atomic_store_n(&phase,2u,__ATOMIC_RELEASE);return true;
+}
+bool PrepareDockGlassAtLibraryLoad(void* handle) {
+    VerifiedDartImage verified{};
+    if(!BuildVerifiedDartImage(handle,&verified,/*compute_sha256=*/false))return Reject("missing live image");
+    return PrepareDockGlassForVerifiedImage(verified);
 }
 bool InstallPreparedDockGlass() {
     uint32_t expected=2;

@@ -4,17 +4,20 @@ import android.app.Application
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ResolveInfo
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.util.AtomicFile
 import android.util.Log
 import android.widget.ImageView
 import android.view.View
 import android.view.ViewGroup
 import io.github.libxposed.api.XposedInterface
+import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -36,21 +39,30 @@ internal fun shareAppIdentity(info: ResolveInfo, user: Int): Pair<String, String
 }
 
 /** Reuse the wrapper and avoid invalidating ImageView when its image is unchanged. */
-internal class ShareIconPresentation(val original: Drawable?) {
+internal class ShareIconPresentation(initialOriginal: Drawable?) {
+  var original: Drawable? = initialOriginal
+    private set
   private var bitmap: Bitmap? = null
   private var replacement: BitmapDrawable? = null
 
-  fun apply(view: ImageView, next: Bitmap?, pending: Boolean = false) {
-    if (next == null && pending && replacement != null) {
-      if (view.drawable !== replacement) view.setImageDrawable(replacement)
-      return
-    }
+  fun isReplacement(drawable: Drawable?): Boolean = drawable != null && drawable === replacement
+
+  fun updateOriginal(drawable: Drawable?) {
+    if (drawable !== replacement) original = drawable
+  }
+
+  fun desired(resources: Resources, next: Bitmap?, pending: Boolean = false): Drawable? {
+    if (next == null && pending && replacement != null) return replacement
     if (next !== bitmap) {
       bitmap = next
-      replacement = next?.let { BitmapDrawable(view.resources, it) }
+      replacement = next?.let { BitmapDrawable(resources, it) }
     }
-    val desired = replacement ?: original
-    if (view.drawable !== desired) view.setImageDrawable(desired)
+    return replacement ?: original
+  }
+
+  fun apply(view: ImageView, next: Bitmap?, pending: Boolean = false) {
+    val target = desired(view.resources, next, pending)
+    if (view.drawable !== target) view.setImageDrawable(target)
   }
 }
 
@@ -105,43 +117,63 @@ internal data class HyperOsShareProfile(
       require(bind.returnType == Void.TYPE && !Modifier.isStatic(bind.modifiers))
       require(icon.type == ImageView::class.java && !Modifier.isStatic(icon.modifiers))
       require(info.returnType == ResolveInfo::class.java && target.isAssignableFrom(ordinary))
-      SystemUiMaterialDexKit.open(context.applicationInfo.sourceDir, context.codeCacheDir).use { dex ->
-        dex.setThreadNum(1)
-        val binding = checkNotNull(dex.getMethodData("Lcom/android/intentresolver/adapter/GroupTargetAdapter;->onBindGroupTargetItem(Landroidx/recyclerview/widget/RecyclerView\$ViewHolder;I)V"))
-        val calls = binding.invokes.map { it.descriptor }.toSet()
-        require(calls.containsAll(setOf(
-          "$TARGET->getDisplayIconHolder()Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;",
-          "Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;->getDisplayIcon()Landroid/graphics/drawable/Drawable;",
-          "Landroid/widget/ImageView;->setImageDrawable(Landroid/graphics/drawable/Drawable;)V",
-        )))
-        require(binding.usingFields.any {
-          it.usingType == FieldUsingType.Read && it.field.descriptor == "$HOLDER_D->icon:Landroid/widget/ImageView;"
-        })
-        require(binding.usingFields.any {
-          it.usingType == FieldUsingType.Write && it.field.descriptor == "$HOLDER_D->mBoundInfo:$TARGET"
-        })
-        // This OEM role distinguishes MiIntentResolver from the AOSP chooser.
-        val oem = checkNotNull(dex.getMethodData(
-          "Lcom/android/intentresolver/TargetPresentationGetterStubImpl;->getBadgedIcon(" +
-            "Landroid/content/pm/PackageManager;Landroid/content/pm/PackageItemInfo;" +
-            "Landroid/content/pm/ApplicationInfo;)Landroid/graphics/drawable/Drawable;",
-        ))
-        require(oem.invokes.map { it.descriptor }.containsAll(listOf(
-          "Landroid/content/pm/PackageManager;->loadUnbadgedItemIcon(Landroid/content/pm/PackageItemInfo;Landroid/content/pm/ApplicationInfo;)Landroid/graphics/drawable/Drawable;",
-          "Landroid/content/pm/PackageManager;->getUserBadgedIcon(Landroid/graphics/drawable/Drawable;Landroid/os/UserHandle;)Landroid/graphics/drawable/Drawable;",
-        )))
-        val getter = checkNotNull(dex.getMethodData(
-          "Lcom/android/intentresolver/chooser/DisplayResolveInfo;->getResolveInfo()Landroid/content/pm/ResolveInfo;",
-        ))
-        require(getter.usingFields.any {
-          it.usingType == FieldUsingType.Read && it.field.typeName == "android.content.pm.ResolveInfo"
-        })
-        for (descriptor in listOf(
-          "Lcom/android/intentresolver/chooser/DisplayResolveInfo;->getDisplayIconHolder()Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;",
-          "Lcom/android/intentresolver/chooser/TargetInfo\$SettableIconHolder;->getDisplayIcon()Landroid/graphics/drawable/Drawable;",
-        )) {
-          val nativeGetter = checkNotNull(dex.getMethodData(descriptor))
-          require(nativeGetter.invokes.isEmpty() && nativeGetter.usingFields.any { it.usingType == FieldUsingType.Read })
+      val sourceDir = context.applicationInfo.sourceDir
+      val fingerprint = runCatching { SystemUiStatusBarIconProfile.sourceFingerprint(sourceDir) }.getOrNull()
+      val cacheFile = context.codeCacheDir?.let { AtomicFile(File(it, "keihome-share-profile-v1.txt")) }
+      val verifiedCached = fingerprint != null && cacheFile != null && runCatching {
+        cacheFile.baseFile.length() in 1..256L &&
+          String(cacheFile.openRead().use { it.readNBytes(257) }, Charsets.UTF_8) == fingerprint
+      }.getOrDefault(false)
+      if (!verifiedCached) {
+        SystemUiMaterialDexKit.open(sourceDir, context.codeCacheDir).use { dex ->
+          dex.setThreadNum(1)
+          val binding = checkNotNull(dex.getMethodData("Lcom/android/intentresolver/adapter/GroupTargetAdapter;->onBindGroupTargetItem(Landroidx/recyclerview/widget/RecyclerView\$ViewHolder;I)V"))
+          val calls = binding.invokes.map { it.descriptor }.toSet()
+          require(calls.containsAll(setOf(
+            "$TARGET->getDisplayIconHolder()Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;",
+            "Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;->getDisplayIcon()Landroid/graphics/drawable/Drawable;",
+            "Landroid/widget/ImageView;->setImageDrawable(Landroid/graphics/drawable/Drawable;)V",
+          )))
+          require(binding.usingFields.any {
+            it.usingType == FieldUsingType.Read && it.field.descriptor == "$HOLDER_D->icon:Landroid/widget/ImageView;"
+          })
+          require(binding.usingFields.any {
+            it.usingType == FieldUsingType.Write && it.field.descriptor == "$HOLDER_D->mBoundInfo:$TARGET"
+          })
+          // This OEM role distinguishes MiIntentResolver from the AOSP chooser.
+          val oem = checkNotNull(dex.getMethodData(
+            "Lcom/android/intentresolver/TargetPresentationGetterStubImpl;->getBadgedIcon(" +
+              "Landroid/content/pm/PackageManager;Landroid/content/pm/PackageItemInfo;" +
+              "Landroid/content/pm/ApplicationInfo;)Landroid/graphics/drawable/Drawable;",
+          ))
+          require(oem.invokes.map { it.descriptor }.containsAll(listOf(
+            "Landroid/content/pm/PackageManager;->loadUnbadgedItemIcon(Landroid/content/pm/PackageItemInfo;Landroid/content/pm/ApplicationInfo;)Landroid/graphics/drawable/Drawable;",
+            "Landroid/content/pm/PackageManager;->getUserBadgedIcon(Landroid/graphics/drawable/Drawable;Landroid/os/UserHandle;)Landroid/graphics/drawable/Drawable;",
+          )))
+          val getter = checkNotNull(dex.getMethodData(
+            "Lcom/android/intentresolver/chooser/DisplayResolveInfo;->getResolveInfo()Landroid/content/pm/ResolveInfo;",
+          ))
+          require(getter.usingFields.any {
+            it.usingType == FieldUsingType.Read && it.field.typeName == "android.content.pm.ResolveInfo"
+          })
+          for (descriptor in listOf(
+            "Lcom/android/intentresolver/chooser/DisplayResolveInfo;->getDisplayIconHolder()Lcom/android/intentresolver/chooser/TargetInfo\$IconHolder;",
+            "Lcom/android/intentresolver/chooser/TargetInfo\$SettableIconHolder;->getDisplayIcon()Landroid/graphics/drawable/Drawable;",
+          )) {
+            val nativeGetter = checkNotNull(dex.getMethodData(descriptor))
+            require(nativeGetter.invokes.isEmpty() && nativeGetter.usingFields.any { it.usingType == FieldUsingType.Read })
+          }
+        }
+        if (fingerprint != null && cacheFile != null) {
+          try {
+            val out = cacheFile.startWrite()
+            try {
+              out.write(fingerprint.toByteArray(Charsets.UTF_8))
+              cacheFile.finishWrite(out)
+            } catch (failure: Throwable) {
+              cacheFile.failWrite(out)
+            }
+          } catch (_: Throwable) {}
         }
       }
       icon.isAccessible = true
@@ -202,6 +234,7 @@ internal class HyperOsShareIcons(
   private val lifecycle = ThemeCompatibilityLifecycle()
   private val main = Handler(Looper.getMainLooper())
   private val views = WeakHashMap<ImageView, Bound>() // main-thread only
+  private val writing = ThreadLocal<Boolean>()
   private val handles = mutableListOf<XposedInterface.HookHandle>()
   private val initialized = AtomicBoolean()
   private val replayQueued = AtomicBoolean()
@@ -213,7 +246,7 @@ internal class HyperOsShareIcons(
     if (!lifecycle.enter()) return@Runnable
     try {
       views.forEach { (view, bound) ->
-        if (view.isAttachedToWindow && view.isShown && view.windowVisibility == View.VISIBLE)
+        if (view.isAttachedToWindow && view.windowVisibility != View.GONE)
           apply(view, bound)
       }
     } finally { lifecycle.leave() }
@@ -267,13 +300,8 @@ internal class HyperOsShareIcons(
           result
         }
         profile.appRowBind?.let { rowBind ->
-          val rowIcon = profile.appRowIcon
-          val rowImpl = profile.appRowImpl
-          val rowCollapsed = profile.appRowCollapsed
-          val rowListAdapter = profile.appRowListAdapter
-          val rowDisplayList = profile.appRowDisplayList
-          if (rowIcon != null && rowImpl != null && rowCollapsed != null &&
-            rowListAdapter != null && rowDisplayList != null) {
+          if (profile.appRowIcon != null && profile.appRowImpl != null && profile.appRowCollapsed != null &&
+            profile.appRowListAdapter != null && profile.appRowDisplayList != null) {
             replace(rowBind, "appRowBind") { chain ->
               val result = chain.proceed()
               if (lifecycle.enter()) try {
@@ -281,14 +309,7 @@ internal class HyperOsShareIcons(
                   val adapter = chain.thisObject ?: return@replace result
                   val holder = chain.getArg(0) ?: return@replace result
                   val position = chain.getArg(1) as? Int ?: return@replace result
-                  if (rowIcon.declaringClass.isInstance(holder) && position >= 0) {
-                    val impl = rowImpl.get(adapter)
-                    val list = (impl?.let { rowCollapsed.get(it) }
-                      ?: impl?.let { rowListAdapter.get(it) }?.let { rowDisplayList.get(it) }) as? List<*>
-                    val target = list?.getOrNull(position)
-                    val view = rowIcon.get(holder) as? ImageView
-                    if (view != null && target != null) captureTarget(profile, view, target)
-                  }
+                  captureAppRow(profile, adapter, holder, position)
                 }
               } catch (failure: Exception) {
                 Log.w(TAG, "Keeping native app-row icon", failure)
@@ -316,6 +337,37 @@ internal class HyperOsShareIcons(
             }
           }
         }
+        // Intercept async ResolverListAdapter.loadIcon completions that call setImageDrawable
+        // on tracked app-target ImageViews after bind/expand, preserving our Monet snapshot.
+        replace(ImageView::class.java.getDeclaredMethod("setImageDrawable", Drawable::class.java), "setImageDrawable") { chain ->
+          if (writing.get() == true || Looper.myLooper() != Looper.getMainLooper() || !lifecycle.enter()) {
+            return@replace chain.proceed()
+          }
+          try {
+            val view = chain.thisObject as? ImageView
+            val bound = view?.let { views[it] }
+            if (bound != null) {
+              val incoming = chain.getArg(0) as? Drawable
+              if (!bound.presentation.isReplacement(incoming)) {
+                bound.presentation.updateOriginal(incoming)
+                val icons = cache
+                val bitmap = icons?.get(bound.name, bound.activity)
+                val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity)
+                val desired = bound.presentation.desired(view.resources, bitmap, pending)
+                if (desired !== incoming) {
+                  val previous = writing.get()
+                  writing.set(true)
+                  try {
+                    return@replace chain.proceed(arrayOf(desired))
+                  } finally {
+                    if (previous == null) writing.remove() else writing.set(previous)
+                  }
+                }
+              }
+            }
+            chain.proceed()
+          } finally { lifecycle.leave() }
+        }
         main.post { adoptVisibleRows(profile, application) }
         xposed.log(Log.INFO, TAG, "HyperOS app-target icons enabled; bounded async cache, native actions retained")
       } catch (failure: Exception) {
@@ -337,6 +389,27 @@ internal class HyperOsShareIcons(
     captureTarget(profile, view, target, preload)
   }
 
+  private fun captureAppRow(
+    profile: HyperOsShareProfile,
+    adapter: Any,
+    holder: Any,
+    position: Int,
+    preload: Boolean = true,
+  ) {
+    val rowIcon = profile.appRowIcon ?: return
+    val rowImpl = profile.appRowImpl ?: return
+    val rowCollapsed = profile.appRowCollapsed ?: return
+    val rowListAdapter = profile.appRowListAdapter ?: return
+    val rowDisplayList = profile.appRowDisplayList ?: return
+    if (!rowIcon.declaringClass.isInstance(holder) || position < 0 || !rowImpl.declaringClass.isInstance(adapter)) return
+    val impl = rowImpl.get(adapter)
+    val list = (impl?.let { rowCollapsed.get(it) }
+      ?: impl?.let { rowListAdapter.get(it) }?.let { rowDisplayList.get(it) }) as? List<*>
+    val target = list?.getOrNull(position) ?: return
+    val view = rowIcon.get(holder) as? ImageView ?: return
+    captureTarget(profile, view, target, preload)
+  }
+
   private fun captureTarget(profile: HyperOsShareProfile, view: ImageView, target: Any?, preload: Boolean = true) {
     val previous = views.remove(view)
     if (!profile.accepts(target?.javaClass)) return
@@ -347,41 +420,65 @@ internal class HyperOsShareIcons(
     val original = profile.displayIcon.invoke(profile.displayHolder.invoke(target)) as? Drawable
     if (views.size >= 128) views.entries.iterator().let { it.next(); it.remove() }
     val bound = previous?.takeIf {
-      it.name == identity.first && it.activity == identity.second && it.presentation.original === original
+      it.name == identity.first && it.activity == identity.second
+    }?.also {
+      if (original != null) it.presentation.updateOriginal(original)
     } ?: Bound(identity.first, identity.second, ShareIconPresentation(original))
     views[view] = bound
-    if (preload || (view.isShown && view.windowVisibility == View.VISIBLE)) apply(view, bound)
+    if (preload || (view.isAttachedToWindow && view.windowVisibility != View.GONE)) apply(view, bound)
   }
 
-  /** Adopt attached OEM rows after reload; do not retain old callbacks or scan the heap. */
+  /** Adopt attached OEM rows across all process windows (including bottom-sheet Dialogs). */
   private fun adoptVisibleRows(profile: HyperOsShareProfile, application: Application) {
     if (!lifecycle.enter()) return
     try {
-      val threadType = Class.forName("android.app.ActivityThread")
-      val thread = threadType.getDeclaredMethod("currentActivityThread").invoke(null)
-      val activities = threadType.getDeclaredField("mActivities").apply { isAccessible = true }
-        .get(thread) as? Map<*, *> ?: return
       val recycler = Class.forName("androidx.recyclerview.widget.RecyclerView", false, classLoader)
-      val holder = recycler.getMethod("getChildViewHolder", View::class.java)
-      var budget = 512
+      val holderMethod = recycler.getMethod("getChildViewHolder", View::class.java)
+      val adapterMethod = runCatching { recycler.getMethod("getAdapter") }.getOrNull()
+      val positionMethod = runCatching {
+        Class.forName("androidx.recyclerview.widget.RecyclerView\$ViewHolder", false, classLoader)
+          .getMethod("getAdapterPosition")
+      }.getOrNull()
+      val roots = LinkedHashSet<View>()
+      try {
+        val wmType = Class.forName("android.view.WindowManagerGlobal")
+        val global = wmType.getDeclaredMethod("getInstance").invoke(null)
+        val field = wmType.getDeclaredField("mViews").apply { isAccessible = true }
+        (field.get(global) as? List<*>)?.filterIsInstance<View>()?.forEach { roots.add(it) }
+      } catch (_: Throwable) {}
+      try {
+        val threadType = Class.forName("android.app.ActivityThread")
+        val thread = threadType.getDeclaredMethod("currentActivityThread").invoke(null)
+        val activities = threadType.getDeclaredField("mActivities").apply { isAccessible = true }
+          .get(thread) as? Map<*, *>
+        activities?.values?.take(8)?.forEach { record ->
+          val activity = record?.javaClass?.getDeclaredField("activity")?.apply { isAccessible = true }
+            ?.get(record) as? Activity
+          if (activity != null && activity.packageName == application.packageName && !activity.isFinishing) {
+            activity.window?.decorView?.let { roots.add(it) }
+          }
+        }
+      } catch (_: Throwable) {}
+      var budget = 2_048
       fun walk(view: View) {
         if (--budget < 0) return
-        if (recycler.isInstance(view.parent)) {
-          val row = holder.invoke(view.parent, view)
-          if (profile.icon.declaringClass.isInstance(row)) capture(profile, row, preload = false)
+        val parent = view.parent
+        if (recycler.isInstance(parent)) {
+          val row = holderMethod.invoke(parent, view)
+          if (profile.icon.declaringClass.isInstance(row)) {
+            capture(profile, row, preload = true)
+          } else if (row != null && profile.appRowIcon?.declaringClass?.isInstance(row) == true) {
+            val adapter = adapterMethod?.invoke(parent)
+            val pos = (positionMethod?.invoke(row) as? Int) ?: -1
+            if (adapter != null && pos >= 0) captureAppRow(profile, adapter, row, pos, preload = true)
+          }
         }
         if (view is ViewGroup) for (i in 0 until view.childCount) {
           if (budget <= 0) break
           walk(view.getChildAt(i))
         }
       }
-      for (record in activities.values.take(8)) {
-        if (record == null || budget <= 0) continue
-        val activity = record.javaClass.getDeclaredField("activity").apply { isAccessible = true }
-          .get(record) as? Activity ?: continue
-        if (activity.packageName == application.packageName && !activity.isFinishing)
-          activity.window?.decorView?.let(::walk)
-      }
+      roots.forEach { root -> if (budget > 0) walk(root) }
       xposed.log(Log.INFO, TAG, "Adopted ${views.size} visible OEM app-target rows")
     } catch (failure: Exception) {
       Log.w(TAG, "Visible OEM rows will refresh on their next native bind", failure)
@@ -392,7 +489,13 @@ internal class HyperOsShareIcons(
     val icons = cache
     val bitmap = icons?.get(bound.name, bound.activity)
     val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity)
-    bound.presentation.apply(view, bitmap, pending)
+    val previous = writing.get()
+    writing.set(true)
+    try {
+      bound.presentation.apply(view, bitmap, pending)
+    } finally {
+      if (previous == null) writing.remove() else writing.set(previous)
+    }
   }
 
   private fun replace(method: Method, name: String, hooker: XposedInterface.Hooker) {

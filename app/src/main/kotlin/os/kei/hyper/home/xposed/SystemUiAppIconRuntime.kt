@@ -94,6 +94,7 @@ internal class SystemUiAppIconRuntime(
         val dropped = nativeCaches?.refresh() ?: return@run
         report(Log.INFO, TAG, "Native app-icon caches refreshed; dropped=${dropped.size}")
         statusBar?.adoptNative(dropped)
+        statusBar?.rescanUnbound()
       }
     } finally { lifecycle.leave() }
   }
@@ -267,12 +268,13 @@ internal class SystemUiAppIconRuntime(
       val result = chain.proceed()
       val icon = chain.thisObject as? Icon
       if (!stopped && icon != null && result is Drawable && lifecycle.enter()) {
-        try { guard.run(Unit) {
-          bindings.rememberLoaded(icon, result)
-          statusBar?.loaded(icon, result)
-        } } finally { lifecycle.leave() }
-      }
-      result
+        try {
+          guard.run(result) {
+            bindings.rememberLoaded(icon, result)
+            statusBar?.loaded(icon, result) ?: result
+          }
+        } finally { lifecycle.leave() }
+      } else result
     }
     replace(ImageView::class.java.getDeclaredMethod("setImageBitmap", Bitmap::class.java),
       "$HOOK_ID.setImageBitmap-provenance.v1") { chain -> bind(chain, async = false) }

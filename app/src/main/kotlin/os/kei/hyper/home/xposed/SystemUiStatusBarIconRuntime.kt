@@ -508,6 +508,60 @@ internal class SystemUiStatusBarIconRuntime(
   }
 
   /**
+   * Main-thread rescan triggered on appearance/palette changes so already-visible status-bar
+   * icons whose descriptors were not yet bound are linked and rebound through [replayEntries].
+   */
+  fun rescanUnbound(roots: () -> List<View> = ::windowRoots) {
+    if (stopped || profile.bootstrap == null) return
+    post {
+      if (stopped || !lifecycle.enter()) return@post
+      try {
+        replayGuard.run(Unit) {
+          val windows = roots()
+          if (windows.size > 16) return@run
+          val queue = ArrayDeque(windows)
+          val unbound = ArrayList<Existing>()
+          val rows = ArrayList<WeakReference<Any>>()
+          var visited = 0
+          var restored = 0
+          while (queue.isNotEmpty() && visited < 2_048 && unbound.size < 64) {
+            val view = queue.removeFirst()
+            visited++
+            if (rows.size < 64) profile.bootstrap.rowEntries.forEach { path ->
+              if (path.first().declaringClass.isInstance(view)) {
+                var entry: Any? = view
+                for (field in path) entry = entry?.let { field.get(it) }
+                if (entry != null && rows.none { it.get() === entry }) rows += WeakReference(entry)
+              }
+            }
+            if (view is ImageView && profile.drawable.declaringClass.isInstance(view)) {
+              val icon = profile.viewDescriptor.get(view)?.let { profile.descriptorIcon.get(it) as? Icon }
+              if (icon != null && bindings.name(icon) == null) {
+                if (restoreIdentity(view, icon)) {
+                  bindings.bind(view, icon, null)
+                  restored++
+                } else if (icon.type == Icon.TYPE_BITMAP || icon.type == Icon.TYPE_RESOURCE &&
+                  icon.resPackage == WeatherIconTemperature.PACKAGE) {
+                  unbound += Existing(WeakReference(view), WeakReference(icon))
+                }
+              }
+            }
+            if (view is ViewGroup && queue.size + view.childCount <= 2_048) {
+              for (i in 0 until view.childCount) queue.addLast(view.getChildAt(i))
+            }
+          }
+          val owner = witnessedOwner?.get()
+          if (owner != null && unbound.isNotEmpty()) {
+            linkEntries(owner, rows, unbound)
+            replayEntries()
+          }
+          if (restored > 0) replay()
+        }
+      } finally { lifecycle.leave() }
+    }
+  }
+
+  /**
    * Binds status-bar views that still draw a native bitmap SystemUI just dropped
    * ([SystemUiNativeIconCaches]). Their descriptors outlive the cache, so the bound views then
    * take the current snapshot through the ordinary [replay].
@@ -629,6 +683,7 @@ internal class SystemUiStatusBarIconRuntime(
             context.applicationContext) {
             stopped || Thread.currentThread().isInterrupted
           } }
+          if (owner != null && witnessedOwner?.get() == null) witnessedOwner = WeakReference(owner)
           onBootstrap("Status-bar bootstrap native-owner=${owner != null}")
           if (owner != null) post {
             if (stopped || !lifecycle.enter()) return@post
@@ -785,12 +840,17 @@ internal class SystemUiStatusBarIconRuntime(
       val cached = profile.cached.mapNotNull { it.get(pack) }.distinctByIdentity()
         .singleOrNull { profile.descriptorIcon.get(it) === expected }
       if (cached == null || probes.contains(pack)) { existingEntries.remove(pending); continue }
+      val cachedFields = profile.cached.filter { it.get(pack) === cached }
+      if (cachedFields.isEmpty()) { existingEntries.remove(pending); continue }
       val held = cachedFor(cached, sharedOnly = true) ?: continue
       if (!probes.claim(pack)) { existingEntries.remove(pending); continue }
       val before = profile.cached.map { it.get(pack) }
       val previous = overrides.get()
       overrides.set(held)
       try {
+        // Clear the cached descriptor fields so updateEntry rebuilds the StatusBarIcon through
+        // AppIconsManager.getAppIconBitmap (intercepted by overrides) instead of returning stale cache.
+        cachedFields.forEach { it.set(pack, null) }
         entryProfile.updateEntry.invoke(owner, entry)
       } catch (failure: Throwable) {
         profile.cached.forEachIndexed { i, field -> field.set(pack, before[i]) }
@@ -803,7 +863,11 @@ internal class SystemUiStatusBarIconRuntime(
       val current = profile.viewDescriptor.get(view)
       val icon = current?.let { profile.descriptorIcon.get(it) as? Icon }
       if (icon != null && icon !== expected && bindings.name(icon) != null &&
-        profile.entryPack.get(entry) === pack && linked(owner, entry, view, notification, entryProfile)) rebound++
+        profile.entryPack.get(entry) === pack && linked(owner, entry, view, notification, entryProfile)) {
+        rebound++
+      } else if (cachedFields.any { it.get(pack) == null }) {
+        profile.cached.forEachIndexed { i, field -> field.set(pack, before[i]) }
+      }
       existingEntries.remove(pending)
     }
     if (rebound > 0) onBootstrap("Status-bar bootstrap native-rebound=$rebound")

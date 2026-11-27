@@ -70,6 +70,7 @@ internal class ShareIconPresentation(initialOriginal: Drawable?) {
 
   fun apply(view: ImageView, next: Bitmap?, pending: Boolean = false) {
     val target = desired(view.resources, next, pending)
+    if (target == null && !isReplacement(view.drawable)) return
     if (view.drawable !== target) view.setImageDrawable(target)
   }
 }
@@ -392,6 +393,10 @@ internal class HyperOsShareIcons(
                 return@replace chain.proceed()
               }
               val incoming = chain.getArg(0) as? Drawable
+              if (incoming == null) {
+                views.remove(view)
+                return@replace chain.proceed()
+              }
               if (!bound.presentation.isReplacement(incoming)) {
                 bound.presentation.updateOriginal(incoming)
                 val icons = cache

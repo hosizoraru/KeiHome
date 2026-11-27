@@ -34,12 +34,13 @@ internal class RecentTaskAppIconRuntime(
     val info: Any,
     val controller: WeakReference<Any>,
     var delivered: WeakReference<Bitmap>? = null,
+    var exposedThemed: Boolean = false,
     var replayQueued: Boolean = false,
   ) {
     val component get() = artwork.component
 
     fun alreadyDelivered(snapshot: Bitmap?): Boolean =
-      if (snapshot == null) delivered == null else delivered?.get() === snapshot
+      if (snapshot == null) delivered == null && !exposedThemed else delivered?.get() === snapshot
   }
 
   private val lock = java.lang.Object()
@@ -280,8 +281,10 @@ internal class RecentTaskAppIconRuntime(
       val previous = entries.remove(key)
       // Query results can go to system_server or another client. Only a native
       // description notification establishes what was sent to task listeners.
-      if (previous?.artwork == artwork && previous.controller.get() === controller)
+      if (previous?.artwork == artwork && previous.controller.get() === controller) {
         entry.delivered = previous.delivered
+        entry.exposedThemed = previous.exposedThemed
+      }
       entries[key] = entry
       entries.entries.removeAll { it.value.controller.get() == null }
       while (entries.size > MAX_TASKS) entries.remove(entries.keys.first())
@@ -304,6 +307,7 @@ internal class RecentTaskAppIconRuntime(
     val copy = profile.withIcon(entry.info, Icon.createWithBitmap(bitmap)) ?: return null
     synchronized(lock) {
       if (stopped || entries[entry.key] !== entry) return null
+      entry.exposedThemed = true
       if (firstDelivery) {
         firstDelivery = false
         xposed.log(Log.INFO, TAG, "First themed task icon in recent-task query: ${entry.component.packageName}")
@@ -348,6 +352,7 @@ internal class RecentTaskAppIconRuntime(
 
   private fun replay(profile: RecentTaskIconProfile, entry: Entry) {
     synchronized(lock) {
+      entry.replayQueued = false
       if (stopped || entries[entry.key] !== entry) return
       activeReplays += 1
     }
@@ -363,12 +368,14 @@ internal class RecentTaskAppIconRuntime(
       }
       replaying.set(true)
       try { profile.notify.invoke(controller, profile.notification(copy)) } finally { replaying.remove() }
-      synchronized(lock) { entry.delivered = snapshot?.let(::WeakReference) }
+      synchronized(lock) {
+        entry.delivered = snapshot?.let(::WeakReference)
+        entry.exposedThemed = snapshot != null
+      }
     } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)
       xposed.log(Log.WARN, TAG, "Native task-description replay failed", failure)
     } finally { synchronized(lock) {
-      entry.replayQueued = false
       activeReplays -= 1
       lock.notifyAll()
     } }

@@ -411,20 +411,40 @@ internal class CrossSurfaceIconCache(
             effective == Configuration.UI_MODE_NIGHT_YES
           }
         }
-        Appearance(dark,
-          config.locales[0] ?: Locale.getDefault(),
-          paletteState().also { observedPalette = it })
+        val palette = paletteState()
+        val previousPalette = observedPalette
+        if (previousPalette != null && previousPalette != palette) {
+          observedPalette = palette
+          closeArchive()
+          beforeAppearanceReload?.let { step ->
+            try { step() } catch (failure: Exception) {
+              Log.w(TAG, "Host icon caches kept their previous artwork", failure)
+            }
+          }
+          invalidate()
+          return false
+        }
+        observedPalette = palette
+        Appearance(dark, config.locales[0] ?: Locale.getDefault(), palette)
           .also { appearance = it }
       }
       val monetActive = current.palette ushr 48 == 1L
       if (!hasArchive && !canUseOriginal && !monetActive) return publish(key, generation, null, false, now)
       fun original(): Bitmap? = os.kei.hyper.home.iconpack.OriginalAppIcons.render(
         context, component, SurfaceIconSnapshotRenderer.SIZE, current.dark, ::checkCurrent)
+      fun originalOrMonet(): Bitmap? = if (monetActive) {
+        val resolvedMask = archive?.let { SurfaceIconSnapshotRenderer.resolveMask(it, ::checkCurrent) }
+          ?: os.kei.hyper.home.iconpack.OriginalIconShape.mask
+        os.kei.hyper.home.iconpack.OriginalAppIcons.renderTintedMonochrome(
+          context, component, SurfaceIconSnapshotRenderer.SIZE, current.dark, current.palette,
+          mask = resolvedMask, check = ::checkCurrent,
+        ) ?: original()
+      } else original()
       if (hasArchive) {
         val zip = archive ?: ZipFile(file).also { archive = it }
         val name = nativeLauncherActivityName(component) ?: key.name
         bitmap = SurfaceIconSnapshotRenderer.render(zip, name, current.dark, current.locale,
-          now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = ::original,
+          now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = ::originalOrMonet,
           weatherTemperature = { global -> weatherTemperature.read(context, global, now) }) {
           dynamic = true
         }

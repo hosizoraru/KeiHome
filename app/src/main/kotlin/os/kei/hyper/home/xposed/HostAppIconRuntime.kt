@@ -196,14 +196,30 @@ internal class HostAppIconRuntime(
             !lifecycle.enter()) return@replace chain.proceed()
           try {
             val original = chain.getArg(0) as? Drawable
-            associate(view, original, null)
+            val incomingBitmap = (original as? BitmapDrawable)?.bitmap
+            associate(view, original, incomingBitmap)
             val bound = views[view] ?: return@replace chain.proceed()
-            bound.original = original
+            val syntheticNative = identities.nativeOriginal(original, incomingBitmap)
+            if (syntheticNative != null) {
+              if (bound.original == null || identities.nativeOriginal(bound.original, null) != null) {
+                bound.original = syntheticNative
+              }
+            } else if (!bound.isReplacement(original)) {
+              bound.original = original
+            }
             save(view, bound)
-            val bitmap = cache?.get(bound.name) ?: return@replace chain.proceed()
-            val args = chain.args.toTypedArray()
-            args[0] = bound.drawable(view, bitmap)
-            chain.proceed(args)
+            val bitmap = cache?.get(bound.name)
+            if (bitmap != null) {
+              val args = chain.args.toTypedArray()
+              args[0] = bound.drawable(view, bitmap)
+              return@replace withWriting { chain.proceed(args) }
+            }
+            if (syntheticNative != null && bound.original != null && bound.original !== original) {
+              val args = chain.args.toTypedArray()
+              args[0] = bound.original
+              return@replace withWriting { chain.proceed(args) }
+            }
+            chain.proceed()
           } finally { lifecycle.leave() }
         }
         replace(ImageView::class.java.getDeclaredMethod("setImageBitmap", Bitmap::class.java),
@@ -214,13 +230,28 @@ internal class HostAppIconRuntime(
           try {
             val original = chain.getArg(0) as? Bitmap
             associate(view, null, original)
-            val bound = views[view] ?: return@replace chain.proceed()
-            bound.original = original?.let { BitmapDrawable(view.resources, it) }
+            val bound = views[view] ?: return@replace withWriting { chain.proceed() }
+            val syntheticNative = identities.nativeOriginal(null, original)
+            if (syntheticNative != null) {
+              if (bound.original == null || identities.nativeOriginal(bound.original, null) != null) {
+                bound.original = syntheticNative
+              }
+            } else {
+              bound.original = original?.let { BitmapDrawable(view.resources, it) }
+            }
             save(view, bound)
-            val bitmap = cache?.get(bound.name) ?: return@replace chain.proceed()
-            val args = chain.args.toTypedArray()
-            args[0] = bitmap
-            chain.proceed(args)
+            val bitmap = cache?.get(bound.name)
+            if (bitmap != null) {
+              bound.drawable(view, bitmap)
+              val args = chain.args.toTypedArray()
+              args[0] = bitmap
+              return@replace withWriting { chain.proceed(args) }
+            }
+            if (syntheticNative != null && bound.original != null) {
+              withWriting { view.setImageDrawable(bound.original) }
+              return@replace null
+            }
+            withWriting { chain.proceed() }
           } finally { lifecycle.leave() }
         }
         for ((name, type) in listOf("setImageResource" to Int::class.javaPrimitiveType,
@@ -247,11 +278,14 @@ internal class HostAppIconRuntime(
             else -> View::class.java.getDeclaredMethod(name, View::class.java, Int::class.javaPrimitiveType)
           }
           replace(method, name) { chain ->
-            val result = chain.proceed()
-            val view = chain.thisObject as? ImageView
-            if (view != null && Looper.myLooper() == Looper.getMainLooper() &&
-              view.getTag(TAG_KEY) != null) queueReplay()
-            result
+            if (!lifecycle.enter()) return@replace chain.proceed()
+            try {
+              val result = chain.proceed()
+              val view = chain.thisObject as? ImageView
+              if (view != null && Looper.myLooper() == Looper.getMainLooper() &&
+                view.getTag(TAG_KEY) != null) queueReplay()
+              result
+            } finally { lifecycle.leave() }
           }
         }
         main.post {
@@ -293,11 +327,17 @@ internal class HostAppIconRuntime(
               original !is Drawable) return@replace original
             val name = item.packageName
             val bitmap = cache?.get(name)
-            val replacement = bitmap?.let { BitmapDrawable(application.resources, it) } ?: try {
-              original.constantState?.newDrawable(application.resources)?.mutate() ?: original
-            } catch (_: Exception) { original }
-            identities.remember(replacement, name)
-            if (bitmap != null) identities.remember(bitmap, name)
+            val replacement = if (bitmap != null) {
+              BitmapDrawable(application.resources, bitmap).also {
+                identities.rememberReplacement(it, bitmap, name, original)
+              }
+            } else {
+              val copy = try {
+                original.constantState?.newDrawable(application.resources)?.mutate() ?: original
+              } catch (_: Exception) { original }
+              identities.remember(copy, name)
+              copy
+            }
             replacement
           }
         } finally { lifecycle.leave() }
@@ -335,9 +375,17 @@ internal class HostAppIconRuntime(
       clearTag(oldest.key)
     }
     val bound = if (prior?.name == name && prior.sticky) prior
-      else SidebarIconPresentation(name, view.drawable, true)
+      else SidebarIconPresentation(name, null, true)
     views[view] = bound
     save(view, bound)
+  }
+
+  private inline fun <T> withWriting(block: () -> T): T {
+    val previous = writing.get()
+    writing.set(true)
+    return try { block() } finally {
+      if (previous == null) writing.remove() else writing.set(previous)
+    }
   }
 
   private fun save(view: ImageView, bound: SidebarIconPresentation) {
@@ -355,9 +403,9 @@ internal class HostAppIconRuntime(
   private fun apply(view: ImageView, bound: SidebarIconPresentation) {
     val bitmap = cache?.get(bound.name)
     val desired = bound.image(view, bitmap, cache?.isMissing(bound.name) == false)
+    if (desired == null && !bound.isReplacement(view.drawable)) return
     if (view.drawable !== desired) {
-      writing.set(true)
-      try { view.setImageDrawable(desired) } finally { writing.remove() }
+      withWriting { view.setImageDrawable(desired) }
     }
   }
 
@@ -442,6 +490,8 @@ internal class SidebarIconPresentation(
 ) {
   private var bitmap: Bitmap? = null
   private var replacement: BitmapDrawable? = null
+
+  fun isReplacement(drawable: Drawable?): Boolean = drawable != null && drawable === replacement
 
   fun drawable(view: ImageView, next: Bitmap): BitmapDrawable {
     if (bitmap !== next) {

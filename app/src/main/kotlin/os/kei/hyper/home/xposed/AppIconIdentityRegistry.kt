@@ -9,6 +9,7 @@ internal class AppIconIdentityRegistry(private val limit: Int = 192) {
   private data class Image(val name: String, val generation: Int)
   private val drawables = WeakHashMap<Drawable, String>()
   private val bitmaps = WeakHashMap<Bitmap, Image>()
+  private val syntheticOriginals = WeakHashMap<Any, Drawable>()
 
   @Synchronized fun remember(drawable: Drawable, name: String) {
     if (drawables.size >= limit && drawable !in drawables) drawables.clear()
@@ -25,10 +26,22 @@ internal class AppIconIdentityRegistry(private val limit: Int = 192) {
       if (old == null || old.generation != generation || old.name == name) name else "", generation)
   }
 
+  /** Remember a synthetic themed replacement along with the true native drawable it replaced. */
+  @Synchronized fun rememberReplacement(drawable: Drawable, bitmap: Bitmap, name: String, original: Drawable) {
+    remember(drawable, name)
+    remember(bitmap, name)
+    if (syntheticOriginals.size >= limit * 2) syntheticOriginals.clear()
+    syntheticOriginals[drawable] = original
+    syntheticOriginals[bitmap] = original
+  }
+
+  @Synchronized fun nativeOriginal(drawable: Drawable?, bitmap: Bitmap?): Drawable? =
+    (drawable?.let { syntheticOriginals[it] }) ?: (bitmap?.let { syntheticOriginals[it] })
+
   @Synchronized fun find(drawable: Drawable?, bitmap: Bitmap?): String? =
     drawables[drawable]?.takeIf { it.isNotEmpty() }
       ?: bitmaps[bitmap]?.takeIf { bitmap != null && it.generation == bitmap.generationId }
         ?.name?.takeIf { it.isNotEmpty() }
 
-  @Synchronized fun clear() { drawables.clear(); bitmaps.clear() }
+  @Synchronized fun clear() { drawables.clear(); bitmaps.clear(); syntheticOriginals.clear() }
 }

@@ -66,6 +66,7 @@ internal object PublishedGenericMonet {
     excluded: PreservedIconResources,
     insetFullBleed: Boolean = false,
     generatedPaletteNames: Set<String> = emptySet(),
+    targets: List<IconPackComponent> = emptyList(),
     onProgress: (Int, Int) -> Unit = { _, _ -> },
     check: () -> Unit = {},
   ): Boolean {
@@ -73,20 +74,44 @@ internal object PublishedGenericMonet {
     if (!enabled && !insetFullBleed) return false
     val fancyGroups = paths.filter { it.startsWith("fancy_icons/") }
       .groupBy { it.split('/', limit = 3)[1] }
+    val animatingGroups = paths.filter {
+      it.startsWith("layer_animating_icons/") || it.startsWith("nightmode/layer_animating_icons/")
+    }.groupBy { it.removePrefix("nightmode/").split('/', limit = 3)[1] }
     val nativeGroups = paths.filter { it.startsWith("res/drawable-xxhdpi/") &&
       !it.endsWith('/') && it.count { c -> c == '/' } == 3 }
       .groupBy { it.split('/')[2] }
     val nightGroups = paths.filter { it.startsWith("nightmode/res/drawable-xxhdpi/") &&
       !it.endsWith('/') && it.count { c -> c == '/' } == 4 }
       .groupBy { it.split('/')[3] }
-    val protectedNames = paths.mapNotNull {
+    val protectedNames = hashSetOf<String>()
+    for (path in paths) {
       when {
-        it.startsWith("layer_animating_icons/") || it.startsWith("animating_icons/") ->
-          it.split('/', limit = 3).getOrNull(1)
-        it.startsWith("nightmode/fancy_icons/") -> it.split('/', limit = 4).getOrNull(2)
-        else -> null
+        path.startsWith("animating_icons/") ->
+          path.split('/', limit = 3).getOrNull(1)?.let(protectedNames::add)
+        path.startsWith("nightmode/fancy_icons/") ->
+          path.split('/', limit = 4).getOrNull(2)?.let(protectedNames::add)
       }
-    }.toSet()
+    }
+    val staticAnimatingNames = hashSetOf<String>()
+    for ((name, groupPaths) in animatingGroups) {
+      check()
+      if (!enabled || isLiveDynamicAnimatingIcon(name, groupPaths, read)) {
+        protectedNames += name
+      } else {
+        staticAnimatingNames += name
+      }
+    }
+    // Single-activity foreign-class packages (e.g. com.neoruaa.meilox#com.ljyh.mei.MainActivity,
+    // com.peetzweg.opendisplay#app.opendisplay.android.ui.MainActivity) need a package-name
+    // MAML root (`fancy_icons/<pkg>/`) so HyperOS Launcher, SystemUI, and Share resolve Monet.
+    val foreignPackageRoots = buildMap {
+      val byPackage = targets.filter { it.className != null }.distinct().groupBy { it.packageName }
+      for ((pkg, components) in byPackage) {
+        if (components.size != 1) continue
+        val activityName = nativeLauncherActivityName(components.single()) ?: continue
+        if ('#' in activityName && validNativeIconName(pkg)) put(activityName, pkg)
+      }
+    }
     val shape by lazy {
       IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES))
     }
@@ -104,11 +129,12 @@ internal object PublishedGenericMonet {
       for (index in pixels.indices) pixels[index] = pixels[index] ushr 24
       return pixels.also { insetCoverage = size to it }
     }
-    fun nativePair(name: String, prefix: String): NativePair? {
+    fun compositeLayerPaths(layerPaths: List<String>, nativeViewport: Boolean, wantForeground: Boolean): NativePair? {
+      if (layerPaths.isEmpty()) return null
       val layers = mutableListOf<Bitmap>()
       try {
-        for (index in 0..1) {
-          val raw = read("${prefix}res/drawable-xxhdpi/$name/$index.png", MAX_IMAGE) ?: return null
+        for (layerPath in layerPaths) {
+          val raw = read(layerPath, MAX_IMAGE) ?: return null
           val png = ImportedStaticPng.normalizeNearlySquare(raw, check = check) ?: return null
           layers += BitmapFactory.decodeByteArray(png, 0, png.size) ?: return null
         }
@@ -117,9 +143,9 @@ internal object PublishedGenericMonet {
         try {
           val bounds = Rect(0, 0, size, size)
           val canvas = Canvas(output)
-          val layerBounds = NativeLayerViewport.bounds(bounds)
+          val drawBounds = if (nativeViewport) NativeLayerViewport.bounds(bounds) else bounds
           val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-          layers.forEach { check(); canvas.drawBitmap(it, null, layerBounds, paint) }
+          layers.forEach { check(); canvas.drawBitmap(it, null, drawBounds, paint) }
           val clipped = IconMaskPolicy.clip(output, shape)
           val image = try {
             ByteArrayOutputStream().also {
@@ -127,9 +153,9 @@ internal object PublishedGenericMonet {
               check(clipped.compress(Bitmap.CompressFormat.PNG, 100, it))
             }.toByteArray()
           } finally { if (clipped !== output) clipped.recycle() }
-          val foreground = if (prefix.isEmpty()) {
+          val foreground = if (wantForeground && layers.size >= 2) {
             output.eraseColor(0)
-            canvas.drawBitmap(layers.last(), null, layerBounds, paint)
+            for (layer in layers.drop(1)) { check(); canvas.drawBitmap(layer, null, drawBounds, paint) }
             val clippedFg = IconMaskPolicy.clip(output, shape)
             try {
               IntArray(size * size).also { clippedFg.getPixels(it, 0, size, 0, 0, size, size) }
@@ -139,16 +165,39 @@ internal object PublishedGenericMonet {
         } finally { output.recycle() }
       } finally { layers.forEach(Bitmap::recycle) }
     }
+    fun nativePair(name: String, prefix: String): NativePair? =
+      compositeLayerPaths(
+        (0..1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" },
+        nativeViewport = true,
+        wantForeground = prefix.isEmpty(),
+      )
+    fun animatingQuietPair(name: String, prefix: String): NativePair? {
+      val base = "${prefix}layer_animating_icons/$name/"
+      val config = read(base + "config.xml", 64 * 1024) ?: return null
+      val availableLayers = (0 until NativeLayerConfig.MAX_LAYERS)
+        .map(Int::toString).filterTo(linkedSetOf()) { layer ->
+          "$base$layer/quiet/quietImage.png" in paths || "$base$layer/fancy/manifest.xml" in paths
+        }
+      val layerConfig = try {
+        NativeLayerConfig.parse(config, IconPackLimits(maxXmlBytes = 64 * 1024), check, availableLayers)
+      } catch (_: IconPackException) { null } ?: return null
+      for (quiet in layerConfig.quietSnapshots(base) { it in paths }) {
+        compositeLayerPaths(quiet.paths, nativeViewport = quiet.nativeLayers, wantForeground = prefix.isEmpty())
+          ?.let { return it }
+      }
+      return null
+    }
     val candidates = paths.mapNotNull { path ->
       flat.matchEntire(path)?.groupValues?.get(1)?.takeIf {
         validNativeIconName(it) && !excluded.containsName(it) &&
           !it.startsWith("icon_") && !it.endsWith(".9")
       }?.let { it to path }
     }.groupBy({ it.first }, { it.second }).toMutableMap()
-    val layeredNames = if (enabled) fancyGroups.keys + nativeGroups.keys else generatedPaletteNames
+    val layeredNames = if (enabled) fancyGroups.keys + nativeGroups.keys + staticAnimatingNames else generatedPaletteNames
     for (name in layeredNames) {
       if (validNativeIconName(name) && !excluded.containsName(name)) candidates.putIfAbsent(name, emptyList())
     }
+    val writtenPackageRoots = hashSetOf<String>()
     var modified = false
     var processed = 0
     for ((name, variants) in candidates) {
@@ -179,19 +228,27 @@ internal object PublishedGenericMonet {
           it !in setOf(root + "manifest.xml", root + pair.light, root + pair.dark) }) continue
       val path = variants.sorted().firstOrNull { "xxhdpi" in it } ?: variants.sorted().firstOrNull()
       // Native pairs outrank their flat aliases. Unknown/incomplete sets stay untouched.
-      val useNativePair = pair == null && name in nativeGroups
-      if (useNativePair && nativeGroups[name]!!.toSet() !=
-        (0..1).map { "res/drawable-xxhdpi/$name/$it.png" }.toSet()) continue
+      val useNativePair = pair == null && name in nativeGroups &&
+        nativeGroups[name]!!.toSet() == (0..1).map { "res/drawable-xxhdpi/$name/$it.png" }.toSet()
+      if (pair == null && name in nativeGroups && !useNativePair) continue
       if (pair == null && nightGroups[name]?.any {
           it !in (0..1).map { index -> "nightmode/res/drawable-xxhdpi/$name/$index.png" }
         } == true) continue
-      val nativeDay = if (useNativePair) nativePair(name, "") ?: continue else null
+      val nativeDay = when {
+        useNativePair -> nativePair(name, "") ?: continue
+        pair == null && name in staticAnimatingNames -> animatingQuietPair(name, "")
+        else -> null
+      }
       val sourceDay = nativeDay?.image
         ?: read(pair?.let { root + it.light } ?: path ?: continue, MAX_IMAGE) ?: continue
       val nightPath = pair?.let { root + it.dark } ?: path?.let { "nightmode/$it" }
-      val sourceNight = if (pair == null && name in nightGroups)
-        nativePair(name, "nightmode/")?.image ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
-        else nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+      val sourceNight = when {
+        pair == null && name in nightGroups ->
+          nativePair(name, "nightmode/")?.image ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+        pair == null && name in staticAnimatingNames ->
+          animatingQuietPair(name, "nightmode/")?.image ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+        else -> nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+      }
       val day = ImportedStaticPng.normalizeNearlySquare(sourceDay, check = check) ?: continue
       val night = if (sourceNight === sourceDay) day
         else ImportedStaticPng.normalizeNearlySquare(sourceNight, check = check) ?: continue
@@ -234,7 +291,9 @@ internal object PublishedGenericMonet {
             }.toByteArray()
           } finally { mask.recycle() }
         }
-        val layers = NativePaletteIcon.entries(name, day, night, png(foreground), png(plate))
+        val maskPng = png(foreground)
+        val platePng = png(plate)
+        val layers = NativePaletteIcon.entries(name, day, night, maskPng, platePng)
           .filterKeys { it.startsWith(root) }.toMutableMap()
         // Keep alias-free native artwork alias-free. If either canonical flat
         // alias exists, publish both aliases from the same day/night pair.
@@ -244,14 +303,66 @@ internal object PublishedGenericMonet {
           layers[dayFallback] = day
           layers[nightFallback] = night
         }
+        // Mirror single-activity foreign-class icons onto their package-name MAML root so
+        // HyperOS Launcher, SystemUI, Settings, Sidebar, and Share all resolve the Monet layers.
+        val pkgRoot = foreignPackageRoots[name]
+        if (pkgRoot != null && pkgRoot != name && pkgRoot !in writtenPackageRoots &&
+          pkgRoot !in protectedNames && !excluded.containsName(pkgRoot) &&
+          pkgRoot !in fancyGroups && (pkgRoot !in candidates || pkgRoot in staticAnimatingNames)) {
+          layers.putAll(NativePaletteIcon.entries(pkgRoot, day, night, maskPng, platePng))
+          animatingGroups[pkgRoot]?.let(replacedFancyPaths::addAll)
+          writtenPackageRoots += pkgRoot
+        }
         writeEntries(layers)
         replacedFancyPaths.addAll(fancyGroups[name].orEmpty())
+        animatingGroups[name]?.let(replacedFancyPaths::addAll)
         modified = true
       } finally { bitmap.recycle() }
     }
     onProgress(processed, candidates.size)
     return modified
   }
+
+  /**
+   * Protects live-data dynamic icons (Clock, Calendar, Weather, or any animating manifest
+   * referencing live system variables) while allowing static bounce-only `layer_animating_icons`
+   * (Telegram, WeChat, QQ, music/map apps, etc.) to participate in Monet completion.
+   */
+  internal fun isLiveDynamicAnimatingIcon(
+    name: String,
+    groupPaths: List<String>,
+    read: (String, Int) -> ByteArray?,
+  ): Boolean {
+    val pkg = name.substringBefore('#')
+    if (LIVE_DYNAMIC_PREFIXES.any { pkg == it || pkg.startsWith("$it.") }) return true
+    for (path in groupPaths) {
+      if (!path.endsWith(".xml") || path.endsWith("/config.xml")) continue
+      val xml = read(path, 64 * 1024)?.toString(Charsets.UTF_8) ?: continue
+      if (LIVE_MAML_MARKERS.any { xml.contains(it, ignoreCase = true) }) return true
+    }
+    return false
+  }
+
+  private val LIVE_DYNAMIC_PREFIXES = listOf(
+    "com.android.deskclock",
+    "com.android.calendar",
+    "com.xiaomi.calendar",
+    "com.miui.weather2",
+  )
+
+  private val LIVE_MAML_MARKERS = listOf(
+    "ContentProviderBinder",
+    "VariableBinders",
+    "#hour",
+    "#minute",
+    "#second",
+    "#date",
+    "#day_of_week",
+    "#year",
+    "#month",
+    "#weather",
+    "time_format",
+  )
 
   private fun insetGeneratedPalette(name: String, manifest: ByteArray,
     read: (String, Int) -> ByteArray?, coverage: (Int) -> IntArray?, check: () -> Unit): ByteArray? {
@@ -330,20 +441,26 @@ internal object PublishedGenericMonet {
       return try { encodePng(mask) } finally { mask.recycle() }
     }
 
-    val targetsByPackage = targets.groupBy { it.packageName }
+    val targetsByPackage = targets.filter { it.className != null }.distinct().groupBy { it.packageName }
     val written = hashSetOf<String>()
     var modified = false
     for (target in targets) {
       check()
       if (excluded.containsName(target.packageName)) continue
-      val aliases = nativeLauncherIconNames(target).filter(::validNativeIconName)
-      if (aliases.isEmpty()) continue
-      if (aliases.any { it in coveredOwners || excluded.containsName(it) }) continue
+      // Only inspect and emit package-owned names (pkg#foreignClass, pkg.Activity, pkg).
+      // Never include bare foreign class names (e.g. org.telegram.messenger.DefaultIcon on
+      // org.telegram.messenger.beta), which belong to another package and would collide.
+      val ownedAliases = listOfNotNull(
+        nativeLauncherActivityName(target),
+        target.packageName,
+      ).distinct().filter(::validNativeIconName)
+      if (ownedAliases.isEmpty()) continue
+      if (ownedAliases.any { it in coveredOwners || excluded.containsName(it) }) continue
       val packageTargets = targetsByPackage[target.packageName].orEmpty()
       val namesToWrite = if (packageTargets.size > 1) {
         listOfNotNull(nativeLauncherActivityName(target)?.takeIf(::validNativeIconName))
       } else {
-        aliases
+        ownedAliases
       }.filterNot { it in written }
       if (namesToWrite.isEmpty()) continue
 

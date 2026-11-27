@@ -88,6 +88,34 @@ class GenericMonetMaskTest {
     assertTrue("Collage must preserve tonal separation instead of flattening to 255",
       distinctAlphas.max() - distinctAlphas.min() >= 32)
   }
+
+  @Test fun layeredForegroundPreservesThirdAccentToneInsideDarkCutout() {
+    val size = 64
+    val fg = IntArray(size * size)
+    val plate = IntArray(size * size) { -1 }
+    // Cainiao-style 3-tone robot: white body + black visor + bright cyan smile & feet.
+    for (y in 10..50) for (x in 12..51) fg[y * size + x] = 0xffffffff.toInt()
+    for (y in 16..34) for (x in 18..45) fg[y * size + x] = 0xff000000.toInt()
+    for (y in 22..28) for (x in 26..37) fg[y * size + x] = 0xff00e0c0.toInt()
+    for (y in 51..57) for (x in 22..28) fg[y * size + x] = 0xff00e0c0.toInt()
+    val mask = requireNotNull(GenericMonetMask.layeredForeground(fg, plate, size) {})
+    assertEquals(255, mask[42 * size + 32] ushr 24)
+    assertTrue("Dark visor cutout stays dark", (mask[18 * size + 20] ushr 24) < 32)
+    assertTrue("Cyan smile inside visor stays visible", (mask[25 * size + 32] ushr 24) >= 180)
+    assertTrue("Cyan feet stay visible", (mask[54 * size + 25] ushr 24) >= 180)
+  }
+
+  @Test fun multiColorMonochromeDetectorDistinguishesTrueStencilsFromFullColorDrawables() {
+    val size = 64
+    val stencil = IntArray(size * size)
+    for (y in 16..47) for (x in 16..47) stencil[y * size + x] = 0xff000000.toInt()
+    assertFalse(OriginalAppIcons.isMultiColorArtwork(stencil))
+
+    val fullColor = IntArray(size * size)
+    for (y in 12..51) for (x in 12..51) fullColor[y * size + x] = 0xff00c080.toInt()
+    for (y in 24..39) for (x in 20..43) fullColor[y * size + x] = 0xffffffff.toInt()
+    assertTrue(OriginalAppIcons.isMultiColorArtwork(fullColor))
+  }
   @Test fun fullBleedArtworkGetsSymmetricSpaceOnItsCompletedCanvas() {
     val size = 100
     val original = IntArray(size * size) { 0xffffffff.toInt() }

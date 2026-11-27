@@ -453,6 +453,7 @@ internal object IconPackHandoffs {
                       addAll(export.colorOsPackages)
                     }
                   } else emptySet(),
+                  targets = targets,
                   onProgress = { done, total -> monetProgress(done, total, "") },
                   check = { caller.ensureActive() },
                 )

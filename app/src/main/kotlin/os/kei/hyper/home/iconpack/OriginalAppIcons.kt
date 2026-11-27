@@ -109,7 +109,12 @@ internal object OriginalAppIcons {
     check: () -> Unit = {},
   ): Bitmap? {
     if (palette ushr 48 != 1L) return null
-    val mono = renderMonochromeMask(context, target, sizePx, dark, check) ?: return null
+    val mono = try {
+      val drawable = loadDrawable(context, target, dark) as? AdaptiveIconDrawable ?: return null
+      rasterizeMonochromeMask(drawable.monochrome, sizePx, check, extractMultiColor = true)
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: PackageManager.NameNotFoundException) { null
+    } catch (_: android.content.res.Resources.NotFoundException) { null } ?: return null
     return try {
       tintMonochromeMask(mono, sizePx, palette, mask)
     } finally { mono.recycle() }
@@ -133,7 +138,7 @@ internal object OriginalAppIcons {
       val owner = withAppearance(packageContext, dark)
       if (owner !== context) owner.setTheme(activity.themeResource)
       val drawable = owner.getDrawable(icon)?.mutate() as? AdaptiveIconDrawable ?: return null
-      rasterizeMonochromeMask(drawable.monochrome, sizePx) {}
+      rasterizeMonochromeMask(drawable.monochrome, sizePx, {}, extractMultiColor = true)
     } catch (_: PackageManager.NameNotFoundException) { null }
     catch (_: android.content.res.Resources.NotFoundException) { null } ?: return null
     return try {
@@ -155,7 +160,12 @@ internal object OriginalAppIcons {
     return owner.resources.getDrawable(icon, owner.theme).mutate()
   }
 
-  private fun rasterizeMonochromeMask(mono: Drawable?, sizePx: Int, check: () -> Unit): Bitmap? {
+  private fun rasterizeMonochromeMask(
+    mono: Drawable?,
+    sizePx: Int,
+    check: () -> Unit,
+    extractMultiColor: Boolean = false,
+  ): Bitmap? {
     if (mono == null || mono is Animatable) return null
     check()
     val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
@@ -173,12 +183,81 @@ internal object OriginalAppIcons {
         output.recycle()
         return null
       }
+      // Reject apps that lazily point <monochrome> at their full-color foreground drawable:
+      // blindly applying SRC_IN white would flatten their entire silhouette into a solid blob.
+      if (isMultiColorArtwork(pixels)) {
+        if (!extractMultiColor) {
+          output.recycle()
+          return null
+        }
+        val fullPlate = IntArray(pixels.size) { -1 }
+        val extracted = GenericMonetMask.layeredForeground(pixels, null, fullPlate, sizePx, check)
+        if (extracted == null) {
+          output.recycle()
+          return null
+        }
+        output.setPixels(extracted, 0, sizePx, 0, 0, sizePx, sizePx)
+        return output
+      }
       Canvas(output).drawColor(Color.WHITE, PorterDuff.Mode.SRC_IN)
       return output
     } catch (failure: Throwable) {
       output.recycle()
       throw failure
     }
+  }
+
+  /** True when opaque pixels carry multiple high-contrast RGB colors rather than a monochrome stencil. */
+  internal fun isMultiColorArtwork(pixels: IntArray): Boolean {
+    var coreThreshold = 192
+    var coreCount = 0
+    for (c in pixels) if (c ushr 24 >= 192) coreCount++
+    if (coreCount < 16) {
+      coreThreshold = 48
+      coreCount = 0
+      for (c in pixels) if (c ushr 24 >= 48) coreCount++
+    }
+    if (coreCount < 16) return false
+    val buckets = IntArray(32 * 32 * 32)
+    var bestBucket = 0
+    var bestCount = 0
+    for (c in pixels) {
+      if (c ushr 24 < coreThreshold) continue
+      val bk = ((c ushr 19 and 31) shl 10) or ((c ushr 11 and 31) shl 5) or (c ushr 3 and 31)
+      val count = buckets[bk] + 1
+      buckets[bk] = count
+      if (count > bestCount) {
+        bestCount = count
+        bestBucket = bk
+      }
+    }
+    val dr0 = (bestBucket ushr 10 and 31) * 8 + 4
+    val dg0 = (bestBucket ushr 5 and 31) * 8 + 4
+    val db0 = (bestBucket and 31) * 8 + 4
+    var sr = 0L; var sg = 0L; var sb = 0L; var sc = 0
+    for (c in pixels) {
+      if (c ushr 24 < coreThreshold) continue
+      val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+      if (maxOf(kotlin.math.abs(r - dr0), kotlin.math.abs(g - dg0), kotlin.math.abs(b - db0)) <= 32) {
+        sr += r; sg += g; sb += b; sc++
+      }
+    }
+    val dr = if (sc > 0) (sr / sc).toInt() else dr0
+    val dg = if (sc > 0) (sg / sc).toInt() else dg0
+    val db = if (sc > 0) (sb / sc).toInt() else db0
+    val histogram = IntArray(256)
+    var detailCount = 0
+    for (c in pixels) {
+      if (c ushr 24 < coreThreshold) continue
+      val dist = maxOf(kotlin.math.abs((c ushr 16 and 255) - dr),
+        kotlin.math.abs((c ushr 8 and 255) - dg), kotlin.math.abs((c and 255) - db))
+      histogram[dist]++
+      if (dist >= 48) detailCount++
+    }
+    var remaining = coreCount / 50
+    var peak = 255
+    while (peak > 0 && remaining >= histogram[peak]) remaining -= histogram[peak--]
+    return peak >= 56 && detailCount * 100 >= coreCount * 4
   }
 
   private fun tintMonochromeMask(

@@ -342,17 +342,79 @@ internal object GenericMonetMask {
         continue
       }
 
-      // 2. Dominant-body component with enclosed interior details (Settings gear, WeType P+, JD face, Calculator =):
+      // 2. Dominant-body component with enclosed interior details (Settings gear, WeType P+, JD face, Calculator =, Cainiao):
       if (sc * 100 >= coreCount * 42) {
+        // Detect 3-tone components that have a dominant body, a primary dark/contrasting cutout,
+        // AND a distinct third accent color (e.g. Cainiao: white body + black visor + cyan smile/feet).
+        var nonBodyCount = 0
+        var cutTouched = 0
+        var cutBestBucket = 0
+        var cutBestCount = 0
+        for (k in 0 until tail) {
+          val c = foreground[queue[k]]
+          if (c ushr 24 < coreThreshold) continue
+          val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+          if (max(abs(r - dr), max(abs(g - dg), abs(b - db))) < 48) continue
+          nonBodyCount++
+          val bk = ((r ushr 3 and 31) shl 10) or ((g ushr 3 and 31) shl 5) or (b ushr 3 and 31)
+          val count = buckets[bk] + 1
+          if (count == 1) touchedBuckets[cutTouched++] = bk
+          buckets[bk] = count
+          if (count > cutBestCount) {
+            cutBestCount = count
+            cutBestBucket = bk
+          }
+        }
+        for (t in 0 until cutTouched) buckets[touchedBuckets[t]] = 0
+
+        var hasThirdTone = false
+        var kr = 0; var kg = 0; var kb = 0
+        if (cutBestCount > 0 && nonBodyCount * 100 >= coreCount * 12) {
+          val kr0 = (cutBestBucket ushr 10 and 31) * 8 + 4
+          val kg0 = (cutBestBucket ushr 5 and 31) * 8 + 4
+          val kb0 = (cutBestBucket and 31) * 8 + 4
+          var ksr = 0L; var ksg = 0L; var ksb = 0L; var ksc = 0
+          for (k in 0 until tail) {
+            val c = foreground[queue[k]]
+            if (c ushr 24 < coreThreshold) continue
+            val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+            if (max(abs(r - dr), max(abs(g - dg), abs(b - db))) < 48) continue
+            if (max(abs(r - kr0), max(abs(g - kg0), abs(b - kb0))) <= 36) {
+              ksr += r; ksg += g; ksb += b; ksc++
+            }
+          }
+          kr = if (ksc > 0) (ksr / ksc).toInt() else kr0
+          kg = if (ksc > 0) (ksg / ksc).toInt() else kg0
+          kb = if (ksc > 0) (ksb / ksc).toInt() else kb0
+          var thirdCount = 0
+          for (k in 0 until tail) {
+            val c = foreground[queue[k]]
+            if (c ushr 24 < coreThreshold) continue
+            val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+            val dBody = max(abs(r - dr), max(abs(g - dg), abs(b - db)))
+            val dCut = max(abs(r - kr), max(abs(g - kg), abs(b - kb)))
+            if (dBody >= 64 && dCut >= 84) thirdCount++
+          }
+          if (ksc * 100 >= nonBodyCount * 40 && thirdCount * 100 >= coreCount * 3) {
+            hasThirdTone = true
+          }
+        }
+
         val denom = max(36f, (peak - 20).toFloat())
         for (k in 0 until tail) {
           val idx = queue[k]
           val c = foreground[idx]
           val a = minOf(c ushr 24, plate[idx] ushr 24)
-          val dist = max(abs((c ushr 16 and 255) - dr),
-            max(abs((c ushr 8 and 255) - dg), abs((c and 255) - db)))
+          val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+          val dist = max(abs(r - dr), max(abs(g - dg), abs(b - db)))
           val knockout = ((dist - 20f) / denom).coerceIn(0f, 1f)
-          val outAlpha = (a * (1f - knockout)).roundToInt()
+          var factor = 1f - knockout
+          if (hasThirdTone && knockout > 0.2f) {
+            val dCut = max(abs(r - kr), max(abs(g - kg), abs(b - kb)))
+            val accent = ((dCut - 36f) / 84f).coerceIn(0f, 1f)
+            factor = max(factor, accent * 0.88f)
+          }
+          val outAlpha = (a * factor).roundToInt()
           result[idx] = (outAlpha shl 24) or 0x00ffffff
         }
         continue

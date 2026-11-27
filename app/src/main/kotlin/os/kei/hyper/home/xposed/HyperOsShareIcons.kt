@@ -27,10 +27,18 @@ import org.luckypray.dexkit.annotations.DexKitExperimentalApi
 import org.luckypray.dexkit.result.FieldUsingType
 
 /** Preserve action-specific artwork, direct-share avatars and other users' profile badges. */
-internal fun shareAppIdentity(info: ResolveInfo, user: Int): Pair<String, String>? {
+internal fun shareAppIdentity(
+  info: ResolveInfo,
+  user: Int,
+  groupedApp: Boolean = false,
+): Pair<String, String>? {
   val activity = info.activityInfo ?: return null
   val app = activity.applicationInfo ?: return null
   if (app.uid < 0 || app.uid / 100_000 != user || !info.resolvePackageName.isNullOrEmpty()) return null
+  if (groupedApp) {
+    // MultiDisplayResolveInfo collapses an app's share targets under one app-level row (e.g. WeChat ▾).
+    return app.packageName?.takeIf { it.isNotBlank() }?.let { it to "" }
+  }
   if (info.icon != 0 && info.icon != app.icon) return null
   if (activity.icon != 0 && activity.icon != app.icon) return null
   return app.packageName?.takeIf { it.isNotBlank() }?.let {
@@ -230,7 +238,13 @@ internal class HyperOsShareIcons(
   private val xposed: XposedInterface,
   val classLoader: ClassLoader,
 ) {
-  private data class Bound(val name: String, val activity: String, val presentation: ShareIconPresentation)
+  private data class Bound(
+    val name: String,
+    val activity: String,
+    val presentation: ShareIconPresentation,
+    val holder: java.lang.ref.WeakReference<Any>? = null,
+    val target: java.lang.ref.WeakReference<Any>? = null,
+  )
   private val lifecycle = ThemeCompatibilityLifecycle()
   private val main = Handler(Looper.getMainLooper())
   private val views = WeakHashMap<ImageView, Bound>() // main-thread only
@@ -239,6 +253,7 @@ internal class HyperOsShareIcons(
   private val initialized = AtomicBoolean()
   private val replayQueued = AtomicBoolean()
   @Volatile private var stopped = false
+  @Volatile private var activeProfile: HyperOsShareProfile? = null
   @Volatile private var cache: CrossSurfaceIconCache? = null
   @Volatile private var worker: Thread? = null
   private val replay = Runnable {
@@ -246,8 +261,11 @@ internal class HyperOsShareIcons(
     if (!lifecycle.enter()) return@Runnable
     try {
       views.entries.toList().forEach { (view, bound) ->
-        if (view.isAttachedToWindow && view.windowVisibility != View.GONE)
+        if (!isStillBound(bound)) {
+          views.remove(view)
+        } else if (view.isAttachedToWindow && view.windowVisibility != View.GONE) {
           apply(view, bound)
+        }
       }
     } finally { lifecycle.leave() }
   }
@@ -281,6 +299,7 @@ internal class HyperOsShareIcons(
         if (stopped) return@Thread
         val profile = HyperOsShareProfile.resolve(application, classLoader)
         if (stopped) return@Thread
+        activeProfile = profile
         val icons = CrossSurfaceIconCache(
           application, maxEntries = 64, maxIdentities = 128, systemPaletteEvents = true,
           eagerReload = false, refreshOnMinute = true, onReady = ::queueReplay,
@@ -288,33 +307,49 @@ internal class HyperOsShareIcons(
         cache = icons
         icons.start()
         replace(profile.bind, "bind") { chain ->
-          val result = chain.proceed()
-          if (lifecycle.enter()) try {
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-              val holder = chain.getArg(0) ?: return@replace result
-              if (profile.icon.declaringClass.isInstance(holder)) capture(profile, holder)
+          if (!lifecycle.enter()) return@replace chain.proceed()
+          try {
+            val onMain = Looper.myLooper() == Looper.getMainLooper()
+            val holder = if (onMain) chain.getArg(0)?.takeIf { profile.icon.declaringClass.isInstance(it) } else null
+            val view = holder?.let { runCatching { profile.icon.get(it) as? ImageView }.getOrNull() }
+            // Detach any prior recycled ViewHolder binding BEFORE native bind writes its drawable.
+            val previous = view?.let { views.remove(it) }
+            val result = withNativeWrite { chain.proceed() }
+            if (holder != null) {
+              try {
+                capture(profile, holder, previous = previous)
+              } catch (failure: Exception) {
+                Log.w(TAG, "Keeping native share-target icon", failure)
+              }
             }
-          } catch (failure: Exception) {
-            Log.w(TAG, "Keeping native share-target icon", failure)
+            result
           } finally { lifecycle.leave() }
-          result
         }
         profile.appRowBind?.let { rowBind ->
-          if (profile.appRowIcon != null && profile.appRowImpl != null && profile.appRowCollapsed != null &&
+          val rowIcon = profile.appRowIcon
+          if (rowIcon != null && profile.appRowImpl != null && profile.appRowCollapsed != null &&
             profile.appRowListAdapter != null && profile.appRowDisplayList != null) {
             replace(rowBind, "appRowBind") { chain ->
-              val result = chain.proceed()
-              if (lifecycle.enter()) try {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                  val adapter = chain.thisObject ?: return@replace result
-                  val holder = chain.getArg(0) ?: return@replace result
-                  val position = chain.getArg(1) as? Int ?: return@replace result
-                  captureAppRow(profile, adapter, holder, position)
+              if (!lifecycle.enter()) return@replace chain.proceed()
+              try {
+                val onMain = Looper.myLooper() == Looper.getMainLooper()
+                val holder = if (onMain) chain.getArg(0)?.takeIf { rowIcon.declaringClass.isInstance(it) } else null
+                val view = holder?.let { runCatching { rowIcon.get(it) as? ImageView }.getOrNull() }
+                val previous = view?.let { views.remove(it) }
+                val result = withNativeWrite { chain.proceed() }
+                if (holder != null) {
+                  try {
+                    val adapter = chain.thisObject
+                    val position = chain.getArg(1) as? Int ?: -1
+                    if (adapter != null && position >= 0) {
+                      captureAppRow(profile, adapter, holder, position, previous = previous)
+                    }
+                  } catch (failure: Exception) {
+                    Log.w(TAG, "Keeping native app-row icon", failure)
+                  }
                 }
-              } catch (failure: Exception) {
-                Log.w(TAG, "Keeping native app-row icon", failure)
+                result
               } finally { lifecycle.leave() }
-              result
             }
           }
         }
@@ -322,18 +357,23 @@ internal class HyperOsShareIcons(
           val resIcon = profile.resolverIcon
           if (resIcon != null) {
             replace(resBind, "resolverBindIcon") { chain ->
-              val result = chain.proceed()
-              if (lifecycle.enter()) try {
-                if (Looper.myLooper() == Looper.getMainLooper()) {
-                  val holder = chain.thisObject ?: return@replace result
-                  val target = chain.getArg(0) ?: return@replace result
-                  val view = resIcon.get(holder) as? ImageView
-                  if (view != null) captureTarget(profile, view, target)
+              if (!lifecycle.enter()) return@replace chain.proceed()
+              try {
+                val onMain = Looper.myLooper() == Looper.getMainLooper()
+                val holder = if (onMain) chain.thisObject else null
+                val view = holder?.let { runCatching { resIcon.get(it) as? ImageView }.getOrNull() }
+                val previous = view?.let { views.remove(it) }
+                val result = withNativeWrite { chain.proceed() }
+                if (view != null) {
+                  try {
+                    val target = chain.getArg(0)
+                    if (target != null) captureTarget(profile, view, target, previous = previous)
+                  } catch (failure: Exception) {
+                    Log.w(TAG, "Keeping native resolver icon", failure)
+                  }
                 }
-              } catch (failure: Exception) {
-                Log.w(TAG, "Keeping native resolver icon", failure)
+                result
               } finally { lifecycle.leave() }
-              result
             }
           }
         }
@@ -347,21 +387,19 @@ internal class HyperOsShareIcons(
             val view = chain.thisObject as? ImageView
             val bound = view?.let { views[it] }
             if (bound != null) {
+              if (!isStillBound(bound)) {
+                views.remove(view)
+                return@replace chain.proceed()
+              }
               val incoming = chain.getArg(0) as? Drawable
               if (!bound.presentation.isReplacement(incoming)) {
                 bound.presentation.updateOriginal(incoming)
                 val icons = cache
-                val bitmap = icons?.get(bound.name, bound.activity)
-                val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity)
+                val bitmap = icons?.get(bound.name, bound.activity.ifEmpty { null })
+                val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity.ifEmpty { null })
                 val desired = bound.presentation.desired(view.resources, bitmap, pending)
                 if (desired !== incoming) {
-                  val previous = writing.get()
-                  writing.set(true)
-                  try {
-                    return@replace chain.proceed(arrayOf(desired))
-                  } finally {
-                    if (previous == null) writing.remove() else writing.set(previous)
-                  }
+                  return@replace withNativeWrite { chain.proceed(arrayOf(desired)) }
                 }
               }
             }
@@ -383,10 +421,34 @@ internal class HyperOsShareIcons(
       replayQueued.set(false)
   }
 
-  private fun capture(profile: HyperOsShareProfile, holder: Any, preload: Boolean = true) {
+  private inline fun <T> withNativeWrite(block: () -> T): T {
+    val previous = writing.get()
+    writing.set(true)
+    return try {
+      block()
+    } finally {
+      if (previous == null) writing.remove() else writing.set(previous)
+    }
+  }
+
+  private fun isStillBound(bound: Bound): Boolean {
+    val holderRef = bound.holder ?: return true
+    val targetRef = bound.target ?: return true
+    val profile = activeProfile ?: return false
+    val holder = holderRef.get() ?: return false
+    val expected = targetRef.get() ?: return false
+    return runCatching { profile.boundInfo.get(holder) === expected }.getOrDefault(false)
+  }
+
+  private fun capture(
+    profile: HyperOsShareProfile,
+    holder: Any,
+    preload: Boolean = true,
+    previous: Bound? = null,
+  ) {
     val view = profile.icon.get(holder) as ImageView
     val target = profile.boundInfo.get(holder)
-    captureTarget(profile, view, target, preload)
+    captureTarget(profile, view, target, preload, previous, holder)
   }
 
   private fun captureAppRow(
@@ -395,6 +457,7 @@ internal class HyperOsShareIcons(
     holder: Any,
     position: Int,
     preload: Boolean = true,
+    previous: Bound? = null,
   ) {
     val rowIcon = profile.appRowIcon ?: return
     val rowImpl = profile.appRowImpl ?: return
@@ -407,23 +470,34 @@ internal class HyperOsShareIcons(
       ?: impl?.let { rowListAdapter.get(it) }?.let { rowDisplayList.get(it) }) as? List<*>
     val target = list?.getOrNull(position) ?: return
     val view = rowIcon.get(holder) as? ImageView ?: return
-    captureTarget(profile, view, target, preload)
+    captureTarget(profile, view, target, preload, previous)
   }
 
-  private fun captureTarget(profile: HyperOsShareProfile, view: ImageView, target: Any?, preload: Boolean = true) {
-    val previous = views.remove(view)
+  private fun captureTarget(
+    profile: HyperOsShareProfile,
+    view: ImageView,
+    target: Any?,
+    preload: Boolean = true,
+    previous: Bound? = null,
+    holder: Any? = null,
+  ) {
+    val existing = views.remove(view) ?: previous
     if (!profile.accepts(target?.javaClass)) return
     val info = profile.resolveInfo.invoke(target) as? ResolveInfo ?: return
-    val identity = shareAppIdentity(info, Process.myUid() / 100_000) ?: return
+    val grouped = profile.groupedTarget != null && target?.javaClass == profile.groupedTarget
+    val identity = shareAppIdentity(info, Process.myUid() / 100_000, groupedApp = grouped) ?: return
     // The native holder is left unchanged, so a successor can recover the true
     // original even when the visible ImageView still contains the retired bitmap.
     val original = profile.displayIcon.invoke(profile.displayHolder.invoke(target)) as? Drawable
     if (views.size >= 128) views.entries.iterator().let { it.next(); it.remove() }
-    val bound = previous?.takeIf {
+    val holderRef = holder?.let { java.lang.ref.WeakReference(it) }
+    val targetRef = if (holder != null && target != null) java.lang.ref.WeakReference(target) else null
+    val presentation = existing?.takeIf {
       it.name == identity.first && it.activity == identity.second
-    }?.also {
-      if (original != null) it.presentation.updateOriginal(original)
-    } ?: Bound(identity.first, identity.second, ShareIconPresentation(original))
+    }?.presentation?.also {
+      if (original != null) it.updateOriginal(original)
+    } ?: ShareIconPresentation(original)
+    val bound = Bound(identity.first, identity.second, presentation, holderRef, targetRef)
     views[view] = bound
     if (preload || (view.isAttachedToWindow && view.windowVisibility != View.GONE)) apply(view, bound)
   }
@@ -487,14 +561,11 @@ internal class HyperOsShareIcons(
 
   private fun apply(view: ImageView, bound: Bound) {
     val icons = cache
-    val bitmap = icons?.get(bound.name, bound.activity)
-    val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity)
-    val previous = writing.get()
-    writing.set(true)
-    try {
+    val activity = bound.activity.ifEmpty { null }
+    val bitmap = icons?.get(bound.name, activity)
+    val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, activity)
+    withNativeWrite {
       bound.presentation.apply(view, bitmap, pending)
-    } finally {
-      if (previous == null) writing.remove() else writing.set(previous)
     }
   }
 
@@ -519,6 +590,7 @@ internal class HyperOsShareIcons(
       synchronized(handles) { handles.remove(handle) }
     }
     views.clear()
+    activeProfile = null
     publish()
   }
 

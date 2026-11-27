@@ -534,6 +534,23 @@ private fun RuntimeStatusCard(
       MetadataPill(stringResource(R.string.polish_installed_version) + " ${BuildConfig.VERSION_CODE}",
         MiuixTheme.colorScheme.onSurfaceSecondary)
     }
+    report?.launcherCapabilities
+      ?.takeIf { os.kei.hyper.home.status.LauncherRuntimeCapabilities.isValid(it) }
+      ?.let { bits ->
+        val labels = launcherCapabilityLabelResIds(bits).map { stringResource(it) }
+        val summary = if (labels.isEmpty()) {
+          stringResource(R.string.runtime_native_capabilities_none)
+        } else {
+          stringResource(R.string.runtime_native_capabilities_value, labels.joinToString(" · "), bits)
+        }
+        DashboardDetail(
+          title = stringResource(R.string.runtime_native_capabilities),
+          value = summary,
+          stacked = labels.size > 3,
+          modifier = Modifier.testTag("status.runtime.capabilities"),
+        )
+        DashboardDetailDivider()
+      }
     DashboardDetail(
       title = stringResource(R.string.dashboard_system_scope),
       modifier = Modifier.testTag("status.runtime.scope"),
@@ -547,7 +564,9 @@ private fun RuntimeStatusCard(
     DashboardDetailDivider()
     TargetDetail("system_server", state.systemState, state.systemVersion, state.reported)
     DashboardDetailDivider()
-    if (state.reported && state.launcherState == null && runtime.kind == NativeStatusKind.READY) {
+    val nativeConnected = runtime.kind == NativeStatusKind.READY ||
+      (runtime.kind == NativeStatusKind.CAPABILITY_MISSING && report?.launcherPid != null)
+    if (state.reported && state.launcherState == null && nativeConnected) {
       DashboardDetail(
         title = stringResource(R.string.runtime_java_load_report),
         value = stringResource(R.string.runtime_java_optional),
@@ -557,6 +576,14 @@ private fun RuntimeStatusCard(
         state.launcherState, state.launcherVersion, state.reported)
     }
   }
+}
+
+internal fun launcherCapabilityLabelResIds(bits: Int): List<Int> = buildList {
+  if (bits and os.kei.hyper.home.status.LauncherRuntimeCapabilities.MONET != 0) add(R.string.runtime_cap_monet)
+  if (bits and os.kei.hyper.home.status.LauncherRuntimeCapabilities.THEME_MATERIALS != 0) add(R.string.runtime_cap_materials)
+  if (bits and os.kei.hyper.home.status.LauncherRuntimeCapabilities.LABELS != 0) add(R.string.runtime_cap_labels)
+  if (bits and os.kei.hyper.home.status.LauncherRuntimeCapabilities.DOCK != 0) add(R.string.runtime_cap_dock)
+  if (bits and os.kei.hyper.home.status.LauncherRuntimeCapabilities.GLASS != 0) add(R.string.runtime_cap_glass)
 }
 
 @Composable

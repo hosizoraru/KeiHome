@@ -260,4 +260,28 @@ class RuntimeStatusDashboardTest {
       detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE,
     ))).kind)
   }
+
+  @Test
+  fun launcherCapabilityLabelResIdsMapsActiveBitmaskCleanly() {
+    assertEquals(emptyList<Int>(), launcherCapabilityLabelResIds(0))
+    assertEquals(
+      listOf(
+        R.string.runtime_cap_materials,
+        R.string.runtime_cap_labels,
+        R.string.runtime_cap_dock,
+        R.string.runtime_cap_glass,
+      ),
+      launcherCapabilityLabelResIds(0xFE),
+    )
+    assertEquals(
+      listOf(
+        R.string.runtime_cap_monet,
+        R.string.runtime_cap_materials,
+        R.string.runtime_cap_labels,
+        R.string.runtime_cap_dock,
+        R.string.runtime_cap_glass,
+      ),
+      launcherCapabilityLabelResIds(0xFF),
+    )
+  }
 }

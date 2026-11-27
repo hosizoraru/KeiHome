@@ -11,7 +11,15 @@
     <string name="runtime_generation_mismatch">Reporting build differs</string>
     <string name="runtime_unavailable">Waiting for launcher connection</string>
     <string name="runtime_capability_missing">Launcher capability not loaded</string>
-    <string name="runtime_capability_missing_note">The launcher is connected, but its color capability is unavailable. If you just updated KeiHome, restart the system launcher once to load the updated capability, or restart the device and unlock to the Home screen. Hot reload cannot replace native code already loaded in the launcher. If it remains unavailable, export LSPosed logs.</string>
+    <string name="runtime_capability_missing_note">The launcher is connected, but its color capability is unavailable. If you just updated KeiHome, restart the system launcher once to load the updated capability, or restart the device and unlock to the Home screen (hot reload cannot replace native code already loaded in the launcher). If other Xposed/native modules are enabled in the system launcher or you use a modified launcher build, try testing with only KeiHome in the launcher scope and restarting the launcher. If it remains unavailable, export LSPosed logs.</string>
+    <string name="runtime_native_capabilities">Native capabilities</string>
+    <string name="runtime_native_capabilities_none">None active (0x00)</string>
+    <string name="runtime_native_capabilities_value">%1$s (0x%2$02X)</string>
+    <string name="runtime_cap_monet">Monet</string>
+    <string name="runtime_cap_materials">Materials</string>
+    <string name="runtime_cap_labels">Labels</string>
+    <string name="runtime_cap_dock">Dock</string>
+    <string name="runtime_cap_glass">Glass</string>
     <string name="runtime_inactive_user">User inactive</string>
     <string name="runtime_timed_out">Status query timed out</string>
     <string name="runtime_read_failed">Unable to read status</string>

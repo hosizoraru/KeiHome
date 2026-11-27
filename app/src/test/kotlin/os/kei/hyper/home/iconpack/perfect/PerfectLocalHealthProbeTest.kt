@@ -20,6 +20,7 @@ class PerfectLocalHealthProbeTest {
       stamp.copy(archiveExists = false), stamp.copy(archiveLength = 31),
       stamp.copy(archiveModified = 41), stamp.copy(corruptSourceHash = "source"),
       stamp.copy(knownSourceHash = "new"), stamp.copy(sourceDirectoryModified = 51),
+      stamp.copy(gitStamp = "pack-v2"),
     )
     changed.forEach { key ->
       val before = probes

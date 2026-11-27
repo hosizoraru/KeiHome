@@ -11,6 +11,7 @@ internal data class PerfectLocalProbeStamp(
   val corruptSourceHash: String?,
   val knownSourceHash: String?,
   val sourceDirectoryModified: Long,
+  val gitStamp: String = "",
 )
 
 /** One result, guarded by the repository mutex; never retains a ZIP handle or source payload. */

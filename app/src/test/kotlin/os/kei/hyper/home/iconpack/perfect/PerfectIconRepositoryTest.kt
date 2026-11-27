@@ -455,7 +455,8 @@ class PerfectIconRepositoryTest {
     mask = "M0,0 H100 V100 H0 Z"
     val changed = repo.generate(options, setOf("third.party")) {}
     assertNotEquals(first.file.name, changed.file.name)
-    assertEquals(3, renders)
+    // Shape belongs to the final compositor; unmasked static-night pairs are reused across mask changes.
+    assertEquals(2, renders)
     assertEquals(1, f.http.calls.size)
     assertTrue(repo.cacheBytes() > 0)
   }

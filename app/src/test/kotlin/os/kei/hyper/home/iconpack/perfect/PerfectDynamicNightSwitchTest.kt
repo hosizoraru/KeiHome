@@ -515,6 +515,16 @@ class PerfectDynamicNightSwitchTest {
     assertTrue(withoutFormatting(original.documentElement).isEqualNode(withoutFormatting(rewritten.documentElement)))
   }
 
+  @Test fun quietOnlyForegroundWithRewrittenFancyManifestFlipsToFancyInConfig() {
+    val testFixture = fixture(extraConfig = """<Variable name="layer_only_quiet1" value="true" type="string"/>""")
+    val output = converted(testFixture)
+    val vars = variables(parse(output.getValue("config.xml")))
+    assertEquals("false", vars["layer_only_quiet0"])
+    assertEquals("true", vars["layer_only_fancy0"])
+    assertEquals("false", vars["layer_only_quiet1"])
+    assertEquals("true", vars["layer_only_fancy1"])
+  }
+
   @Test fun leavesAllInputBytesAndMapsUnchangedOnSuccessfulConversion() {
     val fixture = fixture()
     val originals = fixture.originals.mapValues { it.value.copyOf() }

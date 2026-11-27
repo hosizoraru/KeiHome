@@ -41,6 +41,7 @@ internal object PerfectDynamicNight {
     val alphaMasks = linkedSetOf<String>()
     val textDirectories = mutableSetOf<String>()
     var weatherDirectory: String? = null
+    var backgroundXml: PerfectIconFormat.Xml? = null
     if (backgroundQuiet in files) bgAssets += backgroundQuiet
     val visualTags = setOf("Icon", "Image", "Group", "Text")
     val controlTags = setOf(
@@ -86,13 +87,12 @@ internal object PerfectDynamicNight {
                 key == "color" && !(element.name == "Text" &&
                   value.matches(Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"))) ||
                 key in setOf("xfermodeExp", "layeredExp") ||
-                key == "useVariableUpdater" && value.split(',').any { it.trim().equals("DarkMode", true) } ||
-                value.contains("__darkmode", true) ||
                 key == "xfermode" && value !in setOf("src_over", "src_atop", "dst_out")
             }
         }) return null
       if (xml.elements.any { it.name == "Text" }) textDirectories += directory
       if (directory == backgroundDirectory) {
+        backgroundXml = xml
         // Only the semantic background slot may supply background textures. Its existing
         // single-image scene is preserved, rather than treating a foreground "bg.png" as a plate.
         if (xml.elements.map { it.name } != listOf("Icon", "Image")) return null
@@ -137,13 +137,12 @@ internal object PerfectDynamicNight {
           it == files["$directory/fancy/bg.png"]?.sha
         } == true
       } &&
-      PerfectIconFormat.xml(read(files.getValue("$backgroundDirectory/fancy/manifest.xml")))
-        .elements.let { elements ->
-          elements.size == 2 && elements[0].attributes["width"] == "351" &&
-            elements[0].attributes["height"] == "351" && elements[1].name == "Image" &&
-            elements[1].attributes == mapOf("x" to "351 / 2", "y" to "351 / 2",
-              "align" to "center", "alignV" to "center", "src" to "bg.png")
-        } &&
+      backgroundXml?.elements?.let { elements ->
+        elements.size == 2 && elements[0].attributes["width"] == "351" &&
+          elements[0].attributes["height"] == "351" && elements[1].name == "Image" &&
+          elements[1].attributes == mapOf("x" to "351 / 2", "y" to "351 / 2",
+            "align" to "center", "alignV" to "center", "src" to "bg.png")
+      } == true &&
       (quietLayers + compositeQuiet).all { path ->
         check()
         val bytes = read(files.getValue(path))

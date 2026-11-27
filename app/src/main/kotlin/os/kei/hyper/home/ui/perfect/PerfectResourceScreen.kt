@@ -237,7 +237,6 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
       val style = session.style
       val styleName = if (style == "default") defaultName else style
       val detail = state.catalog?.styleDetails?.get(style)
-      val identity = state.catalog?.sourceHash.orEmpty()
       val isDownloaded = style in downloaded
       Os4DetailsSheet(
         show = session.show,
@@ -262,17 +261,11 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
           else R.string.perfect_resource_style_missing),
       ) {
         top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-          Row(
+          FlowRow(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
           ) {
-            detail?.iconFile?.let { file -> PerfectStyleArtwork(file, identity, 56.dp) }
-            FlowRow(
-              Modifier.weight(1f),
-              horizontalArrangement = Arrangement.spacedBy(6.dp),
-              verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
               MetadataPill(
                 stringResource(if (isDownloaded) R.string.perfect_git_downloaded else R.string.perfect_git_not_downloaded),
                 if (isDownloaded) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary,
@@ -303,7 +296,6 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
                 )
               }
             }
-          }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
           Os4DialogButton(
@@ -538,7 +530,6 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         val detail = state.catalog?.styleDetails?.get(style)
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
           interactionSource = pressSource,
-          startAction = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, state.catalog?.sourceHash.orEmpty()) } },
           onClick = { if (selecting) toggle(style) else styleDialog.open(style) }, endActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
               Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {

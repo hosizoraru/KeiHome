@@ -1,10 +1,7 @@
 package os.kei.hyper.home.iconpack.perfect
 
-import java.io.DataOutputStream
 import java.io.File
-import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
-import org.eclipse.jgit.api.Git
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -58,7 +55,6 @@ class PerfectIconStyleMetadataTest {
       assertEquals(1512L, catalog.styleDetails.getValue("default").bytes)
       assertEquals(62L, catalog.styleDetails.getValue("default").ownBytes)
       assertEquals(1450L, catalog.styleDetails.getValue("default").sharedBytes)
-      assertNull(catalog.styleDetails.getValue("HyperOS4").iconFile)
       assertFalse(catalog.styleDetails.containsKey("StarrySky"))
       assertEquals(80_000_000L, catalog.archiveBytes)
     }
@@ -115,80 +111,5 @@ class PerfectIconStyleMetadataTest {
     assertEquals(123L, details.bytes)
     assertEquals(123L, details.ownBytes)
     assertEquals(0L, details.sharedBytes)
-  }
-
-  private fun jpeg(width: Int = 512, height: Int = 300): ByteArray = byteArrayOf(
-    0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xc0.toByte(), 0, 8, 8,
-    (height shr 8).toByte(), height.toByte(), (width shr 8).toByte(), width.toByte(), 0,
-    0xff.toByte(), 0xd9.toByte(),
-  )
-
-  private fun artworkCache(root: File, revision: String, style: String, bytes: ByteArray): File {
-    val directory = File(root, ".artwork-$revision").apply { mkdirs() }
-    val sha = PerfectIconFormat.sha(bytes)
-    val file = File(directory, "$sha.jpg").apply { writeBytes(bytes) }
-    DataOutputStream(File(directory, "index").outputStream()).use {
-      it.writeUTF(revision)
-      it.writeInt(1)
-      it.writeUTF(style)
-      it.writeUTF(sha)
-      it.writeLong(bytes.size.toLong())
-    }
-    return file
-  }
-
-  @Test fun previewSheetsAndStaleArtworkCachesNeverBecomePackIcons() = runBlocking {
-    val root = temporary.newFolder()
-    legacyCatalog(root)
-    val gitRoot = File(root, "git")
-    val revision = "a".repeat(40)
-    val cached = artworkCache(gitRoot, revision, "StarrySky", jpeg())
-    val backend = PerfectIconGit(gitRoot)
-    assertTrue(backend.styleIcons(revision).isEmpty())
-    assertTrue(backend.styleIcons("../outside").isEmpty())
-    assertTrue(repository(root).catalog()!!.styleDetails.values.all { it.iconFile == null })
-    val outside = temporary.newFile().apply { writeBytes(jpeg()) }
-    cached.delete()
-    Files.createSymbolicLink(cached.toPath(), outside.toPath())
-    assertTrue(backend.styleIcons(revision).isEmpty())
-    assertTrue(Files.isSymbolicLink(cached.toPath()))
-  }
-
-  @Test fun metadataFetchDoesNotDownloadPreviewSheetsOrSubstituteApplicationIcons() = runBlocking {
-    val source = temporary.newFolder()
-    Git.init().setDirectory(source).setInitialBranch("main").call().use { git ->
-      git.repository.config.apply {
-        setBoolean("uploadpack", null, "allowFilter", true)
-        setBoolean("uploadpack", null, "allowReachableSHA1InWant", true)
-        setBoolean("commit", null, "gpgSign", false)
-        save()
-      }
-      fun resource(path: String, bytes: ByteArray) {
-        File(source, path).apply { requireNotNull(parentFile).mkdirs(); writeBytes(bytes) }
-      }
-      val icon = jpeg()
-      resource("icons/test.app/0.png", byteArrayOf(1))
-      resource("icons/test.app/1.png", byteArrayOf(4))
-      resource("themes/default/icons/test.app/0.png", byteArrayOf(2))
-      resource("themes/default/icons/test.app/1.png", byteArrayOf(5))
-      resource("themes/StarrySky/icons/test.app/0.png", ByteArray(2 * 1024 * 1024) { 3 })
-      resource("themes/StarrySky/icons/test.app/1.png", byteArrayOf(6))
-      resource("emui/themes/StarrySky/preview/icon_small.jpg", icon)
-      resource("emui/themes/StarrySky/preview/cover.jpg", jpeg(width = 800))
-      resource("themes/StarrySky/icons/stand.in/0.png", jpeg())
-      git.add().addFilepattern(".").call()
-      val revision = git.commit().setMessage("Resource fixture").setAuthor("Fixture", "test@example.invalid")
-        .setCommitter("Fixture", "test@example.invalid").call().name
-      val root = temporary.newFolder()
-      val backend = PerfectIconGit(root, fixtureRemote = git.repository.directory)
-      val remote = backend.check {}
-      assertEquals(revision, remote.revision)
-      assertTrue(backend.styleIcons(revision).isEmpty())
-      assertEquals(listOf(".remote"), root.listFiles()!!.map { it.name })
-      val modified = File(root, ".remote").lastModified()
-      assertEquals(remote.revision, backend.check {}.revision)
-      assertEquals(modified, File(root, ".remote").lastModified())
-      assertTrue(PerfectIconGit(root).styleIcons(revision).isEmpty())
-    }
   }
 }

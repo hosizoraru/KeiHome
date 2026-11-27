@@ -187,10 +187,10 @@ internal object PerfectDynamicNightSwitch {
       for (path in fancyImages)
         add("$fancy/$NAMESPACE/${path.removePrefix("$fancy/")}", night.getValue(path))
       output[manifestPath] = serialize(document)
-      if (directory == backgroundDirectory) {
-        // Activate the original single-image background program, now with its selector.
-        setFlag("layer_only_quiet0", "false")
-        setFlag("layer_only_fancy0", "true")
+      if (directory == backgroundDirectory || directory in layers.quietOnly) {
+        // Activate the rewritten layer program so quiet-only slots switch dynamically in dark mode.
+        setFlag("layer_only_quiet$slot", "false")
+        setFlag("layer_only_fancy$slot", "true")
       }
     }
     val configBytes = serialize(config)

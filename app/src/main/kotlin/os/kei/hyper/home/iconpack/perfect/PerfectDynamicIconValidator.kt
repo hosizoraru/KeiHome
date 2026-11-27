@@ -47,13 +47,14 @@ internal object PerfectDynamicIconValidator {
   ): Rendering {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })
     val configBytes = bytes("config.xml")
-    val config = PerfectIconFormat.xml(configBytes)
     val mode = try {
       layerConfig(configBytes, resources.keys)
     } catch (failure: Exception) {
       if (failure is CancellationException || failure is InterruptedException) throw failure
+      val variables = runCatching { PerfectIconFormat.xml(configBytes).variables.toString().take(1024) }
+        .getOrDefault("<unparseable>")
       throw IOException("config.xml (source ${resources.getValue("config.xml").source}): " +
-        "${failure.message}; variables=${config.variables.toString().take(1024)}", failure)
+        "${failure.message}; variables=$variables", failure)
     }
     val undeclaredResources = resources.keys.filter { '/' in it && !it.startsWith("quiet/") &&
       it.substringBefore('/') !in mode.layers }

@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.resume
@@ -75,8 +76,6 @@ internal interface PerfectIconGitBackend {
   fun exists(store: String): Boolean
   fun stamp(store: String): String
   fun maintenanceNeeded(store: String, liveBytes: Long): Boolean = false
-  /** Reserved for verified pack logos. Current source preview sheets are not pack icons. */
-  fun styleIcons(revision: String): Map<String, File> = emptyMap()
   fun published(store: String, revision: String)
 }
 
@@ -108,6 +107,7 @@ internal class PerfectIconGit(
     val directory = File(root, ".metadata-${UUID.randomUUID()}")
     try {
       DiskRepository(directory, metadataBytes, op::check).use { repo ->
+        op.progress(PerfectIconProgress(0, 0, "source.check"))
         val advertised = transport(repo, op, metadata = true).use { transport ->
           transport.openFetch(listOf(RefSpec(MAIN))).use { connection ->
             connection.getRef(MAIN)?.objectId ?: throw IOException("Git main branch is absent")
@@ -141,7 +141,9 @@ internal class PerfectIconGit(
     var success = false
     try {
       DiskRepository(metadata, metadataBytes, op::check).use { meta ->
+        op.progress(PerfectIconProgress(0, 0, "source.check"))
         val remote = fetchMetadata(meta, op)
+        op.progress(PerfectIconProgress(0, 0, "source.tree"))
         val candidates = index(meta, ObjectId.fromString(remote.revision), op::check)
         val available = remote.availableStyles
         val selectedStyles = styles.intersect(available.toSet())
@@ -362,7 +364,9 @@ internal class PerfectIconGit(
     val styles = candidates.mapNotNull { pathStyle(it.path) }
       .filter { it != "common" }.distinct().sorted()
     if (styles.isEmpty() || styles.any { !safeStyle(it) }) throw IOException("Invalid Git source styles")
-    select(candidates, styles.toSet(), op::check)
+    if (candidates.none {
+      it.path.startsWith("icons/") || "/icons/" in it.path || "/layer_animating_icons/" in it.path
+    }) throw IOException("Git style contains no usable icon graph")
     return RevWalk(repo).use { walk ->
       val commit = walk.parseCommit(tip)
       PerfectIconRemote(tip.name, commit.commitTime.toLong() * 1000, commit.shortMessage.take(1024),
@@ -457,7 +461,8 @@ internal class PerfectIconGit(
     RevWalk(repo).use { walk ->
       TreeWalk(repo).use { tree ->
         tree.addTree(walk.parseCommit(tip).tree)
-        // Visit directories too, so malformed paths cannot hide under an ignored subtree.
+        // Only descend into icon-source subtrees (icons/, themes/) matching upstream PathSelector,
+        // so unrelated repo files under /addition or /emui cannot break sync.
         var visited = 0
         while (tree.next()) {
           check()
@@ -467,6 +472,10 @@ internal class PerfectIconGit(
           } catch (error: java.nio.charset.CharacterCodingException) {
             throw IOException("Invalid Git path encoding", error)
           }
+          val relevant = path == "icons" || path == "themes" ||
+            path.startsWith("icons/") || path.startsWith("themes/")
+          if (!relevant) continue
+          if (path.endsWith("/.nomedia")) continue
           safePath(path)
           val mode = tree.getFileMode(0)
           if (mode == FileMode.SYMLINK || mode == FileMode.GITLINK) {
@@ -637,6 +646,7 @@ internal class PerfectIconGit(
         }
       override fun commitPackImpl(desc: Collection<DfsPackDescription>, replace: Collection<DfsPackDescription>?) {
         desc.forEach { atomic(local("${it.packName}.ready"), byteArrayOf(1)) }
+        trackedBytes.set(bytes())
         // No automatic replacement/pruning: active and unpublished tips must survive.
       }
       override fun rollbackPack(desc: Collection<DfsPackDescription>) {
@@ -644,6 +654,7 @@ internal class PerfectIconGit(
           PackExt.values().forEach { local(pack.getFileName(it)).delete() }
           local("${pack.packName}.ready").delete()
         }
+        trackedBytes.set(bytes())
       }
       override fun openFile(desc: DfsPackDescription, ext: PackExt): ReadableChannel =
         channel(RandomAccessFile(local(desc.getFileName(ext)), "r"))
@@ -652,7 +663,10 @@ internal class PerfectIconGit(
         return object : DfsOutputStream() {
           override fun write(buf: ByteArray, off: Int, len: Int) {
             check()
-            if (bytes() + len > byteLimit) throw IOException("Git store exceeds byte limit")
+            if (trackedBytes.addAndGet(len.toLong()) > byteLimit) {
+              trackedBytes.addAndGet(-len.toLong())
+              throw IOException("Git store exceeds byte limit")
+            }
             file.write(buf, off, len)
           }
           override fun read(position: Long, buf: ByteBuffer): Int =
@@ -664,6 +678,7 @@ internal class PerfectIconGit(
         }
       }
     }
+    private val trackedBytes = AtomicLong()
     init {
       if (Files.isSymbolicLink(folder.toPath())) throw IOException("Symlink Git repository")
       if (!folder.isDirectory && !folder.mkdirs()) throw IOException("Cannot create Git repository")
@@ -673,7 +688,9 @@ internal class PerfectIconGit(
       config.setBoolean("http", null, "saveCookies", false)
       config.setBoolean("core", null, "trustPackStat", false)
       config.setInt("core", null, "streamFileThreshold", 1024 * 1024)
-      if (bytes() > byteLimit) throw IOException("Git store exceeds byte limit")
+      val initialBytes = bytes()
+      if (initialBytes > byteLimit) throw IOException("Git store exceeds byte limit")
+      trackedBytes.set(initialBytes)
     }
     override fun getObjectDatabase(): DfsObjDatabase = db
     override fun getRefDatabase(): RefDatabase = refs
@@ -753,7 +770,6 @@ internal class PerfectIconGit(
 
   companion object {
     private const val MAIN = "refs/heads/main"
-    private const val REMOTE = "https://github.com/pzcn/Perfect-Icons-Completion-Project.git"
     private const val ACTIVE = "active"
     private const val TIP = "tip"
     private val STORE = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")

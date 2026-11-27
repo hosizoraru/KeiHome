@@ -4,6 +4,8 @@ import os.kei.hyper.home.iconpack.FlatIconStencil
 
 /** Pixel-only operations shared by static icons and native animation textures. */
 internal object PerfectNightPixels {
+  const val REVISION = "perfect-night-pixels-1"
+
   fun dim(pixel: Int): Int {
     fun channel(shift: Int) = (((pixel ushr shift) and 255) * 214 + 127) / 255
     return (pixel and -0x1000000) or
@@ -614,13 +616,7 @@ internal object PerfectNightPixels {
   fun liftForeground(pixels: IntArray, width: Int, height: Int, check: () -> Unit): Boolean {
     if (!isolatedForeground(pixels, width, height, check)) return false
     if (!neutralGlyph(pixels, width, height, check, opaqueCore = true) { true }) return false
-    for (y in 0 until height) {
-      check()
-      for (x in 0 until width) {
-        val i = y * width + x
-        pixels[i] = lift(pixels[i])
-      }
-    }
+    applyLift(pixels, width, height, check)
     return true
   }
 
@@ -644,7 +640,18 @@ internal object PerfectNightPixels {
       }
     }
     if (dark * 10 < visible * 9) return false
-    return liftForeground(pixels, width, height, check)
+    applyLift(pixels, width, height, check)
+    return true
+  }
+
+  private fun applyLift(pixels: IntArray, width: Int, height: Int, check: () -> Unit) {
+    for (y in 0 until height) {
+      check()
+      for (x in 0 until width) {
+        val i = y * width + x
+        pixels[i] = lift(pixels[i])
+      }
+    }
   }
 
   /** Lift thin, uniform glyph silhouettes independently of neighboring colored artwork. */

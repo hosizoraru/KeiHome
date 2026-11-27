@@ -314,4 +314,21 @@ class PerfectIconGitTest {
       assertFalse(root.listFiles()!!.any { it.name.startsWith(".metadata-") })
     }
   }
+
+  @Test fun ignoresUnrelatedSubtreesAndReportsCheckAndTreeProgress() = runBlocking {
+    fixture().use { fixture ->
+      val backend = backend(fixture)
+      val extras = content() + mapOf(
+        ".nomedia" to ByteArray(0),
+        "addition/preview.png" to "preview".toByteArray(),
+        "emui/readme.txt" to "ignored".toByteArray(),
+      )
+      fixture.commit(extras, "addition/symlink" to FileMode.SYMLINK)
+      val stages = mutableListOf<String>()
+      val fetched = backend.fetch(null, false, setOf("default")) { stages += it.label }
+      assertTrue(fetched.entries.none { it.path.startsWith("addition/") || it.path.startsWith("emui/") || it.path == ".nomedia" })
+      assertTrue("source.check" in stages)
+      assertTrue("source.tree" in stages)
+    }
+  }
 }

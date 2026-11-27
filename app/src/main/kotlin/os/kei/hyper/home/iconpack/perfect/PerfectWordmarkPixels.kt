@@ -15,7 +15,7 @@ internal object PerfectWordmarkPixels {
     if (a == 0) return false
     val hi = maxOf(p ushr 16 and 255, p ushr 8 and 255, p and 255)
     val lo = minOf(p ushr 16 and 255, p ushr 8 and 255, p and 255)
-    val rounding = if (fringe) (254 + a) / a else 0
+    val rounding = if (fringe) ((254 + a) / a).coerceAtMost(32) else 0
     return hi <= 112 + rounding && hi - lo <= 64 + rounding
   }
 

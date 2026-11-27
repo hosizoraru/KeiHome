@@ -35,12 +35,9 @@ data class PerfectIconCatalog(
  * resources, with repeated Git blob hashes counted once. Excludes physical Git/cache overhead.
  * A blob referenced by both own and shared paths belongs to sharedBytes, so ownBytes + sharedBytes
  * equals bytes. The ownBytes default preserves totals in fixtures constructed with bytes alone.
- * Bytes are known for downloaded styles; an artwork-only entry uses zero.
- * Missing source artwork stays null.
  */
 data class PerfectIconStyleDetails(
   val bytes: Long = 0,
-  val iconFile: File? = null,
   val ownBytes: Long = bytes,
   val sharedBytes: Long = 0,
 )

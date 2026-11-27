@@ -96,6 +96,13 @@ internal class InteractiveHighlight(
         }
     }
 
+    fun reset() {
+        animationScope.launch {
+            launch { pressProgressAnimation.snapTo(0f) }
+            launch { positionAnimation.snapTo(Offset.Zero) }
+        }
+    }
+
     // On release the spot springs back to the press-down point while the press fades out.
     private fun release() {
         animationScope.launch {

@@ -5,6 +5,7 @@ package os.kei.hyper.home.ui.components.liquid
 
 // Adapted from Kyant0/AndroidLiquidGlass — https://github.com/Kyant0/AndroidLiquidGlass (Apache 2.0).
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +42,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -51,8 +54,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.key.Key
@@ -60,6 +66,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -77,7 +84,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import os.kei.hyper.home.ui.components.animation.DampedDragAnimation
 import os.kei.hyper.home.ui.components.animation.InteractiveHighlight
+import os.kei.hyper.home.ui.components.navBottomBarGestureDissolve
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationItem
@@ -184,6 +194,7 @@ internal fun IosLiquidGlassNavigationBar(
     isBlurActive: Boolean,
     modifier: Modifier = Modifier,
     badge: (Int) -> (@Composable () -> Unit)? = { null },
+    visible: Boolean = true,
 ) {
     val isDark = LocalKeiHomeDarkTheme.current
     val pillShape = remember { CircleShape }
@@ -303,11 +314,27 @@ internal fun IosLiquidGlassNavigationBar(
         )
     }
 
+    val showScale = remember { Animatable(if (visible) 1f else GlassMotion.NAV_HIDE_SCALE) }
+    var interactionEnabled by remember { mutableStateOf(visible) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            interactionEnabled = true
+            if (showScale.value < 0.999f) delay(GlassMotion.NAV_SHOW_DELAY_MS)
+            showScale.animateTo(1f, GlassMotion.navShowHide())
+        } else {
+            dampedDrag.reset(currentIndex.toFloat())
+            interactiveHighlight.reset()
+            offsetAnimation.snapTo(0f)
+            showScale.animateTo(GlassMotion.NAV_HIDE_SCALE, GlassMotion.navShowHide())
+            interactionEnabled = false
+        }
+    }
+
     // Read .value only inside highlight lambdas (draw phase), never in composition.
-    val baseHighlight = if (isBlurActive) {
+    val baseHighlight = if (isBlurActive && interactionEnabled) {
         rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
     } else remember { derivedStateOf { iosIndicatorSpecular } }
-    val pillHighlight = if (isBlurActive) {
+    val pillHighlight = if (isBlurActive && interactionEnabled) {
         rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
     } else remember { derivedStateOf { iosIndicatorSpecular } }
 
@@ -323,31 +350,38 @@ internal fun IosLiquidGlassNavigationBar(
         }
     }
 
-    val tabsContent: @Composable RowScope.() -> Unit = {
+    val tabsContent: @Composable RowScope.(interactive: Boolean) -> Unit = { interactive ->
         val tabScale = LocalIosTabScale.current
         items.forEachIndexed { index, item ->
             Column(
                 modifier = Modifier
-                    .semantics(mergeDescendants = true) {
-                        selected = index == currentIndex
-                        role = Role.Tab
-                        onClick {
-                            activateTab(index)
-                            true
-                        }
-                    }
-                    .onKeyEvent { event ->
-                        val isActivationKey = event.key == Key.Enter ||
-                            event.key == Key.NumPadEnter ||
-                            event.key == Key.Spacebar
-                        if (isActivationKey) {
-                            if (event.type == KeyEventType.KeyUp) activateTab(index)
-                            true
+                    .then(
+                        if (interactive) {
+                            Modifier
+                                .semantics(mergeDescendants = true) {
+                                    selected = index == currentIndex
+                                    role = Role.Tab
+                                    onClick {
+                                        activateTab(index)
+                                        true
+                                    }
+                                }
+                                .onKeyEvent { event ->
+                                    val isActivationKey = event.key == Key.Enter ||
+                                        event.key == Key.NumPadEnter ||
+                                        event.key == Key.Spacebar
+                                    if (isActivationKey) {
+                                        if (event.type == KeyEventType.KeyUp) activateTab(index)
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                .focusable()
                         } else {
-                            false
-                        }
-                    }
-                    .focusable()
+                            Modifier
+                        },
+                    )
                     .weight(1f)
                     .fillMaxHeight()
                     .graphicsLayer {
@@ -377,17 +411,44 @@ internal fun IosLiquidGlassNavigationBar(
         }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = CenterHorizontally,
+    ) {
         Box(
             modifier = Modifier
                 .padding(bottom = bottomPaddingValue, start = 24.dp, end = 24.dp)
-                .fillMaxWidth(),
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, placeable.height) {
+                        if (interactionEnabled) placeable.placeRelative(0, 0)
+                    }
+                }
+                .focusProperties { canFocus = interactionEnabled }
+                .then(if (!interactionEnabled) Modifier.clearAndSetSemantics {} else Modifier)
+                .navBottomBarGestureDissolve()
+                .graphicsLayer {
+                    val s = showScale.value
+                    val progress = ((s - GlassMotion.NAV_HIDE_SCALE) / (1f - GlassMotion.NAV_HIDE_SCALE))
+                        .coerceIn(0f, 1f)
+                    scaleX = s
+                    scaleY = s
+                    alpha = progress
+                    val blurPx = (1f - progress) * GlassMotion.NAV_HIDE_BLUR_DP.dp.toPx()
+                    renderEffect = if (Build.VERSION.SDK_INT >= 31 && blurPx > 0.5f) {
+                        BlurEffect(blurPx, blurPx, TileMode.Decal)
+                    } else {
+                        null
+                    }
+                },
             contentAlignment = Alignment.CenterStart,
         ) {
             CompositionLocalProvider(LocalContentColor provides tabContentColor) {
                 Row(
                     modifier = Modifier
-                        .selectableGroup()
+                        .then(if (interactionEnabled) Modifier.selectableGroup() else Modifier)
                         .onSizeChanged { coords ->
                             totalWidthPx = coords.width.toFloat()
                             val contentWidthPx = totalWidthPx - with(density) { 8.dp.toPx() }
@@ -436,17 +497,17 @@ internal fun IosLiquidGlassNavigationBar(
                             },
                         )
                         .then(
-                            if (isBlurActive) {
+                            if (isBlurActive && interactionEnabled) {
                                 interactiveHighlight.modifier.then(interactiveHighlight.gestureModifier)
                             } else {
                                 Modifier
                             },
                         )
-                        .then(dampedDrag.modifier)
+                        .then(if (interactionEnabled) dampedDrag.modifier else Modifier)
                         .height(64.dp)
                         .padding(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    content = tabsContent,
+                    content = { tabsContent(interactionEnabled) },
                 )
             }
 
@@ -478,7 +539,7 @@ internal fun IosLiquidGlassNavigationBar(
                             .height(56.dp)
                             .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        content = tabsContent,
+                        content = { tabsContent(false) },
                     )
                 }
             }
@@ -561,7 +622,7 @@ internal fun IosLiquidGlassNavigationBar(
                                         translationX = if (isLtr) -progressOffset else progressOffset
                                     },
                                 verticalAlignment = Alignment.CenterVertically,
-                                content = tabsContent,
+                                content = { tabsContent(false) },
                             )
                         }
                     }

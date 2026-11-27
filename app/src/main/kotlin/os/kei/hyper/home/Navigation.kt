@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeThemeApplyWindow
 import os.kei.hyper.home.ui.components.KeiHomeAdaptiveNavigation
+import os.kei.hyper.home.ui.components.ProvideKeiHomeNavChrome
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.main.DesktopSection
 import os.kei.hyper.home.ui.main.DesktopDestinationScreen
@@ -193,14 +194,16 @@ internal fun MainNavigation(
         backdropColor = MiuixTheme.colorScheme.surface)) {
       entry<Main> {
         val transitionRunning = LocalNavTransitionScope.current.isRunning
-        MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
-          onOpenDesktopSection = ::openDesktop, pager = pager, tabNavigation = tabNavigation,
-          navigation = navigation, backdrop = backdrop, wide = wide) {
-          val show = current == Main && pendingVersion.isEmpty() && !transitionRunning
-          UpgradeRestartReminder(
-            version = if (show) releaseState?.restartReminderVersion.orEmpty() else "",
-            onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
-          )
+        ProvideKeiHomeNavChrome(isCurrentDestination = current == Main) {
+          MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
+            onOpenDesktopSection = ::openDesktop, pager = pager, tabNavigation = tabNavigation,
+            navigation = navigation, backdrop = backdrop, wide = wide) {
+            val show = current == Main && pendingVersion.isEmpty() && !transitionRunning
+            UpgradeRestartReminder(
+              version = if (show) releaseState?.restartReminderVersion.orEmpty() else "",
+              onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
+            )
+          }
         }
       }
       entry<DesktopRoute> { route ->
@@ -225,9 +228,11 @@ internal fun MainNavigation(
         OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
       }
       entry<PackRoute>(swipeDismiss = swipe) { route ->
-        PackDestinationScreen(model, route.section,
-          onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
-          onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) })
+        ProvideKeiHomeNavChrome(isCurrentDestination = current == route) {
+          PackDestinationScreen(model, route.section,
+            onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
+            onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) })
+        }
       }
       entry<SettingsRoute>(swipeDismiss = swipe) { route ->
         SettingsDestinationScreen(model, route.section,

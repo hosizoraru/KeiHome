@@ -2,9 +2,11 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,7 +20,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
+import os.kei.hyper.home.ui.components.Os4ChromeStowContainer
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberNavBottomBarVisible
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -43,22 +47,40 @@ internal fun PackTabScaffold(
       model.preferences.state.value.navigationBarStyle
   }
   val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
+  val bottomBarVisible = rememberNavBottomBarVisible()
   KeiHomeScaffold(
-    modifier = Modifier.imePadding().testTag("$tag.destination"), backdrop = backdrop,
-    floatingActionButton = floatingActionButton,
+    modifier = Modifier.testTag("$tag.destination"), backdrop = backdrop,
+    floatingActionButton = {
+      Os4ChromeStowContainer(visible = bottomBarVisible) {
+        floatingActionButton()
+      }
+    },
     bottomBar = {
-      KeiHomeNavigationBar(style, items, navigation.selectedPage, onSelect = { index ->
-        focus.clearFocus(force = true)
-        navigation.selectPage(index)
-      }, backdrop = backdrop, modifier = Modifier.testTag("$tag.tabs"), badge = badge)
+      KeiHomeNavigationBar(
+        style = style,
+        items = items,
+        selectedIndex = navigation.selectedPage,
+        onSelect = { index ->
+          focus.clearFocus(force = true)
+          navigation.selectPage(index)
+        },
+        modifier = Modifier.testTag("$tag.tabs"),
+        backdrop = backdrop,
+        badge = badge,
+        visible = bottomBarVisible,
+      )
     },
   ) { insets ->
     // The stationary bottom bar samples the moving pages. Each top bar uses its own recording.
+    // IME clearance stays on inner scrollable insets so the floating bottom bar never rides above the keyboard.
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       KeiHomeTabPager(model, pager, Modifier.fillMaxSize().testTag("$tag.pager")) { index ->
         savedTabs.SaveableStateProvider(index) {
           val pageBackdrop = rememberKeiHomeBlurBackdrop()
-          val bottomInset: @Composable () -> Unit = { Spacer(Modifier.height(insets.calculateBottomPadding())) }
+          val bottomInset: @Composable () -> Unit = {
+            val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+            Spacer(Modifier.height(maxOf(insets.calculateBottomPadding(), imeBottom)))
+          }
           content(index, pageBackdrop, bottomInset)
         }
       }

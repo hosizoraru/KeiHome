@@ -16,11 +16,12 @@ internal fun KeiHomeNavigationBar(
   modifier: Modifier = Modifier,
   backdrop: LayerBackdrop? = null,
   badge: (Int) -> (@Composable () -> Unit)? = { null },
+  visible: Boolean = true,
 ) {
   when (style) {
     AppNavigationBarStyle.IOS_LIKE -> IosLiquidGlassNavigationBar(
-      items, selectedIndex, onSelect, backdrop, backdrop != null, modifier, badge)
+      items, selectedIndex, onSelect, backdrop, backdrop != null, modifier, badge, visible)
     AppNavigationBarStyle.OS4_GLASS -> KeiHomeGlassNavigationBar(
-      items, selectedIndex, onSelect, modifier, backdrop, badge = { badge(it)?.invoke() })
+      items, selectedIndex, onSelect, modifier, backdrop, badge = { badge(it)?.invoke() }, visible = visible)
   }
 }

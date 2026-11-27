@@ -125,6 +125,20 @@ internal class DampedDragAnimation(
         }
     }
 
+    fun reset(value: Float) {
+        releaseJob?.cancel()
+        pressJob?.cancel()
+        velocityTracker.resetTracking()
+        val clamped = value.coerceIn(valueRange)
+        animationScope.launch {
+            launch { valueAnimation.snapTo(clamped) }
+            launch { velocityAnimation.snapTo(0f) }
+            launch { pressProgressAnimation.snapTo(0f) }
+            launch { scaleXAnimation.snapTo(initialScale) }
+            launch { scaleYAnimation.snapTo(initialScale) }
+        }
+    }
+
     fun updateValue(value: Float) {
         val targetValue = value.coerceIn(valueRange)
         animationScope.launch {

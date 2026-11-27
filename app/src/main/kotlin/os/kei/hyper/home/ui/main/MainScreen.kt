@@ -46,8 +46,10 @@ import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4ChromeStowContainer
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
+import os.kei.hyper.home.ui.components.rememberNavBottomBarVisible
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -98,6 +100,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   val navigationBadge: (Int) -> (@Composable () -> Unit)? = { index ->
     if (index == 2) ({ PackNavigationBadge(model) }) else null
   }
+  val bottomBarVisible = rememberNavBottomBarVisible(enabled = !wide)
   Scaffold(backdrop = backdrop,
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
@@ -122,9 +125,13 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     bottomBar = {
       if (!wide) KeiHomeNavigationBar(style = navigationStyle, items = navigation, selectedIndex = selectedTab,
         onSelect = { selectTab(it) }, backdrop = backdrop,
-        badge = navigationBadge)
+        badge = navigationBadge, visible = bottomBarVisible)
     },
-    floatingActionButton = { PackActionFab(model, page, "home") },
+    floatingActionButton = {
+      Os4ChromeStowContainer(visible = bottomBarVisible || wide) {
+        PackActionFab(model, page, "home")
+      }
+    },
   ) { insets ->
     // Glass dialogs register with the MIUIX popup host supplied by this scaffold.
     overlay()

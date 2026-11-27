@@ -153,14 +153,53 @@ class PerfectIconGitHttpTest {
         try { factory.create(url(fake, it)); fail("Foreign endpoint accepted") }
         catch (_: IOException) { }
       }
-      connection.setReadTimeout(120_000)
-      connection.setConnectTimeout(120_000)
+      connection.setReadTimeout(300_000)
+      connection.setConnectTimeout(300_000)
       connection.setInstanceFollowRedirects(true)
-      assertEquals(20_000, fake.readTimeout)
-      assertEquals(15_000, fake.connectTimeout)
+      assertEquals(PerfectIconGitHttp.MAX_READ_TIMEOUT_MS, fake.readTimeout)
+      assertEquals(PerfectIconGitHttp.MAX_CONNECT_TIMEOUT_MS, fake.connectTimeout)
       assertFalse(fake.instanceFollowRedirects)
       try { factory.create(url(FakeConnection(status = 302))).responseCode; fail("Redirect accepted") }
       catch (_: IOException) { }
     } finally { factory.abort() }
+  }
+
+  @Test fun cleanEofClosePreservesKeepAliveWhileEarlyOrErrorCloseDisconnects() {
+    val factory = PerfectIconGitHttp(1024, {}, {})
+    try {
+      val clean = FakeConnection()
+      factory.create(url(clean)).inputStream.use { stream ->
+        assertEquals(128, stream.readBytes().size)
+      }
+      assertFalse("Clean EOF must leave socket pooled for keep-alive/HTTP2 reuse", clean.aborted)
+
+      val partial = FakeConnection()
+      factory.create(url(partial)).inputStream.use { stream ->
+        assertEquals(7, stream.read())
+      }
+      assertTrue("Early close before EOF must disconnect socket", partial.aborted)
+
+      val redirect = FakeConnection(status = 302)
+      assertThrows(NonRetryableGitException::class.java) { factory.create(url(redirect)).responseCode }
+      assertTrue("Rejected HTTP status must disconnect socket immediately", redirect.aborted)
+    } finally { factory.abort() }
+  }
+
+  @Test fun recordsLastStatusAndParsesCooldownFloorsCapsAndDates() {
+    val factory = PerfectIconGitHttp(1024, {}, {})
+    try {
+      val conn503 = FakeConnection(status = 503, headers = mapOf("Retry-After" to "5"))
+      assertEquals(503, factory.create(url(conn503)).responseCode)
+      assertEquals(503, factory.lastStatus)
+      assertEquals(5_000L, factory.lastRetryAfterMillis)
+    } finally { factory.abort() }
+
+    val now = 1_700_000_000_000L
+    assertEquals(now + 60_000L, parseHttpCooldownMillis(429, null, null, now))
+    assertEquals(now + 120_000L, parseHttpCooldownMillis(429, "120", null, now))
+    assertEquals(now + 3_600_000L, parseHttpCooldownMillis(403, "10", null, now))
+    assertEquals(now + 60_000L, parseHttpCooldownMillis(429, "9999999", null, now))
+    assertEquals(now + 604_800_000L, parseHttpCooldownMillis(429, null, ((now + 9_000_000_000L) / 1000).toString(), now))
+    assertEquals(now + 180_000L, parseHttpCooldownMillis(429, null, ((now + 180_000L) / 1000).toString(), now))
   }
 }

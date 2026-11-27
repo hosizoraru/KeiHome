@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.eclipse.jgit.errors.CorruptObjectException
+import org.eclipse.jgit.errors.TransportException
 import org.eclipse.jgit.internal.storage.dfs.*
 import org.eclipse.jgit.internal.storage.pack.PackExt
 import org.eclipse.jgit.lib.*
@@ -15,21 +16,36 @@ import org.eclipse.jgit.transport.*
 import org.eclipse.jgit.treewalk.TreeWalk
 import org.eclipse.jgit.util.FS
 import java.io.Closeable
+import java.io.EOFException
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.InterruptedIOException
 import java.io.RandomAccessFile
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.ProtocolException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.GeneralSecurityException
 import java.security.MessageDigest
+import java.util.ArrayDeque
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLPeerUnverifiedException
 import kotlin.concurrent.withLock
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -98,6 +114,10 @@ internal class PerfectIconGit(
   private val metadataBytes: Long = minOf(32L * 1024 * 1024, limits.compressed),
   private val storedByteLimit: Long = limits.compressed,
   private val networkOptions: () -> PerfectGitNetworkOptions = { PerfectGitNetworkOptions() },
+  private val initialBatchSize: Int = INITIAL_BATCH_SIZE,
+  private val minBatchSize: Int = MIN_BATCH_SIZE,
+  private val retryBackoffMillis: Long = DEFAULT_RETRY_BACKOFF_MS,
+  private val fetchBatchOverride: ((DiskRepository, Operation, List<ObjectId>) -> Unit)? = null,
 ) : PerfectIconGitBackend {
   private val lock = locks.computeIfAbsent(root.absolutePath) { ReentrantLock() }
 
@@ -107,17 +127,10 @@ internal class PerfectIconGit(
     val directory = File(root, ".metadata-${UUID.randomUUID()}")
     try {
       DiskRepository(directory, metadataBytes, op::check).use { repo ->
-        op.progress(PerfectIconProgress(0, 0, "source.check"))
-        val advertised = transport(repo, op, metadata = true).use { transport ->
-          transport.openFetch(listOf(RefSpec(MAIN))).use { connection ->
-            connection.getRef(MAIN)?.objectId ?: throw IOException("Git main branch is absent")
-          }
+        retryTransient(op, MAX_METADATA_RETRIES) {
+          op.progress(PerfectIconProgress(0, 0, "source.check"))
+          fetchMetadataGraph(repo, op, allowRemoteShortcut = true, allowGraphCache = true).first
         }
-        cachedRemote(advertised.name)?.let { return@operation it.copy(checkedAt = System.currentTimeMillis()) }
-        // Never report metadata attached to a different ls-remote revision.
-        val remote = fetchMetadata(repo, op)
-        if (remote.revision != advertised.name) throw IOException("Git main changed while checking; retry")
-        remote
       }
     } finally { directory.deleteRecursively() }
   }
@@ -129,49 +142,48 @@ internal class PerfectIconGit(
     progress: (PerfectIconProgress) -> Unit,
   ): PerfectGitSnapshot = operation { op ->
     op.progress = progress
-    styles.forEach { if (!safeStyle(it)) throw IOException("Unsafe Git style") }
+    styles.forEach { if (!safeStyle(it)) throw NonRetryableGitException("Unsafe Git style") }
     prepareRoot()
     val reuse = !repair && currentStore != null && exists(currentStore)
-    val store = if (reuse) currentStore else UUID.randomUUID().toString()
+    if (repair) clearStagingDirectories(keep = null)
+    val staging = if (!reuse && !repair) findResumableStaging() else null
+    val store = when {
+      reuse -> requireNotNull(currentStore)
+      staging != null -> staging.name
+      else -> UUID.randomUUID().toString()
+    }
     val directory = storeDirectory(store)
     if (!reuse) op.createdStore = directory
+    sweepOrphanPacks(directory)
     val original = directory.listFiles()?.map { it.name }?.toSet().orEmpty()
     val originalTip = File(directory, TIP).takeIf { it.isFile }?.readBytes()
     val metadata = File(root, ".metadata-${UUID.randomUUID()}")
     var success = false
+    var failure: Throwable? = null
     try {
       DiskRepository(metadata, metadataBytes, op::check).use { meta ->
-        op.progress(PerfectIconProgress(0, 0, "source.check"))
-        val remote = fetchMetadata(meta, op)
-        op.progress(PerfectIconProgress(0, 0, "source.tree"))
-        val candidates = index(meta, ObjectId.fromString(remote.revision), op::check)
+        val (remote, candidates) = retryTransient(op, MAX_METADATA_RETRIES) {
+          op.progress(PerfectIconProgress(0, 0, "source.check"))
+          fetchMetadataGraph(meta, op, allowRemoteShortcut = false, allowGraphCache = !repair)
+        }
         val available = remote.availableStyles
         val selectedStyles = styles.intersect(available.toSet())
-        if (selectedStyles.isEmpty()) throw IOException("No requested Git style remains available")
+        if (selectedStyles.isEmpty()) throw NonRetryableGitException("No requested Git style remains available")
         val selected = select(candidates, selectedStyles, op::check)
         DiskRepository(directory, storedByteLimit, op::check).use { data ->
           // Persist only selected blobs. Commit/tree packs belong to the ephemeral
           // metadata repo; local revision markers must never negotiate commit haves.
           val missing = selected.map { it.id }.distinct().filterNot { data.objectDatabase.has(it) }
-          missing.chunked(256).forEach { batch ->
-            op.check()
-            data.admission = batch.toSet()
-            transport(data, op, metadata = false).use { transport ->
-              transport.openFetch(listOf(RefSpec(MAIN))).use { connection ->
-                if (connection !is BasePackFetchConnection) throw IOException("Git smart object fetch is required")
-                connection.fetch(op, batch.mapIndexed { i, id ->
-                  ObjectIdRef.Unpeeled(Ref.Storage.NETWORK, "want/$i", id)
-                }, emptySet())
-              }
-            }
-          }
+          fetchMissingBlobs(data, op, missing)
           var expanded = 0L
           val entries = selected.map { candidate ->
             op.check()
             val size = data.open(candidate.id, Constants.OBJ_BLOB).size
-            if (size <= 0 || size > PerfectIconFormat.MAX_BLOB.toLong()) throw IOException("Invalid Git source object size")
+            if (size <= 0 || size > PerfectIconFormat.MAX_BLOB.toLong()) {
+              throw NonRetryableGitException("Invalid Git source object size")
+            }
             expanded += size
-            if (expanded > limits.expanded) throw IOException("Git source exceeds expanded byte limit")
+            if (expanded > limits.expanded) throw NonRetryableGitException("Git source exceeds expanded byte limit")
             val entry = PerfectIconSourceEntry(candidate.path, candidate.id.name, size, 0)
             verify(data, entry, op::check)
             entry
@@ -179,20 +191,32 @@ internal class PerfectIconGit(
           // Only successful, fully validated fetches move the remote-tip ref.
           data.writeRef(TIP, remote.revision)
           op.check()
-          if (data.bytes() > storedByteLimit) throw IOException("Git store exceeds byte limit")
+          if (data.bytes() > storedByteLimit) throw NonRetryableGitException("Git store exceeds byte limit")
           val snapshot = PerfectGitSnapshot(store, remote, entries, data.bytes(), op.received,
             available, selectedStyles.sorted())
           success = true
           snapshot
         }
       }
+    } catch (error: Throwable) {
+      failure = error
+      throw error
     } finally {
       metadata.deleteRecursively()
+      sweepOrphanPacks(directory)
       if (!success) {
-        if (!reuse) directory.deleteRecursively()
-        else {
-          directory.listFiles()?.filter { it.name !in original }?.forEach { it.delete() }
-          originalTip?.let { atomic(File(directory, TIP), it) }
+        val keepResumable = failure != null && !op.isCancelled() &&
+          isTransientNetworkFailure(failure, op) && hasReadyPacks(directory)
+        if (keepResumable) {
+          // Keep verified .ready packs for the next retry without advancing TIP or ACTIVE.
+          op.createdStore = null
+          if (reuse) originalTip?.let { atomic(File(directory, TIP), it) }
+        } else {
+          if (!reuse) directory.deleteRecursively()
+          else {
+            directory.listFiles()?.filter { it.name !in original }?.forEach { it.delete() }
+            originalTip?.let { atomic(File(directory, TIP), it) }
+          }
         }
       }
     }
@@ -350,38 +374,250 @@ internal class PerfectIconGit(
     }
   }
 
-  private fun fetchMetadata(repo: DiskRepository, op: Operation): PerfectIconRemote {
+  private fun fetchMissingBlobs(data: DiskRepository, op: Operation, missing: List<ObjectId>) {
+    if (missing.isEmpty()) return
+    val initial = initialBatchSize.coerceIn(1, MAX_BATCH_SIZE)
+    val queue = ArrayDeque<List<ObjectId>>()
+    missing.chunked(initial).forEach(queue::addLast)
+    var totalRetries = 0
+    val batchAttempts = HashMap<List<ObjectId>, Int>()
+    while (queue.isNotEmpty()) {
+      op.check()
+      val batch = queue.removeFirst().filterNot { data.objectDatabase.has(it) }
+      if (batch.isEmpty()) continue
+      try {
+        fetchSingleBatch(data, op, batch)
+      } catch (error: Throwable) {
+        if (!isTransientNetworkFailure(error, op)) throw error
+        val shouldHalve = batch.size > minBatchSize.coerceAtLeast(1) && isHalvableBatchError(error, op)
+        if (shouldHalve && totalRetries < MAX_TOTAL_RETRIES) {
+          totalRetries++
+          val mid = batch.size / 2
+          queue.addFirst(batch.subList(mid, batch.size))
+          queue.addFirst(batch.subList(0, mid))
+          backoff(op, attempt = 0)
+          continue
+        }
+        val attempts = batchAttempts.getOrDefault(batch, 0)
+        if (attempts >= MAX_BATCH_RETRIES || totalRetries >= MAX_TOTAL_RETRIES) throw error
+        batchAttempts[batch] = attempts + 1
+        totalRetries++
+        queue.addFirst(batch)
+        backoff(op, attempt = attempts)
+      }
+    }
+  }
+
+  internal fun fetchBatchDefault(data: DiskRepository, op: Operation, batch: List<ObjectId>) {
+    transport(data, op, metadata = false).use { transport ->
+      transport.openFetch(listOf(RefSpec(MAIN))).use { connection ->
+        if (connection !is BasePackFetchConnection) {
+          throw NonRetryableGitException("Git smart object fetch is required")
+        }
+        connection.fetch(op, batch.mapIndexed { i, id ->
+          ObjectIdRef.Unpeeled(Ref.Storage.NETWORK, "want/$i", id)
+        }, emptySet())
+      }
+    }
+  }
+
+  private fun fetchSingleBatch(data: DiskRepository, op: Operation, batch: List<ObjectId>) {
+    op.check()
+    data.admission = batch.toSet()
+    val override = fetchBatchOverride
+    if (override != null) {
+      override(data, op, batch)
+      return
+    }
+    fetchBatchDefault(data, op, batch)
+  }
+
+  private fun <T> retryTransient(op: Operation, maxRetries: Int, block: () -> T): T {
+    var attempt = 0
+    while (true) {
+      op.check()
+      try {
+        return block()
+      } catch (error: Throwable) {
+        if (attempt >= maxRetries || !isTransientNetworkFailure(error, op)) throw error
+        backoff(op, attempt)
+        attempt++
+      }
+    }
+  }
+
+  private fun backoff(op: Operation, attempt: Int) {
+    val serverHint = op.http?.lastRetryAfterMillis ?: 0L
+    val base = retryBackoffMillis
+    val delayMs = if (base <= 0L) 0L else {
+      val exp = (base shl attempt.coerceAtMost(4)).coerceAtMost(MAX_RETRY_BACKOFF_MS)
+      val jitter = ThreadLocalRandom.current().nextLong(0L, 250L)
+      maxOf(exp + jitter, serverHint).coerceAtMost(MAX_RETRY_HINT_MS)
+    }
+    if (delayMs > 0L) op.sleepCancellable(delayMs) else op.check()
+  }
+
+  private fun isHalvableBatchError(error: Throwable, op: Operation): Boolean {
+    val status = op.http?.lastStatus ?: 0
+    if (status in setOf(408, 413, 500, 502, 503, 504)) return true
+    return causeChain(error).any {
+      it is SocketTimeoutException || it is InterruptedIOException || it is EOFException ||
+        it is ProtocolException || it is SocketException || it is SSLException
+    }
+  }
+
+  private fun isTransientNetworkFailure(error: Throwable, op: Operation): Boolean {
+    if (op.isCancelled() || Thread.currentThread().isInterrupted) return false
+    val chain = causeChain(error)
+    if (chain.any {
+        it is CancellationException || it is InterruptedException ||
+          it is PerfectIconCooldownException || it is NonRetryableGitException ||
+          it is CorruptObjectException || it is SSLPeerUnverifiedException ||
+          it is GeneralSecurityException
+      }) return false
+    val status = op.http?.lastStatus ?: 0
+    if (status in 300..499 && status != 408 && status != 413) return false
+    if (chain.any {
+        val msg = it.message.orEmpty()
+        "not our ref" in msg || ("want " in msg && "not valid" in msg)
+      }) return false
+    if (status in setOf(408, 413, 500, 502, 503, 504)) return true
+    if (chain.any {
+        it is SocketTimeoutException || it is InterruptedIOException || it is EOFException ||
+          it is SocketException || it is ConnectException || it is NoRouteToHostException ||
+          it is UnknownHostException || it is ProtocolException || it is SSLException
+      }) return true
+    if (status in listOf(0, 200) && chain.any { it is TransportException }) return true
+    return false
+  }
+
+  private fun causeChain(error: Throwable): List<Throwable> =
+    generateSequence(error) { it.cause?.takeUnless { next -> next === it } }.take(16).toList()
+
+  private fun hasReadyPacks(folder: File): Boolean =
+    folder.isDirectory && folder.listFiles().orEmpty().any { it.isFile && it.name.endsWith(".ready") }
+
+  private fun sweepOrphanPacks(folder: File) {
+    if (!folder.isDirectory || Files.isSymbolicLink(folder.toPath())) return
+    val files = folder.listFiles().orEmpty()
+    val readyBases = files.asSequence()
+      .filter { it.isFile && it.name.endsWith(".ready") }
+      .map { it.name.removeSuffix(".ready") }
+      .toHashSet()
+    files.forEach { file ->
+      if (Files.isSymbolicLink(file.toPath())) return@forEach
+      val name = file.name
+      if (name == TIP || name == ACTIVE) return@forEach
+      if (name.endsWith(".ready")) {
+        val base = name.removeSuffix(".ready")
+        if (!File(folder, "$base.pack").isFile || !File(folder, "$base.idx").isFile) file.delete()
+      } else if (name.startsWith(".write-")) {
+        file.delete()
+      } else if (name.endsWith(".pack") || name.endsWith(".idx")) {
+        val base = name.substringBeforeLast('.')
+        if (base !in readyBases) file.delete()
+      }
+    }
+  }
+
+  private fun findResumableStaging(): File? {
+    val candidates = root.listFiles().orEmpty().filter { dir ->
+      STORE.matches(dir.name) && dir.isDirectory && !Files.isSymbolicLink(dir.toPath()) &&
+        !File(dir, TIP).exists() && !File(dir, ACTIVE).exists()
+    }
+    var best: File? = null
+    var bestBytes = -1L
+    for (dir in candidates) {
+      sweepOrphanPacks(dir)
+      val size = runCatching {
+        dir.listFiles().orEmpty().sumOf {
+          if (Files.isSymbolicLink(it.toPath())) throw IOException("Symlink")
+          it.length()
+        }
+      }.getOrDefault(-1L)
+      if (hasReadyPacks(dir) && size in 1..storedByteLimit && size > bestBytes) {
+        best?.deleteRecursively()
+        best = dir
+        bestBytes = size
+      } else {
+        dir.deleteRecursively()
+      }
+    }
+    return best
+  }
+
+  private fun clearStagingDirectories(keep: String?) {
+    root.listFiles().orEmpty().filter { dir ->
+      dir.name != keep && STORE.matches(dir.name) && dir.isDirectory && !Files.isSymbolicLink(dir.toPath()) &&
+        !File(dir, TIP).exists() && !File(dir, ACTIVE).exists()
+    }.forEach { it.deleteRecursively() }
+  }
+
+  private fun repoCacheKey(op: Operation): String =
+    fixtureRemote?.canonicalPath ?: op.network.repositoryUrl()
+
+  private fun fetchMetadataGraph(
+    repo: DiskRepository,
+    op: Operation,
+    allowRemoteShortcut: Boolean,
+    allowGraphCache: Boolean,
+  ): Pair<PerfectIconRemote, List<Candidate>> {
     repo.admission = emptySet()
+    val cacheKey = root.canonicalPath
+    val remoteKey = repoCacheKey(op)
+    var shortcut: Pair<PerfectIconRemote, List<Candidate>>? = null
     val tip = transport(repo, op, metadata = true).use { transport ->
       transport.openFetch(listOf(RefSpec(MAIN))).use { connection ->
-        if (connection !is BasePackFetchConnection) throw IOException("Git smart filtered fetch is required")
-        val ref = connection.getRef(MAIN) ?: throw IOException("Git main branch is absent")
+        if (connection !is BasePackFetchConnection) {
+          throw NonRetryableGitException("Git smart filtered fetch is required")
+        }
+        val ref = connection.getRef(MAIN) ?: throw NonRetryableGitException("Git main branch is absent")
+        val revision = ref.objectId.name
+        if (allowRemoteShortcut) {
+          cachedRemote(revision)?.let { cached ->
+            shortcut = cached.copy(checkedAt = System.currentTimeMillis()) to emptyList()
+            return@use ref.objectId
+          }
+        }
+        if (allowGraphCache) {
+          metadataCache[cacheKey]?.takeIf { it.remoteKey == remoteKey && it.revision == revision }?.let { cached ->
+            op.progress(PerfectIconProgress(0, 0, "source.tree"))
+            shortcut = cached.remote.copy(checkedAt = System.currentTimeMillis()) to cached.candidates
+            return@use ref.objectId
+          }
+        }
         connection.fetch(op, listOf(ref), emptySet())
         ref.objectId
       }
     }
+    shortcut?.let { return it }
+    op.progress(PerfectIconProgress(0, 0, "source.tree"))
     val candidates = index(repo, tip, op::check)
     val styles = candidates.mapNotNull { pathStyle(it.path) }
       .filter { it != "common" }.distinct().sorted()
-    if (styles.isEmpty() || styles.any { !safeStyle(it) }) throw IOException("Invalid Git source styles")
+    if (styles.isEmpty() || styles.any { !safeStyle(it) }) {
+      throw NonRetryableGitException("Invalid Git source styles")
+    }
     if (candidates.none {
       it.path.startsWith("icons/") || "/icons/" in it.path || "/layer_animating_icons/" in it.path
-    }) throw IOException("Git style contains no usable icon graph")
-    return RevWalk(repo).use { walk ->
+    }) throw NonRetryableGitException("Git style contains no usable icon graph")
+    val remote = RevWalk(repo).use { walk ->
       val commit = walk.parseCommit(tip)
       PerfectIconRemote(tip.name, commit.commitTime.toLong() * 1000, commit.shortMessage.take(1024),
         System.currentTimeMillis(), styles)
     }.also(::cacheRemote)
+    metadataCache[cacheKey] = CachedTreeGraph(remoteKey, tip.name, remote, candidates)
+    return remote to candidates
   }
 
   private fun transport(repo: DiskRepository, op: Operation, metadata: Boolean): Transport {
     val uri = fixtureRemote?.let {
-      if (!it.isDirectory || Files.isSymbolicLink(it.toPath())) throw IOException("Invalid JVM Git fixture")
+      if (!it.isDirectory || Files.isSymbolicLink(it.toPath())) throw NonRetryableGitException("Invalid JVM Git fixture")
       URIish(it.toURI().toString())
     } ?: URIish(op.network.repositoryUrl())
     val transport = Transport.open(repo, uri)
     transport.credentialsProvider = null
-    transport.timeout = 20
+    transport.timeout = TRANSPORT_TIMEOUT_SECONDS
     transport.tagOpt = TagOpt.NO_TAGS
     transport.isRemoveDeletedRefs = false
     transport.isCheckFetchedObjects = true
@@ -391,9 +627,17 @@ internal class PerfectIconGit(
       transport.filterSpec = FilterSpec.fromFilterLine("blob:none")
     }
     if (fixtureRemote == null) {
-      if (transport !is TransportHttp) { transport.close(); throw IOException("Expected Git HTTPS transport") }
+      if (transport !is TransportHttp) {
+        transport.close()
+        throw NonRetryableGitException("Expected Git HTTPS transport")
+      }
+      val remaining = (if (metadata) metadataBytes else limits.compressed) - op.received
+      if (remaining <= 0L) {
+        transport.close()
+        throw NonRetryableGitException("Git transfer exceeds byte limit")
+      }
       val factory = PerfectIconGitHttp(
-        (if (metadata) metadataBytes else limits.compressed) - op.received,
+        remaining,
         op::check,
         op.network,
       ) { count ->
@@ -408,6 +652,12 @@ internal class PerfectIconGit(
   }
 
   private data class Candidate(val path: String, val id: ObjectId)
+  private data class CachedTreeGraph(
+    val remoteKey: String,
+    val revision: String,
+    val remote: PerfectIconRemote,
+    val candidates: List<Candidate>,
+  )
 
   private fun cachedRemote(revision: String): PerfectIconRemote? {
     val file = File(root, ".remote")
@@ -441,7 +691,7 @@ internal class PerfectIconGit(
   }
 
   private fun select(candidates: List<Candidate>, styles: Set<String>, check: () -> Unit): List<Candidate> {
-    if (styles.isEmpty()) throw IOException("Select at least one Git style")
+    if (styles.isEmpty()) throw NonRetryableGitException("Select at least one Git style")
     val paths = candidates.map { it.path }
     val needed = HashSet<String>()
     styles.forEach {
@@ -452,7 +702,7 @@ internal class PerfectIconGit(
     val selected = candidates.filter { it.path in needed }
     if (selected.none {
       it.path.startsWith("icons/") || "/icons/" in it.path || "/layer_animating_icons/" in it.path
-    }) throw IOException("Git style contains no usable icon graph")
+    }) throw NonRetryableGitException("Git style contains no usable icon graph")
     return selected
   }
 
@@ -466,11 +716,11 @@ internal class PerfectIconGit(
         var visited = 0
         while (tree.next()) {
           check()
-          if (++visited > limits.entries) throw IOException("Too many Git tree entries")
+          if (++visited > limits.entries) throw NonRetryableGitException("Too many Git tree entries")
           val path = try {
             Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(tree.rawPath)).toString()
           } catch (error: java.nio.charset.CharacterCodingException) {
-            throw IOException("Invalid Git path encoding", error)
+            throw NonRetryableGitException("Invalid Git path encoding", error)
           }
           val relevant = path == "icons" || path == "themes" ||
             path.startsWith("icons/") || path.startsWith("themes/")
@@ -479,20 +729,20 @@ internal class PerfectIconGit(
           safePath(path)
           val mode = tree.getFileMode(0)
           if (mode == FileMode.SYMLINK || mode == FileMode.GITLINK) {
-            throw IOException("Git symlink/submodule is not an icon source")
+            throw NonRetryableGitException("Git symlink/submodule is not an icon source")
           }
           if (tree.isSubtree) { tree.enterSubtree(); continue }
           if (mode != FileMode.REGULAR_FILE && mode != FileMode.EXECUTABLE_FILE) {
-            throw IOException("Unsupported Git source mode")
+            throw NonRetryableGitException("Unsupported Git source mode")
           }
           if (sourcePath(path)) {
             result += Candidate(path, tree.getObjectId(0))
-            if (result.size > limits.entries) throw IOException("Too many Git source entries")
+            if (result.size > limits.entries) throw NonRetryableGitException("Too many Git source entries")
           }
         }
       }
     }
-    if (result.isEmpty()) throw IOException("Empty Git icon source")
+    if (result.isEmpty()) throw NonRetryableGitException("Empty Git icon source")
     return result
   }
 
@@ -574,17 +824,28 @@ internal class PerfectIconGit(
     }
   }
 
-  private class Operation : ProgressMonitor {
+  internal class Operation : ProgressMonitor {
     var network = PerfectGitNetworkOptions()
     private val cancelled = AtomicBoolean()
+    private val cancelLatch = CountDownLatch(1)
     @Volatile var http: PerfectIconGitHttp? = null
     var createdStore: File? = null
     var received = 0L
     var beforeRequest = 0L
     var progress: (PerfectIconProgress) -> Unit = {}
     private var reported = 0L
-    fun cancel() { cancelled.set(true); http?.abort() }
-    fun check() { if (cancelled.get() || Thread.currentThread().isInterrupted) throw IOException("Git operation cancelled") }
+    fun cancel() { cancelled.set(true); cancelLatch.countDown(); http?.abort() }
+    fun check() { if (cancelled.get() || Thread.currentThread().isInterrupted) throw NonRetryableGitException("Git operation cancelled") }
+    fun sleepCancellable(delayMs: Long) {
+      check()
+      try {
+        cancelLatch.await(delayMs, TimeUnit.MILLISECONDS)
+      } catch (interrupted: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw NonRetryableGitException("Git operation cancelled", interrupted)
+      }
+      check()
+    }
     fun report() {
       check()
       val now = System.nanoTime()
@@ -606,7 +867,7 @@ internal class PerfectIconGit(
    * Config and refs are explicitly local; no SystemReader/FS singleton is replaced.
    * Pack+index files are exposed only after their small .ready marker is durable.
    */
-  private inner class DiskRepository(
+  internal inner class DiskRepository(
     val folder: File,
     val byteLimit: Long,
     val check: () -> Unit,
@@ -665,7 +926,7 @@ internal class PerfectIconGit(
             check()
             if (trackedBytes.addAndGet(len.toLong()) > byteLimit) {
               trackedBytes.addAndGet(-len.toLong())
-              throw IOException("Git store exceeds byte limit")
+              throw NonRetryableGitException("Git store exceeds byte limit")
             }
             file.write(buf, off, len)
           }
@@ -686,10 +947,11 @@ internal class PerfectIconGit(
       config.setString("protocol", null, "version", "2")
       config.setString("http", null, "followRedirects", "false")
       config.setBoolean("http", null, "saveCookies", false)
+      config.setInt("http", null, "postBuffer", 2 * 1024 * 1024)
       config.setBoolean("core", null, "trustPackStat", false)
       config.setInt("core", null, "streamFileThreshold", 1024 * 1024)
       val initialBytes = bytes()
-      if (initialBytes > byteLimit) throw IOException("Git store exceeds byte limit")
+      if (initialBytes > byteLimit) throw NonRetryableGitException("Git store exceeds byte limit")
       trackedBytes.set(initialBytes)
     }
     override fun getObjectDatabase(): DfsObjDatabase = db
@@ -711,7 +973,7 @@ internal class PerfectIconGit(
           val fields = ByteBuffer.wrap(header)
           if (fields.int != 0x5041434b || fields.int !in 2..3 ||
             (fields.int.toLong() and 0xffffffffL) > limits.entries.toLong() * 2) {
-            throw IOException("Invalid or oversized Git pack")
+            throw NonRetryableGitException("Invalid or oversized Git pack")
           }
           return inserter.newPackParser(java.io.SequenceInputStream(header.inputStream(), input)).also {
             it.setMaxObjectSizeLimit(if (admission?.isEmpty() == true) metadataBytes else PerfectIconFormat.MAX_BLOB.toLong())
@@ -726,7 +988,7 @@ internal class PerfectIconGit(
         check()
         expanded += length
         val max = if (admission?.isEmpty() == true) metadataBytes else limits.expanded
-        if (expanded > max) throw IOException("Git pack exceeds expanded byte limit")
+        if (expanded > max) throw NonRetryableGitException("Git pack exceeds expanded byte limit")
       }
       override fun check(id: AnyObjectId?, type: Int, raw: ByteArray) {
         if (type == Constants.OBJ_BLOB) {
@@ -772,8 +1034,19 @@ internal class PerfectIconGit(
     private const val MAIN = "refs/heads/main"
     private const val ACTIVE = "active"
     private const val TIP = "tip"
+    private const val TRANSPORT_TIMEOUT_SECONDS = 60
+    internal const val INITIAL_BATCH_SIZE = 1024
+    internal const val MIN_BATCH_SIZE = 128
+    private const val MAX_BATCH_SIZE = 2048
+    private const val MAX_METADATA_RETRIES = 2
+    private const val MAX_BATCH_RETRIES = 3
+    private const val MAX_TOTAL_RETRIES = 12
+    private const val DEFAULT_RETRY_BACKOFF_MS = 1_000L
+    private const val MAX_RETRY_BACKOFF_MS = 10_000L
+    private const val MAX_RETRY_HINT_MS = 15_000L
     private val STORE = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
     private val locks = ConcurrentHashMap<String, ReentrantLock>()
+    private val metadataCache = ConcurrentHashMap<String, CachedTreeGraph>()
     private class DiskBuilder(folder: File) : DfsRepositoryBuilder<DiskBuilder, DfsRepository>() {
       init {
         setRepositoryDescription(DfsRepositoryDescription(folder.absolutePath))
@@ -807,7 +1080,7 @@ internal class PerfectIconGit(
         path.startsWith('/') || path.contains('\\') || path.contains(':') ||
         path.any { it.code < 32 || it == '\u007f' } ||
         path.split('/').any { it.isEmpty() || it == "." || it == ".." || it.equals(".git", true) }) {
-        throw IOException("Unsafe Git tree path")
+        throw NonRetryableGitException("Unsafe Git tree path")
       }
     }
     private fun atomic(destination: File, bytes: ByteArray) {

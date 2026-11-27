@@ -859,7 +859,15 @@ class PerfectIconRepository internal constructor(
   private fun clearable(file: File): Boolean = file.isFile &&
     (file.parentFile == blobsDir || file.parentFile == renderedDir || file.parentFile == publicationProofDir ||
       file.toPath().startsWith(previewDir.toPath()) ||
-      file.toPath().startsWith(File(root, "trees").toPath()) || file.name.endsWith(".part"))
+      file.toPath().startsWith(File(root, "trees").toPath()) || file.name.endsWith(".part") ||
+      isGitStagingFile(file))
+
+  private fun isGitStagingFile(file: File): Boolean {
+    val gitRoot = File(root, "git")
+    val parent = file.parentFile ?: return false
+    if (parent.parentFile != gitRoot) return false
+    return !File(parent, "tip").exists() && !File(parent, "active").exists()
+  }
 
   private data class Snapshot(
     val revision: String,

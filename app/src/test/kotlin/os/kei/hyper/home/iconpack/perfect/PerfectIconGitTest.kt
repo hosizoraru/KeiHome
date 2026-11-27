@@ -331,4 +331,107 @@ class PerfectIconGitTest {
       assertTrue("source.tree" in stages)
     }
   }
+
+  @Test fun adaptiveBatchHalvingAndTransientRetryRecoverWithoutLosingVerifiedPacks() = runBlocking {
+    fixture().use { fixture ->
+      val files = content() + (1..4).associate { i -> "icons/extra.$i/0.png" to byteArrayOf(1, i.toByte()) } +
+        (1..4).associate { i -> "icons/extra.$i/1.png" to byteArrayOf(2, i.toByte()) }
+      fixture.commit(files)
+      val root = temporary.newFolder()
+      val seenBatchSizes = mutableListOf<Int>()
+      var injectedTimeouts = 0
+      lateinit var backend: PerfectIconGit
+      backend = PerfectIconGit(
+        root,
+        fixtureRemote = fixture.repo.directory,
+        initialBatchSize = 4,
+        minBatchSize = 2,
+        retryBackoffMillis = 0L,
+        fetchBatchOverride = { data, op, batch ->
+          seenBatchSizes += batch.size
+          if (batch.size > 2) throw java.net.SocketTimeoutException("simulated pack-objects timeout")
+          if (injectedTimeouts++ == 0) throw java.net.SocketTimeoutException("simulated single glitch")
+          backend.fetchBatchDefault(data, op, batch)
+        },
+      )
+      val snapshot = backend.fetch(null, false, setOf("default")) {}
+      assertTrue("Expected initial batch of 4 to be halved to 2", 4 in seenBatchSizes && 2 in seenBatchSizes)
+      assertTrue(backend.exists(snapshot.store))
+      backend.open(snapshot.store).use { assertTrue(it.healthy(snapshot.entries) {}) }
+    }
+  }
+
+  @Test fun midSyncTransientFailureRetainsVerifiedPacksForNextResumeWithoutAdvancingTip() = runBlocking {
+    fixture().use { fixture ->
+      val files = content() + mapOf(
+        "icons/b.app/0.png" to byteArrayOf(10, 11),
+        "icons/b.app/1.png" to byteArrayOf(12, 13),
+        "icons/c.app/0.png" to byteArrayOf(14, 15),
+        "icons/c.app/1.png" to byteArrayOf(16, 17),
+      )
+      fixture.commit(files)
+      val root = temporary.newFolder()
+      var failAfterFirst = true
+      var fetchedBlobsSecondRun = 0
+      lateinit var backend: PerfectIconGit
+      var firstBatchDone = false
+      backend = PerfectIconGit(
+        root,
+        fixtureRemote = fixture.repo.directory,
+        initialBatchSize = 2,
+        minBatchSize = 2,
+        retryBackoffMillis = 0L,
+        fetchBatchOverride = { data, op, batch ->
+          if (failAfterFirst) {
+            if (firstBatchDone) throw java.net.SocketTimeoutException("mid-sync drop")
+            backend.fetchBatchDefault(data, op, batch)
+            firstBatchDone = true
+          } else {
+            fetchedBlobsSecondRun += batch.size
+            backend.fetchBatchDefault(data, op, batch)
+          }
+        },
+      )
+      try {
+        backend.fetch(null, false, setOf("default")) {}
+        fail("Expected mid-sync timeout")
+      } catch (_: java.net.SocketTimeoutException) { }
+      val staging = root.listFiles()!!.single { it.isDirectory && it.name != ".remote" }
+      assertFalse("Uncommitted staging store must not expose tip", backend.exists(staging.name))
+      assertTrue("Verified packs must survive transient mid-sync failure",
+        staging.listFiles()!!.any { it.name.endsWith(".ready") })
+
+      failAfterFirst = false
+      val resumed = backend.fetch(null, false, setOf("default")) {}
+      assertEquals(staging.name, resumed.store)
+      assertTrue("Resume must skip blobs already verified in staging", fetchedBlobsSecondRun < files.size)
+      assertTrue(backend.exists(resumed.store))
+    }
+  }
+
+  @Test fun nonRetryableErrorsFailImmediatelyInSingleAttempt() = runBlocking {
+    fixture().use { fixture ->
+      val root = temporary.newFolder()
+      for (failure in listOf(
+        PerfectIconCooldownException(System.currentTimeMillis() + 60_000),
+        NonRetryableGitException("policy violation"),
+        javax.net.ssl.SSLPeerUnverifiedException("bad cert"),
+      )) {
+        var attempts = 0
+        val backend = PerfectIconGit(
+          root,
+          fixtureRemote = fixture.repo.directory,
+          retryBackoffMillis = 0L,
+          fetchBatchOverride = { _, _, _ -> attempts++; throw failure },
+        )
+        try {
+          backend.fetch(null, false, setOf("default")) {}
+          fail("Expected failure ${failure.javaClass.simpleName}")
+        } catch (thrown: Throwable) {
+          assertEquals(failure.javaClass, thrown.javaClass)
+        }
+        assertEquals("Non-retryable ${failure.javaClass.simpleName} must not retry", 1, attempts)
+      }
+    }
+  }
 }

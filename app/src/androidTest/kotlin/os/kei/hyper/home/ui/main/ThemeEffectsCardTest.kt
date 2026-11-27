@@ -32,6 +32,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
+import os.kei.hyper.home.ui.components.parseOs4ExplanationItems
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class ThemeEffectsCardTest {
@@ -54,11 +55,13 @@ class ThemeEffectsCardTest {
 
     toggle().assertIsNotEnabled()
     val help = composeTestRule.onNodeWithTag("theme-effects.switch.help.open")
-    val sheet = composeTestRule.onNodeWithTag("theme-effects.switch.help")
-    sheet.assertDoesNotExist()
+    val popup = composeTestRule.onNodeWithTag("theme-effects.switch.help")
+    popup.assertDoesNotExist()
     help.assertIsEnabled().performClick()
-    sheet.assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.theme_effects_help)).assertExists()
+    popup.assertExists()
+    parseOs4ExplanationItems(context.getString(R.string.theme_effects_help)).forEach { point ->
+      composeTestRule.onNodeWithText(point).assertExists()
+    }
     composeTestRule.runOnIdle { assertEquals(emptyList<Boolean>(), requests) }
   }
 

@@ -365,11 +365,15 @@ Apple 图标包与完美图标补全计划共用 `PackTabScaffold`。底栏固�
 长说明的折叠不应让用户失去当前操作是否可执行的依据。
 
 设置开关的摘要优先说明开启后的效果。条件、兼容性和完整的生效流程可放入标题旁的说明按钮，
-由 `Os4ExplainedSwitchPreference` 打开 `Os4DetailsSheet`。说明按钮独立于开关，禁用时仍可阅读。
+由 `Os4ExplainedSwitchPreference` / `Os4TitleInfoButton` 按文本阅读权重自动路由：简短与中等说明直接
+从 `(i)` 图标锚点形变为 `GlassTransformPopup`（`240.dp..316.dp`、标题分割线、`~1.54×` 行高与按字体
+缩放自适应居中的要点圆点）；仅当说明确实较长、包含多段或带有操作按钮时才升级为 `Os4DetailsSheet`
+（内置 `GlassCard`、共享 `18.dp` 前置对齐轴与主色关闭按钮）。说明按钮独立于开关，禁用时仍可阅读；
+在已有玻璃 Sheet 内触发短提示时关闭外层 backdrop 采样以保持高对比可读性，避免双层 Sheet 堆叠。
 同一设置出现在生成页、详情页和全局设置时，复用组件和本地化文案，设置搜索也可同时
 索引简短摘要和完整说明。把决定当前能否操作的原因、待应用状态等保留在页面上。
-验收时分别点击开关、说明按钮和禁用行的说明按钮，核对开关值、Sheet 与关闭后的焦点。
-静态图标明暗切换可作为这种重复入口的实现参考。
+验收时分别点击开关、说明按钮和禁用行的说明按钮，核对开关值、Popup/Sheet 呈现与关闭后的焦点。
+静态图标明暗切换与启动图标补全可作为长说明 Sheet 的参考，其余推荐映射与保留系统材质等可作为 Popup 参考。
 
 ### 状态摘要与诊断详情
 
@@ -551,8 +555,9 @@ KeiHome 的 Gaussian 条带使用实现 `BackdropPipeline` 的不可变值对象
 | Scaffold、顶栏、图标按钮 | [Os4Chrome](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4Chrome.kt) | 宿主、采样源、主题、禁用语义、回弹连接 |
 | 下拉选择 | [Os4DropdownPreference](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DropdownPreference.kt) | 有效选项、保存值、禁用规则 |
 | 分组菜单 | [Os4DropdownMenu](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DropdownMenu.kt) | 原生锚点、宿主退出、分组选中语义 |
-| 短说明 | [Os4InfoPopup](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4InfoPopup.kt) | 触发器、焦点、返回、无障碍和退出 |
-| 带说明的开关 | [Os4ExplainedSwitchPreference](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ExplainedSwitchPreference.kt) | 标题旁的帮助按钮、简短摘要和开关状态 |
+| 说明排版与路由 | [Os4ExplanationContent](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ExplanationContent.kt) | 中英等权视觉长度路由、智能分段/要点解析、自适应行高与 `GlassCard` 阅读布局 |
+| 短说明与标题提示 | [Os4InfoPopup](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4InfoPopup.kt) | 锚点形变 Popup、标题旁 `(i)` 触发器、自动升级 Sheet、焦点、返回与无障碍退出 |
+| 带说明的开关 | [Os4ExplainedSwitchPreference](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ExplainedSwitchPreference.kt) | 标题旁提示按钮、简短摘要、禁用可读和按压态联动 |
 | 长详情 | [Os4DetailsSheet](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DetailsSheet.kt) | 材质、边界、滚动、关闭完成 |
 | 操作确认 | [Os4ActionDialog](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ActionDialog.kt) | 动作角色与自适应布局 |
 | 分段／分类 | [Os4ViewTabs](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ViewTabs.kt) | 文字测量、轨道边界、叶子采样 |

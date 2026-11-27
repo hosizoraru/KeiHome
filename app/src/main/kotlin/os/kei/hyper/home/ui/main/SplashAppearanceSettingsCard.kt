@@ -29,6 +29,7 @@ internal fun SplashAppearanceSettingsCard(
   feature: DesktopFeature? = DesktopFeature.SPLASH,
   scopeMessage: Int = R.string.splash_scope,
   help: Int? = null,
+  helpSummary: Int? = null,
   content: @Composable () -> Unit = {},
 ) {
   val issue = when {
@@ -53,7 +54,8 @@ internal fun SplashAppearanceSettingsCard(
     } else {
       Os4ExplainedSwitchPreference(title = stringResource(title), summary = description,
         explanation = stringResource(help), checked = state.savedChoice == true, enabled = allowed,
-        onCheckedChange = onChange, tag = "$tag.switch", helpTag = "$tag.help")
+        onCheckedChange = onChange, tag = "$tag.switch", helpTag = "$tag.help",
+        leadSummary = helpSummary?.let { stringResource(it) } ?: description)
     }
     Os4AnimatedVisibility(visible = inScope && (state.readFailed || state.saveFailed), label = "$tag-retry") {
       BasicComponent(title = stringResource(R.string.theme_effects_resave_off),

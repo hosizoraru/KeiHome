@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -60,12 +61,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4ExplanationPoints
 import os.kei.hyper.home.ui.components.Os4InfoPopup
+import top.yukonga.miuix.kmp.glass.GlassCard
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Icon
@@ -252,7 +257,6 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
   }
   var pendingOpenLibrary by remember { mutableStateOf(false) }
   Os4DetailsSheet(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
-    summary = stringResource(storageDescriptions.getValue(infoCategory)),
     onDismissFinished = {
       if (pendingOpenLibrary) {
         pendingOpenLibrary = false
@@ -260,9 +264,24 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       }
     },
     modifier = Modifier.testTag("cache.category.info.card")) {
+    GlassCard(
+      modifier = Modifier.fillMaxWidth(),
+      cornerRadius = 20.dp,
+      insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+      Os4ExplanationPoints(
+        explanation = stringResource(storageDescriptions.getValue(infoCategory)),
+        baseStyle = MiuixTheme.textStyles.body1.copy(fontSize = 15.sp),
+        lineHeightMultiplier = 1.54f,
+        itemSpacing = 10.dp,
+        dotSize = 5.dp,
+        textAlpha = 0.88f,
+      )
+    }
     if (infoCategory == 7) Os4DialogButton(stringResource(R.string.icon_pack_library),
       { pendingOpenLibrary = true; showingInfo = false },
-      Modifier.fillMaxWidth().testTag("cache.category.info.imported"))
+      Modifier.fillMaxWidth().padding(top = 4.dp).testTag("cache.category.info.imported"),
+      role = GlassDialogButtonRole.Primary)
     Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },
       Modifier.fillMaxWidth().testTag("cache.category.info.close"))
   }

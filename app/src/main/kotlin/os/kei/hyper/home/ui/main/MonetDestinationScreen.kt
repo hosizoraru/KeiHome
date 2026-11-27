@@ -47,6 +47,7 @@ import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4ExplanationSheetBody
 import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import top.yukonga.miuix.kmp.basic.Card
@@ -193,14 +194,25 @@ private fun MonetApplyAction(state: MonetApplyUiState, apply: (MonetCustomizatio
 
 @Composable
 private fun MonetHelp(show: Boolean, onDismiss: () -> Unit) {
+  val cardScroll = rememberScrollState()
   Os4DetailsSheet(show = show, onDismissRequest = onDismiss,
-    title = stringResource(R.string.monet_help_title), modifier = Modifier.testTag("monet.help"),
+    title = stringResource(R.string.monet_help_title),
+    scrollContent = false,
+    scrollOffset = { cardScroll.value.toFloat() },
+    modifier = Modifier.testTag("monet.help"),
   ) {
-    for (text in listOf(stringResource(R.string.monet_page_help), stringResource(R.string.monet_help_apply_note),
-      stringResource(R.string.monet_help_inspiration_note), stringResource(R.string.monet_scope_hint),
-      stringResource(R.string.monet_unadapted_help), stringResource(R.string.monet_details_contrast_note))) {
-      Text(text, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    }
+    Os4ExplanationSheetBody(
+      items = listOf(
+        stringResource(R.string.monet_page_help),
+        stringResource(R.string.monet_help_apply_note),
+        stringResource(R.string.monet_help_inspiration_note),
+        stringResource(R.string.monet_scope_hint),
+        stringResource(R.string.monet_unadapted_help),
+        stringResource(R.string.monet_details_contrast_note),
+      ),
+      onDismiss = onDismiss,
+      scrollState = cardScroll,
+    )
   }
 }
 

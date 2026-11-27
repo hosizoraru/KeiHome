@@ -49,8 +49,12 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import androidx.compose.ui.unit.sp
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
+import os.kei.hyper.home.ui.components.Os4ExplanationPointList
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -359,10 +363,18 @@ internal fun NavigationBackdropContent(
     }
     if (!isApps) Os4DetailsSheet(helpOpen, onDismissRequest = { helpOpen = false },
       title = stringResource(R.string.nav_backdrop_help),
-      summary = stringResource(R.string.nav_backdrop_explanation),
       modifier = Modifier.testTag("nav-backdrop.help.sheet")) {
+      GlassCard(Modifier.fillMaxWidth(), cornerRadius = 20.dp,
+        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 14.dp)) {
+        Os4ExplanationPointList(
+          items = listOf(stringResource(R.string.nav_backdrop_explanation)),
+          baseStyle = MiuixTheme.textStyles.body2,
+          lineHeightMultiplier = 1.50f,
+          textAlpha = 0.90f,
+        )
+      }
       SmallTitle(stringResource(R.string.nav_backdrop_how_to))
-      GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      GlassCard(Modifier.fillMaxWidth(), cornerRadius = 20.dp, insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_select),
           summary = stringResource(R.string.nav_backdrop_step_select_summary))
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_enable),
@@ -371,10 +383,26 @@ internal fun NavigationBackdropContent(
           summary = stringResource(R.string.nav_backdrop_restart))
       }
       SmallTitle(stringResource(R.string.nav_backdrop_limits))
-      Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.nav_backdrop_limits_summary), style = MiuixTheme.textStyles.body2)
-        Text(stringResource(R.string.nav_backdrop_ack_hint), style = MiuixTheme.textStyles.body2)
+      GlassCard(Modifier.fillMaxWidth(), cornerRadius = 20.dp,
+        insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp)) {
+        Os4ExplanationPointList(
+          items = listOf(
+            stringResource(R.string.nav_backdrop_limits_summary),
+            stringResource(R.string.nav_backdrop_ack_hint),
+          ),
+          baseStyle = MiuixTheme.textStyles.body1.copy(fontSize = 15.sp),
+          lineHeightMultiplier = 1.54f,
+          itemSpacing = 10.dp,
+          dotSize = 5.dp,
+          textAlpha = 0.88f,
+        )
       }
+      Os4DialogButton(
+        text = stringResource(R.string.pack_guidance_done),
+        onClick = { helpOpen = false },
+        role = GlassDialogButtonRole.Primary,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+      )
     }
   }
 }

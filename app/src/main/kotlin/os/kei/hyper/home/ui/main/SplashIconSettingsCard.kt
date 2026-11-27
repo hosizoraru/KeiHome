@@ -14,5 +14,6 @@ internal fun SplashIconSettingsCard(
 ) {
   SplashAppearanceSettingsCard(state, inScope, onChange, showStatus,
     scopeChecking, scopeReadFailed, R.string.splash_icons_title, R.string.splash_icons_summary,
-    "splash-icons", DesktopFeature.SPLASH_ICONS, help = R.string.splash_icons_help)
+    "splash-icons", DesktopFeature.SPLASH_ICONS, help = R.string.splash_icons_help,
+    helpSummary = R.string.splash_icons_help_summary)
 }

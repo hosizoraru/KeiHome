@@ -7,33 +7,25 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private val ExplainedSwitchInsideMargin = PaddingValues(horizontal = 16.dp, vertical = 13.dp)
 
 @Composable
 internal fun Os4ExplainedSwitchPreference(
@@ -45,8 +37,10 @@ internal fun Os4ExplainedSwitchPreference(
   tag: String,
   enabled: Boolean = true,
   helpTag: String = "$tag.help",
+  leadSummary: String? = summary,
+  presentation: Os4InfoPresentation = Os4InfoPresentation.Auto,
 ) {
-  var showHelp by rememberSaveable { mutableStateOf(false) }
+  var infoOpen by remember { mutableStateOf(false) }
   val titleColor = BasicComponentDefaults.titleColor()
   val summaryColor = BasicComponentDefaults.summaryColor()
   val animatedTitleColor by animateColorAsState(
@@ -59,34 +53,29 @@ internal fun Os4ExplainedSwitchPreference(
     animationSpec = Os4Motion.colorSpring(),
     label = "explained-switch-summary",
   )
-  val animatedInfoTint by animateColorAsState(
-    targetValue = if (showHelp) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary,
-    animationSpec = Os4Motion.colorSpring(),
-    label = "explained-switch-info",
-  )
   BasicComponent(
     modifier = Modifier.testTag(tag).semantics { if (!enabled) disabled() },
-    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    insideMargin = ExplainedSwitchInsideMargin,
     enabled = enabled,
-    holdDownState = showHelp,
+    holdDownState = infoOpen,
     role = Role.Switch,
     onClick = { onCheckedChange(!checked) },
     endActions = {
       Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     },
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Text(title, modifier = Modifier.weight(1f, fill = false),
-        fontSize = MiuixTheme.textStyles.headline1.fontSize, fontWeight = FontWeight.Medium,
-        color = animatedTitleColor)
-      val helpDescription = stringResource(R.string.preference_help_for, title)
-      IconButton(onClick = { showHelp = true }, minWidth = 32.dp, minHeight = 28.dp,
-        holdDownState = showHelp,
-        modifier = Modifier.testTag("$helpTag.open").semantics { contentDescription = helpDescription }) {
-        Icon(MiuixIcons.Glass.Info, contentDescription = null,
-          modifier = Modifier.size(20.dp), tint = animatedInfoTint)
-      }
-    }
+    // Keep the info trigger active even while the switch itself is disabled so users can read
+    // requirements or behavior without mutating the preference.
+    Os4ExplainedTitleRow(
+      title = title,
+      explanation = explanation,
+      leadSummary = leadSummary,
+      titleColor = animatedTitleColor,
+      titleFontWeight = FontWeight.Medium,
+      presentation = presentation,
+      helpTag = helpTag,
+      onOpenChange = { infoOpen = it },
+    )
     AnimatedContent(
       targetState = summary,
       transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
@@ -94,10 +83,5 @@ internal fun Os4ExplainedSwitchPreference(
     ) { text ->
       Text(text, style = MiuixTheme.textStyles.body2, color = animatedSummaryColor)
     }
-  }
-  Os4DetailsSheet(show = showHelp, onDismissRequest = { showHelp = false },
-    title = title, modifier = Modifier.testTag(helpTag)) {
-    Text(explanation, style = MiuixTheme.textStyles.body2,
-      color = MiuixTheme.colorScheme.onSurfaceSecondary)
   }
 }

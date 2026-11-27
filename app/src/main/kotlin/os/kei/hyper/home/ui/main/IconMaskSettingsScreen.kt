@@ -132,6 +132,7 @@ internal fun IconMaskSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
             title = stringResource(R.string.icon_mask_rules),
             summary = maskHelp,
             icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.UsageHelp,
+            presentation = os.kei.hyper.home.ui.components.Os4InfoPresentation.Auto,
           )
         })
     }

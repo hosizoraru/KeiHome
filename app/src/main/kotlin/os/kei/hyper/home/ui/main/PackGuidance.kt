@@ -1,8 +1,6 @@
 package os.kei.hyper.home.ui.main
 
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -30,9 +28,10 @@ import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.data.PackGuidancePreferences
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
-import top.yukonga.miuix.kmp.basic.Text
+import androidx.compose.ui.unit.sp
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4ExplanationPointList
 import top.yukonga.miuix.kmp.glass.GlassBottomSheetDefaults
 import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
@@ -103,21 +102,21 @@ internal fun PackHelpAction(
     onDismissRequest = { showing = false }) {
     GlassCard(modifier = Modifier.fillMaxWidth()
       .heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp),
-      insideMargin = PaddingValues(12.dp)) {
-      GuidanceNotes(guidance, Modifier.fillMaxWidth().verticalScroll(rememberScrollState()))
+      cornerRadius = 20.dp,
+      insideMargin = PaddingValues(horizontal = 18.dp, vertical = 16.dp)) {
+      Os4ExplanationPointList(
+        items = guidance,
+        baseStyle = MiuixTheme.textStyles.body1.copy(fontSize = 15.sp),
+        lineHeightMultiplier = 1.54f,
+        itemSpacing = 12.dp,
+        dotSize = 5.dp,
+        textAlpha = 0.88f,
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+      )
     }
     Os4DialogButton(stringResource(R.string.pack_guidance_done), onClick = { showing = false },
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 16.dp),
+      modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
       role = GlassDialogButtonRole.Primary)
-  }
-}
-
-@Composable
-private fun GuidanceNotes(notes: List<String>, modifier: Modifier = Modifier) {
-  Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    notes.filter { it.isNotBlank() }.distinct().forEach { note ->
-      Text(note, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    }
   }
 }
 

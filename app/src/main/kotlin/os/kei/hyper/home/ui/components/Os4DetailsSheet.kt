@@ -94,11 +94,11 @@ internal fun Os4DetailsSheet(
     CompositionLocalProvider(locals) {
       CompositionLocalProvider(LocalOs4GlassSurface provides true) {
         Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
+          // Cover navigationBars, freeform captionBar, and bottom displayCutout OUTSIDE the scroll
+          // viewport so overflowed sheet content never collides with the system gesture pill.
+          .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom))
           .then(if (scrollContent) Modifier.verticalScroll(bodyScroll) else Modifier)
           .padding(headerPadding)
-          // Cover navigationBars, freeform captionBar, and bottom displayCutout without doubling IME
-          // (handled by GlassBottomSheet) or pushing centered content sideways with horizontal cutouts.
-          .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom))
           .padding(bottom = 16.dp)) {
           Column(Modifier.fillMaxWidth().os4ContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             summary?.let {

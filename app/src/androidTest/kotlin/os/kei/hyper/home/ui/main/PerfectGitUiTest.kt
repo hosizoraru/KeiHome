@@ -399,7 +399,11 @@ class PerfectGitUiTest {
       .performTouchInput { click() }
     val helpTag = "perfect.options.fixed-dark.help"
     waitForDisplayed(hasTestTag(helpTag), "fixed-dark-disabled-help")
-    compose.onNodeWithText(context.getString(R.string.perfect_icons_fixed_dark_help)).assertIsDisplayed()
+    os.kei.hyper.home.ui.components.parseOs4ExplanationItems(
+      context.getString(R.string.perfect_icons_fixed_dark_help),
+    ).forEach { point ->
+      compose.onNodeWithText(point).assertIsDisplayed()
+    }
     compose.onNodeWithTag(helpTag).performSemanticsAction(SemanticsActions.Dismiss)
     waitForDismissed(helpTag)
     compose.runOnIdle { assertEquals(initial.fixedDark, options.fixedDark) }

@@ -96,11 +96,12 @@ class IconPackUpdateNoticeTest {
 
   @Test fun genericMonetLayerGeometryUpgradeRequiresReapplyOnce() {
     for (format in listOf(pack.format, IconPackFormat.MIUI_ICONS)) {
-      for (schema in listOf(18, IconGenerationManifest.CURRENT_SCHEMA)) {
+      for (schema in listOf(18, 21, IconGenerationManifest.CURRENT_SCHEMA)) {
         val current = source.copy(generation =
           IconGenerationManifest(schemaVersion = schema, monetUnadaptedIcons = true,
             considered = setOf(target.flattened)))
-        assertEquals("Only old generic Monet output needs regeneration", schema == 18,
+        assertEquals("Only old generic Monet output needs regeneration",
+          schema < IconGenerationManifest.LAYERED_MONET_SCHEMA,
           iconPackNeedsUpdate(pack.copy(format = format), current, listOf(target), SystemIconFallback.DEFAULT,
             emptySet(), monetUnadaptedIcons = true))
       }

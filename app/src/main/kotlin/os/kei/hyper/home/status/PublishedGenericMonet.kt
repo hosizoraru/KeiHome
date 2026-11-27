@@ -1,5 +1,6 @@
 package os.kei.hyper.home.status
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -108,7 +109,7 @@ internal object PublishedGenericMonet {
       try {
         for (index in 0..1) {
           val raw = read("${prefix}res/drawable-xxhdpi/$name/$index.png", MAX_IMAGE) ?: return null
-          val png = ImportedStaticPng.normalize(raw, check) ?: return null
+          val png = ImportedStaticPng.normalizeNearlySquare(raw, check = check) ?: return null
           layers += BitmapFactory.decodeByteArray(png, 0, png.size) ?: return null
         }
         val size = layers.first().width
@@ -191,9 +192,9 @@ internal object PublishedGenericMonet {
       val sourceNight = if (pair == null && name in nightGroups)
         nativePair(name, "nightmode/")?.image ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
         else nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
-      val day = ImportedStaticPng.normalize(sourceDay, check) ?: continue
+      val day = ImportedStaticPng.normalizeNearlySquare(sourceDay, check = check) ?: continue
       val night = if (sourceNight === sourceDay) day
-        else ImportedStaticPng.normalize(sourceNight, check) ?: continue
+        else ImportedStaticPng.normalizeNearlySquare(sourceNight, check = check) ?: continue
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       BitmapFactory.decodeByteArray(day, 0, day.size, bounds)
       if (bounds.outWidth !in 32..512 || bounds.outHeight != bounds.outWidth ||
@@ -219,8 +220,9 @@ internal object PublishedGenericMonet {
             GenericMonetMask.background(pixels, size, check)
           }
         }
-        val extracted = nativeDay?.foreground?.let { GenericMonetMask.layeredForeground(it, plate, size, check) }
-          ?: GenericMonetMask.foreground(pixels, size, plate, check) ?: continue
+        val extracted = nativeDay?.foreground?.let {
+          GenericMonetMask.layeredForeground(it, pixels, plate, size, check)
+        } ?: GenericMonetMask.foreground(pixels, size, plate, check) ?: continue
         val foreground = if (insetFullBleed)
           GenericMonetMask.insetFullBleed(extracted, size, paddingCoverage(size), check) else extracted
         fun png(colors: IntArray): ByteArray {
@@ -275,5 +277,123 @@ internal object PublishedGenericMonet {
         }.toByteArray().also { check() }
       } finally { output.recycle() }
     } finally { bitmap.recycle() }
+  }
+
+  /**
+   * Generates native palette icons for installed launcher apps that are not covered by the
+   * theme archive at all. HyperOS sets `DeviceConfig.isDefaultIcon = false` whenever a custom
+   * icon pack is active, which disables the launcher's native APK monochrome path for every
+   * uncovered app. Generating verified `NativePaletteIcon` entries (preferring each app's
+   * official usable `<monochrome>` layer, falling back to `GenericMonetMask`) restores Monet
+   * coverage across Launcher and all cross-surface consumers while preserving real light/dark
+   * original artwork when Monet is off.
+   */
+  internal fun applyUncoveredInstalled(
+    context: Context,
+    paths: Set<String>,
+    read: (String, Int) -> ByteArray?,
+    writeEntries: (Map<String, ByteArray>) -> Unit,
+    targets: List<IconPackComponent>,
+    excluded: PreservedIconResources,
+    insetFullBleed: Boolean = false,
+    check: () -> Unit = {},
+  ): Boolean {
+    check()
+    if (targets.isEmpty()) return false
+    val coveredOwners = hashSetOf<String>()
+    for (path in paths) {
+      val owner = CustomIconResources.owner(path)
+      if (owner != null) coveredOwners += owner
+    }
+    val shape = IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES))
+      ?: OriginalIconShape.mask
+    val size = 192
+    val maskAlpha = run {
+      val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+      val pixels = try {
+        Canvas(bitmap).drawPath(shape.pathForBounds(Rect(0, 0, size, size)),
+          Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE })
+        IntArray(size * size).also { bitmap.getPixels(it, 0, size, 0, 0, size, size) }
+      } finally { bitmap.recycle() }
+      for (i in pixels.indices) pixels[i] = pixels[i] ushr 24
+      pixels
+    }
+    fun encodePng(bitmap: Bitmap): ByteArray {
+      check()
+      return ByteArrayOutputStream().also {
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+      }.toByteArray()
+    }
+    fun encodeMask(colors: IntArray): ByteArray {
+      check()
+      val mask = Bitmap.createBitmap(colors, size, size, Bitmap.Config.ARGB_8888)
+      return try { encodePng(mask) } finally { mask.recycle() }
+    }
+
+    val targetsByPackage = targets.groupBy { it.packageName }
+    val written = hashSetOf<String>()
+    var modified = false
+    for (target in targets) {
+      check()
+      if (excluded.containsName(target.packageName)) continue
+      val aliases = nativeLauncherIconNames(target).filter(::validNativeIconName)
+      if (aliases.isEmpty()) continue
+      if (aliases.any { it in coveredOwners || excluded.containsName(it) }) continue
+      val packageTargets = targetsByPackage[target.packageName].orEmpty()
+      val namesToWrite = if (packageTargets.size > 1) {
+        listOfNotNull(nativeLauncherActivityName(target)?.takeIf(::validNativeIconName))
+      } else {
+        aliases
+      }.filterNot { it in written }
+      if (namesToWrite.isEmpty()) continue
+
+      val dayBitmap = OriginalAppIcons.render(context, target, size, dark = false, check = check, mask = shape)
+        ?: continue
+      val nightBitmap = OriginalAppIcons.render(context, target, size, dark = true, check = check, mask = shape)
+      try {
+        val dayPixels = IntArray(size * size).also { dayBitmap.getPixels(it, 0, size, 0, 0, size, size) }
+        val plate = IntArray(dayPixels.size) { i ->
+          if (i % size == 0) check()
+          (minOf(dayPixels[i] ushr 24, maskAlpha[i]) shl 24) or 0x00ffffff
+        }
+        val monoBitmap = OriginalAppIcons.renderMonochromeMask(context, target, size, dark = false, check = check)
+        val extracted = if (monoBitmap != null) {
+          try {
+            val monoPixels = IntArray(size * size).also { monoBitmap.getPixels(it, 0, size, 0, 0, size, size) }
+            IntArray(monoPixels.size) { i ->
+              if (i % size == 0) check()
+              (minOf(monoPixels[i] ushr 24, plate[i] ushr 24) shl 24) or 0x00ffffff
+            }
+          } finally { monoBitmap.recycle() }
+        } else {
+          val fgBitmap = OriginalAppIcons.renderAdaptiveForeground(context, target, size, dark = false, mask = shape, check = check)
+          val layered = if (fgBitmap != null) {
+            try {
+              val fgPixels = IntArray(size * size).also { fgBitmap.getPixels(it, 0, size, 0, 0, size, size) }
+              GenericMonetMask.layeredForeground(fgPixels, dayPixels, plate, size, check)
+            } finally { fgBitmap.recycle() }
+          } else null
+          layered ?: GenericMonetMask.foreground(dayPixels, size, plate, check) ?: continue
+        }
+        val foreground = if (insetFullBleed)
+          GenericMonetMask.insetFullBleed(extracted, size, maskAlpha, check) else extracted
+        val dayBytes = encodePng(dayBitmap)
+        val nightBytes = if (nightBitmap != null && !nightBitmap.sameAs(dayBitmap)) encodePng(nightBitmap) else dayBytes
+        val maskBytes = encodeMask(foreground)
+        val plateBytes = encodeMask(plate)
+        val entries = linkedMapOf<String, ByteArray>()
+        for (name in namesToWrite) {
+          entries.putAll(NativePaletteIcon.entries(name, dayBytes, nightBytes, maskBytes, plateBytes))
+          written += name
+          coveredOwners += name
+        }
+        writeEntries(entries)
+        modified = true
+      } finally {
+        dayBitmap.recycle()
+        nightBitmap?.recycle()
+      }
+    }
+    return modified
   }
 }

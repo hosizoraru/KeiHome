@@ -40,6 +40,54 @@ class GenericMonetMaskTest {
     assertNull(GenericMonetMask.layeredForeground(plate, plate, size) {})
     assertNull(GenericMonetMask.layeredForeground(IntArray(pixels.size), plate, size) {})
   }
+
+  @Test fun layeredForegroundCarvesInteriorDetailsOutOfDominantBodyInsteadOfBlobbing() {
+    val size = 64
+    val fg = IntArray(size * size)
+    val plate = IntArray(size * size) { -1 }
+    // Green disc body (like WeType/Settings) with a white interior cross.
+    for (y in 12..51) for (x in 12..51) fg[y * size + x] = 0xff00c080.toInt()
+    for (y in 26..37) for (x in 22..41) fg[y * size + x] = 0xffffffff.toInt()
+    val mask = requireNotNull(GenericMonetMask.layeredForeground(fg, plate, size) {})
+    assertEquals(0, mask[4 * size + 4] ushr 24)
+    assertEquals(255, mask[16 * size + 16] ushr 24)
+    assertTrue("Interior high-contrast mark must be carved out", (mask[32 * size + 32] ushr 24) < 32)
+  }
+
+  @Test fun layeredForegroundExtractsMultiComponentAndCollageIconsCleanly() {
+    val size = 64
+    val plate = IntArray(size * size) { -1 }
+    // Two separate components (like Calculator): solid left glyph + boxed right glyph with interior symbol.
+    val fg = IntArray(size * size)
+    for (y in 14..30) for (x in 10..26) fg[y * size + x] = 0xff555555.toInt()
+    for (y in 14..46) for (x in 34..54) fg[y * size + x] = 0xffff6600.toInt()
+    for (y in 26..34) for (x in 39..49) fg[y * size + x] = 0xffffffff.toInt()
+    val multi = requireNotNull(GenericMonetMask.layeredForeground(fg, plate, size) {})
+    assertEquals(255, multi[20 * size + 18] ushr 24)
+    assertEquals(255, multi[18 * size + 44] ushr 24)
+    assertTrue((multi[30 * size + 44] ushr 24) < 32)
+
+    // Multi-color collage (like Gallery petals) with white composite background:
+    val collageFg = IntArray(size * size)
+    val composite = IntArray(size * size) { 0xffffffff.toInt() }
+    val colors = intArrayOf(0xffff3b30.toInt(), 0xffffcc00.toInt(), 0xff34c759.toInt(), 0xff007aff.toInt())
+    for (y in 16..47) for (x in 16..47) {
+      val quadrant = (if (y >= 32) 2 else 0) + (if (x >= 32) 1 else 0)
+      val color = colors[quadrant]
+      collageFg[y * size + x] = color
+      composite[y * size + x] = color
+    }
+    val collage = requireNotNull(GenericMonetMask.layeredForeground(collageFg, composite, plate, size) {})
+    assertEquals(0, collage[4 * size + 4] ushr 24)
+    val distinctAlphas = listOf(
+      collage[24 * size + 24] ushr 24,
+      collage[24 * size + 40] ushr 24,
+      collage[40 * size + 24] ushr 24,
+      collage[40 * size + 40] ushr 24,
+    )
+    assertTrue("Collage must preserve tonal separation instead of flattening to 255",
+      distinctAlphas.max() - distinctAlphas.min() >= 32)
+  }
   @Test fun fullBleedArtworkGetsSymmetricSpaceOnItsCompletedCanvas() {
     val size = 100
     val original = IntArray(size * size) { 0xffffffff.toInt() }

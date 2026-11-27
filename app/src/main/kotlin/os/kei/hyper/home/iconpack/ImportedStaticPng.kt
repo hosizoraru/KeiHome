@@ -13,12 +13,23 @@ internal object ImportedStaticPng {
   private val animation = setOf("acTL", "fcTL", "fdAT")
   private val critical = setOf("IHDR", "PLTE", "IDAT", "IEND")
 
-  fun normalize(bytes: ByteArray, check: () -> Unit): ByteArray? {
+  fun normalize(bytes: ByteArray, check: () -> Unit): ByteArray? =
+    normalizeNearlySquare(bytes, maxDelta = 0, check = check)
+
+  /**
+   * Normalizes a bounded static PNG into a strict square PNG. When [maxDelta] > 0, tolerates
+   * minor rounding mismatches (e.g. 432x433, 385x384 from upstream icon pack exports) by
+   * scaling onto a square max(width, height) canvas.
+   */
+  fun normalizeNearlySquare(bytes: ByteArray, maxDelta: Int = 2, check: () -> Unit): ByteArray? {
     check()
-    val size = sourceSize(bytes, check) ?: return null
-    try {
-      if (GeneratedIconPng.squareSize(bytes) == size) return bytes
-    } catch (_: IllegalArgumentException) { }
+    val dimensions = sourceDimensions(bytes, maxDelta, check) ?: return null
+    val size = maxOf(dimensions.first, dimensions.second)
+    if (dimensions.first == dimensions.second) {
+      try {
+        if (GeneratedIconPng.squareSize(bytes) == size) return bytes
+      } catch (_: IllegalArgumentException) { }
+    }
     check()
     val options = BitmapFactory.Options().apply {
       inScaled = false
@@ -26,24 +37,34 @@ internal object ImportedStaticPng {
       inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
     }
     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+    var square: Bitmap? = null
     try {
       check()
-      if (bitmap.width != size || bitmap.height != size) return null
+      if (bitmap.width != dimensions.first || bitmap.height != dimensions.second) return null
+      val target = if (bitmap.width == size && bitmap.height == size) bitmap else {
+        Bitmap.createScaledBitmap(bitmap, size, size, true).also { square = it }
+      }
       val output = ByteArrayOutputStream()
-      if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) return null
+      if (!target.compress(Bitmap.CompressFormat.PNG, 100, output)) return null
       check()
       val encoded = output.toByteArray()
       return try { encoded.takeIf { GeneratedIconPng.squareSize(it) == size } }
         catch (_: IllegalArgumentException) { null }
-    } finally { bitmap.recycle() }
+    } finally {
+      square?.takeIf { it !== bitmap }?.recycle()
+      bitmap.recycle()
+    }
   }
 
-  fun sourceSize(bytes: ByteArray, check: () -> Unit = {}): Int? {
+  fun sourceSize(bytes: ByteArray, check: () -> Unit = {}): Int? =
+    sourceDimensions(bytes, maxDelta = 0, check = check)?.first
+
+  internal fun sourceDimensions(bytes: ByteArray, maxDelta: Int = 0, check: () -> Unit = {}): Pair<Int, Int>? {
     if (bytes.size !in 57..4 * 1024 * 1024) return null
     val input = DataInputStream(ByteArrayInputStream(bytes))
     try {
       if (input.readLong() != 0x89504e470d0a1a0aUL.toLong()) return null
-      var size: Int? = null
+      var dimensions: Pair<Int, Int>? = null
       var pixels = false
       while (input.available() >= 12) {
         check()
@@ -55,7 +76,7 @@ internal object ImportedStaticPng {
           return null
         if (type[2].toInt().toChar() !in 'A'..'Z') return null
         val name = String(type, Charsets.US_ASCII)
-        if (name in animation || size == null && name != "IHDR") return null
+        if (name in animation || dimensions == null && name != "IHDR") return null
         if (name !in critical && type[0].toInt().toChar() !in 'a'..'z')
           return null
         val data = ByteArray(length).also(input::readFully)
@@ -63,14 +84,15 @@ internal object ImportedStaticPng {
           return null
         when (name) {
           "IHDR" -> {
-            if (size != null || length != 13) return null
+            if (dimensions != null || length != 13) return null
             val header = DataInputStream(ByteArrayInputStream(data))
             val width = header.readInt()
-            if (width !in 32..512 || header.readInt() != width) return null
-            size = width
+            val height = header.readInt()
+            if (width !in 32..512 || height !in 32..512 || kotlin.math.abs(width - height) > maxDelta) return null
+            dimensions = width to height
           }
           "IDAT" -> pixels = true
-          "IEND" -> return size.takeIf { length == 0 && pixels && input.available() == 0 }
+          "IEND" -> return dimensions.takeIf { length == 0 && pixels && input.available() == 0 }
         }
       }
       return null

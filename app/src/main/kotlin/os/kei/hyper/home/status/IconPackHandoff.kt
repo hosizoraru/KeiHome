@@ -417,18 +417,34 @@ internal object IconPackHandoffs {
                 }
               }
 
+              if (replaceExtraIcons.isNotEmpty()) {
+                onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.CUSTOM_ICONS))
+                val extraReplacements = PublishedExtraIcons.replacements(
+                  context,
+                  overlay.paths(),
+                  { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
+                  targets,
+                  replaceExtraIcons - custom.packages,
+                ) { caller.ensureActive() }
+                if (extraReplacements.isNotEmpty()) {
+                  overlay.putAllInMemory(extraReplacements)
+                  writeStage = ColorOsGenerationStage.CUSTOM_ICONS
+                }
+              }
+
               if (runMonet) {
                 val monetProgress = progress(ColorOsGenerationStage.MONET)
                 val replacedFancyPaths = hashSetOf<String>()
+                val monetExcluded = PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
+                  caller.ensureActive()
+                }
                 val monetApplied = PublishedGenericMonet.apply(
                   paths = overlay.paths(),
                   read = { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
                   writeEntries = { layers -> overlay.putSpooled(layers) { caller.ensureActive() } },
                   replacedFancyPaths = replacedFancyPaths,
                   enabled = monetUnadaptedIcons,
-                  excluded = PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
-                    caller.ensureActive()
-                  },
+                  excluded = monetExcluded,
                   insetFullBleed = monetFullBleedIconPadding,
                   generatedPaletteNames = if (monetFullBleedIconPadding) buildSet {
                     for (export in listOfNotNull(light, darkResult)) {
@@ -440,7 +456,19 @@ internal object IconPackHandoffs {
                   onProgress = { done, total -> monetProgress(done, total, "") },
                   check = { caller.ensureActive() },
                 )
-                if (monetApplied) {
+                val uncoveredApplied = if (monetUnadaptedIcons) {
+                  PublishedGenericMonet.applyUncoveredInstalled(
+                    context = context,
+                    paths = overlay.paths(),
+                    read = { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
+                    writeEntries = { layers -> overlay.putSpooled(layers) { caller.ensureActive() } },
+                    targets = targets,
+                    excluded = monetExcluded,
+                    insetFullBleed = monetFullBleedIconPadding,
+                    check = { caller.ensureActive() },
+                  )
+                } else false
+                if (monetApplied || uncoveredApplied) {
                   // Only exclude stale fancy paths not rewritten by the newly generated palette entries.
                   val stale = replacedFancyPaths.filterNot { it in overlay.spooled || it in overlay.inMemory }
                   overlay.excludeAll(stale)
@@ -448,7 +476,7 @@ internal object IconPackHandoffs {
                 }
               }
 
-              if (runCustomOrExtra) {
+              if (custom.selections.isNotEmpty()) {
                 onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.CUSTOM_ICONS))
                 val customReplacements = linkedMapOf<String, ByteArray>()
                 custom.resources.forEach { (packageName, resources) ->
@@ -465,13 +493,6 @@ internal object IconPackHandoffs {
                     packageName, targets, launcherClasses)
                   customReplacements.putAll(os.kei.hyper.home.iconpack.CustomIconResources.retarget(resources, names))
                 }
-                customReplacements.putAll(PublishedExtraIcons.replacements(
-                  context,
-                  overlay.paths(),
-                  { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
-                  targets,
-                  replaceExtraIcons,
-                ) { caller.ensureActive() })
                 if (customExclusions != null) {
                   overlay.paths().filter(customExclusions::containsPath).forEach(overlay::exclude)
                   overlay.read(SystemIconFallbackManifest.PATH, SystemIconFallbackManifest.MAX_BYTES) {

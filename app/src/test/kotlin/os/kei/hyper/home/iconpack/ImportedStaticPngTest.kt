@@ -36,6 +36,43 @@ class ImportedStaticPngTest {
     }
   }
 
+  @Test fun nearlySquareToleranceAcceptsOffByOneExportsWhileStrictSizeRejectsThem() {
+    val tall = rectangularRgba(64, 65)
+    val wide = rectangularRgba(65, 64)
+    val skewed = rectangularRgba(64, 67)
+    assertNull(ImportedStaticPng.sourceSize(tall))
+    assertNull(ImportedStaticPng.sourceSize(wide))
+    assertEquals(64 to 65, ImportedStaticPng.sourceDimensions(tall, maxDelta = 2))
+    assertEquals(65 to 64, ImportedStaticPng.sourceDimensions(wide, maxDelta = 2))
+    assertNull(ImportedStaticPng.sourceDimensions(skewed, maxDelta = 2))
+  }
+
+  private fun rectangularRgba(width: Int, height: Int): ByteArray {
+    val raw = ByteArrayOutputStream()
+    repeat(height) {
+      raw.write(0)
+      repeat(width) { raw.write(byteArrayOf(12, 34, 56, -1)) }
+    }
+    return ByteArrayOutputStream().also { bytes ->
+      val output = DataOutputStream(bytes)
+      output.writeLong(-8552249625308161526L)
+      fun chunk(name: String, data: ByteArray) {
+        val kind = name.toByteArray(Charsets.US_ASCII)
+        output.writeInt(data.size); output.write(kind); output.write(data)
+        output.writeInt(CRC32().apply { update(kind); update(data) }.value.toInt())
+      }
+      chunk("IHDR", ByteArrayOutputStream().also { header ->
+        DataOutputStream(header).apply {
+          writeInt(width); writeInt(height); write(byteArrayOf(8, 6, 0, 0, 0))
+        }
+      }.toByteArray())
+      chunk("IDAT", ByteArrayOutputStream().also { compressed ->
+        java.util.zip.DeflaterOutputStream(compressed).use { it.write(raw.toByteArray()) }
+      }.toByteArray())
+      chunk("IEND", byteArrayOf())
+    }.toByteArray()
+  }
+
   private fun withChunk(png: ByteArray, name: String, data: ByteArray): ByteArray {
     val type = name.toByteArray(Charsets.US_ASCII)
     val chunk = ByteArrayOutputStream().also { bytes ->

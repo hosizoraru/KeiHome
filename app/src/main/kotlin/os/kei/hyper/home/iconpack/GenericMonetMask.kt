@@ -139,11 +139,29 @@ internal object GenericMonetMask {
     }
   }
 
-  /** Uses an authored color layer only when its alpha separates a mark from the plate. */
+  /**
+   * Extracts a monochrome alpha mask from an authored foreground layer.
+   *
+   * Single-color / softly shaded components keep their exact authored alpha silhouette.
+   * Multi-color components preserve internal brand geometry instead of collapsing into a
+   * featureless silhouette blob: components with a dominant body carve high-contrast
+   * interior details out of that body, while multi-color collages (e.g. overlapping petals)
+   * use border-contrast masked strictly by the foreground alpha (avoiding background haze)
+   * or luminance shading.
+   */
   fun layeredForeground(
     foreground: IntArray, plate: IntArray, size: Int, check: () -> Unit,
+  ): IntArray? = layeredForeground(foreground, composite = null, plate = plate, size = size, check = check)
+
+  fun layeredForeground(
+    foreground: IntArray,
+    composite: IntArray?,
+    plate: IntArray,
+    size: Int,
+    check: () -> Unit,
   ): IntArray? {
-    require(size in 1..512 && foreground.size == size * size && plate.size == foreground.size)
+    require(size in 1..512 && foreground.size == size * size && plate.size == foreground.size &&
+      (composite == null || composite.size == foreground.size))
     var interior = 0
     var clear = 0
     var ink = 0
@@ -157,9 +175,250 @@ internal object GenericMonetMask {
       }
     }
     if (interior == 0 || clear * 10 < interior || ink * 100 < interior) return null
-    return IntArray(foreground.size) { i ->
-      if (i % size == 0) check()
-      (minOf(foreground[i] ushr 24, plate[i] ushr 24) shl 24) or 0x00ffffff
+
+    // Compute composite border contrast lazily only if a multi-color collage component needs it.
+    var bgReady = false
+    var bgPeak = 0
+    var bgContrasts: IntArray? = null
+    fun ensureBorderContrast() {
+      if (bgReady) return
+      bgReady = true
+      val src = composite ?: return
+      val border = IntArray(4096)
+      var borderCount = 0
+      val band = size / 8 + 1
+      for (y in 0 until size) {
+        check()
+        for (x in 0 until size) {
+          val c = src[y * size + x]
+          if ((x < band || x >= size - band || y < band || y >= size - band) && c ushr 24 >= 224) {
+            val b = ((c ushr 20 and 15) shl 8) or ((c ushr 12 and 15) shl 4) or (c ushr 4 and 15)
+            border[b]++
+            borderCount++
+          }
+        }
+      }
+      if (borderCount == 0) return
+      val dominant = border.indices.maxBy { border[it] }
+      val br = (dominant ushr 8 and 15) * 17
+      val bg = (dominant ushr 4 and 15) * 17
+      val bb = (dominant and 15) * 17
+      val contrasts = IntArray(src.size)
+      val histogram = IntArray(256)
+      var count = 0
+      for (i in src.indices) {
+        if (i % size == 0) check()
+        val fgAlpha = foreground[i] ushr 24
+        if (fgAlpha < 16) continue
+        val c = src[i]
+        val d = max(abs((c ushr 16 and 255) - br),
+          max(abs((c ushr 8 and 255) - bg), abs((c and 255) - bb)))
+        contrasts[i] = d
+        if (fgAlpha >= 32) {
+          histogram[d]++
+          count++
+        }
+      }
+      var remaining = count / 50
+      var peak = 255
+      while (peak > 0 && remaining >= histogram[peak]) remaining -= histogram[peak--]
+      bgPeak = peak
+      bgContrasts = contrasts
     }
+
+    val n = foreground.size
+    val result = IntArray(n) { i ->
+      val a = minOf(foreground[i] ushr 24, plate[i] ushr 24)
+      if (a < 24) (a shl 24) or 0x00ffffff else 0x00ffffff
+    }
+    val visited = BooleanArray(n)
+    val queue = IntArray(n)
+    val buckets = IntArray(32 * 32 * 32)
+    val touchedBuckets = IntArray(min(n, 32 * 32 * 32))
+    val histogram = IntArray(256)
+
+    for (start in 0 until n) {
+      if (start % size == 0) check()
+      if (visited[start] || (foreground[start] ushr 24) < 24) continue
+      // Connected component BFS (4-neighborhood) over visible foreground pixels.
+      var head = 0
+      var tail = 0
+      visited[start] = true
+      queue[tail++] = start
+      while (head < tail) {
+        val cur = queue[head++]
+        if (head and 255 == 0) check()
+        val cx = cur % size
+        val cy = cur / size
+        if (cx > 0) {
+          val ni = cur - 1
+          if (!visited[ni] && (foreground[ni] ushr 24) >= 24) { visited[ni] = true; queue[tail++] = ni }
+        }
+        if (cx + 1 < size) {
+          val ni = cur + 1
+          if (!visited[ni] && (foreground[ni] ushr 24) >= 24) { visited[ni] = true; queue[tail++] = ni }
+        }
+        if (cy > 0) {
+          val ni = cur - size
+          if (!visited[ni] && (foreground[ni] ushr 24) >= 24) { visited[ni] = true; queue[tail++] = ni }
+        }
+        if (cy + 1 < size) {
+          val ni = cur + size
+          if (!visited[ni] && (foreground[ni] ushr 24) >= 24) { visited[ni] = true; queue[tail++] = ni }
+        }
+      }
+
+      // Collect opaque core (fallback to >= 48 alpha for translucent glass icons like SMS).
+      var coreThreshold = 192
+      var coreCount = 0
+      for (k in 0 until tail) if ((foreground[queue[k]] ushr 24) >= 192) coreCount++
+      if (coreCount < max(4, tail / 4)) {
+        coreThreshold = 48
+        coreCount = 0
+        for (k in 0 until tail) if ((foreground[queue[k]] ushr 24) >= 48) coreCount++
+      }
+      if (coreCount == 0) {
+        for (k in 0 until tail) {
+          val idx = queue[k]
+          result[idx] = (minOf(foreground[idx] ushr 24, plate[idx] ushr 24) shl 24) or 0x00ffffff
+        }
+        continue
+      }
+
+      // Find dominant 5-bit quantized RGB bucket in this component.
+      var touchedCount = 0
+      var bestBucket = 0
+      var bestBucketCount = 0
+      for (k in 0 until tail) {
+        val c = foreground[queue[k]]
+        if (c ushr 24 < coreThreshold) continue
+        val b = ((c ushr 19 and 31) shl 10) or ((c ushr 11 and 31) shl 5) or (c ushr 3 and 31)
+        val count = buckets[b] + 1
+        if (count == 1) touchedBuckets[touchedCount++] = b
+        buckets[b] = count
+        if (count > bestBucketCount) {
+          bestBucketCount = count
+          bestBucket = b
+        }
+      }
+      for (t in 0 until touchedCount) buckets[touchedBuckets[t]] = 0
+
+      val dr0 = (bestBucket ushr 10 and 31) * 8 + 4
+      val dg0 = (bestBucket ushr 5 and 31) * 8 + 4
+      val db0 = (bestBucket and 31) * 8 + 4
+      var sr = 0L; var sg = 0L; var sb = 0L; var sc = 0
+      for (k in 0 until tail) {
+        val c = foreground[queue[k]]
+        if (c ushr 24 < coreThreshold) continue
+        val r = c ushr 16 and 255; val g = c ushr 8 and 255; val b = c and 255
+        if (max(abs(r - dr0), max(abs(g - dg0), abs(b - db0))) <= 32) {
+          sr += r; sg += g; sb += b; sc++
+        }
+      }
+      val dr = if (sc > 0) (sr / sc).toInt() else dr0
+      val dg = if (sc > 0) (sg / sc).toInt() else dg0
+      val db = if (sc > 0) (sb / sc).toInt() else db0
+
+      histogram.fill(0)
+      var detailCount = 0
+      for (k in 0 until tail) {
+        val c = foreground[queue[k]]
+        if (c ushr 24 < coreThreshold) continue
+        val dist = max(abs((c ushr 16 and 255) - dr),
+          max(abs((c ushr 8 and 255) - dg), abs((c and 255) - db)))
+        histogram[dist]++
+        if (dist >= 42) detailCount++
+      }
+      var remaining = coreCount / 50
+      var peak = 255
+      while (peak > 0 && remaining >= histogram[peak]) remaining -= histogram[peak--]
+
+      // 1. Single-color or softly shaded component: keep authored alpha verbatim.
+      if (peak < 48 || detailCount * 100 < coreCount * 3) {
+        for (k in 0 until tail) {
+          val idx = queue[k]
+          result[idx] = (minOf(foreground[idx] ushr 24, plate[idx] ushr 24) shl 24) or 0x00ffffff
+        }
+        continue
+      }
+
+      // 2. Dominant-body component with enclosed interior details (Settings gear, WeType P+, JD face, Calculator =):
+      if (sc * 100 >= coreCount * 42) {
+        val denom = max(36f, (peak - 20).toFloat())
+        for (k in 0 until tail) {
+          val idx = queue[k]
+          val c = foreground[idx]
+          val a = minOf(c ushr 24, plate[idx] ushr 24)
+          val dist = max(abs((c ushr 16 and 255) - dr),
+            max(abs((c ushr 8 and 255) - dg), abs((c and 255) - db)))
+          val knockout = ((dist - 20f) / denom).coerceIn(0f, 1f)
+          val outAlpha = (a * (1f - knockout)).roundToInt()
+          result[idx] = (outAlpha shl 24) or 0x00ffffff
+        }
+        continue
+      }
+
+      // 3. Multi-color collage component (Gallery 7 petals, Outlook, Weibo):
+      ensureBorderContrast()
+      val contrasts = bgContrasts
+      var usedBorder = false
+      if (contrasts != null && bgPeak >= 36) {
+        histogram.fill(0)
+        var bgCore = 0
+        for (k in 0 until tail) {
+          val idx = queue[k]
+          if ((foreground[idx] ushr 24) >= coreThreshold) {
+            histogram[contrasts[idx]]++
+            bgCore++
+          }
+        }
+        if (bgCore >= 8) {
+          var remLo = bgCore * 8 / 100
+          var p08 = 0
+          while (p08 < 255 && remLo >= histogram[p08]) remLo -= histogram[p08++]
+          var remHi = bgCore * 8 / 100
+          var p92 = 255
+          while (p92 > 0 && remHi >= histogram[p92]) remHi -= histogram[p92--]
+          if (p92 - p08 >= 48) {
+            val denom = max(24f, (bgPeak - 12).toFloat())
+            for (k in 0 until tail) {
+              val idx = queue[k]
+              val a = minOf(foreground[idx] ushr 24, plate[idx] ushr 24)
+              val t = ((contrasts[idx] - 12f) / denom).coerceIn(0f, 1f)
+              result[idx] = ((a * t).roundToInt() shl 24) or 0x00ffffff
+            }
+            usedBorder = true
+          }
+        }
+      }
+      if (!usedBorder) {
+        histogram.fill(0)
+        var lumCore = 0
+        for (k in 0 until tail) {
+          val c = foreground[queue[k]]
+          if (c ushr 24 >= coreThreshold) {
+            val lum = ((c ushr 16 and 255) * 77 + (c ushr 8 and 255) * 150 + (c and 255) * 29) ushr 8
+            histogram[lum]++
+            lumCore++
+          }
+        }
+        var remLo = lumCore / 20
+        var lo = 0
+        while (lo < 255 && remLo >= histogram[lo]) remLo -= histogram[lo++]
+        var remHi = lumCore / 20
+        var hi = 255
+        while (hi > 0 && remHi >= histogram[hi]) remHi -= histogram[hi--]
+        val span = max(32f, (hi - lo).toFloat())
+        for (k in 0 until tail) {
+          val idx = queue[k]
+          val c = foreground[idx]
+          val a = minOf(c ushr 24, plate[idx] ushr 24)
+          val lum = ((c ushr 16 and 255) * 77 + (c ushr 8 and 255) * 150 + (c and 255) * 29) ushr 8
+          val t = ((lum - lo) / span).coerceIn(0f, 1f)
+          result[idx] = ((a * (0.15f + 0.85f * t)).roundToInt() shl 24) or 0x00ffffff
+        }
+      }
+    }
+    return result
   }
 }

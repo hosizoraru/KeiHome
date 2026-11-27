@@ -28,15 +28,26 @@ internal object PublishedExtraIcons {
     context: Context, archive: ZipFile, targets: List<IconPackComponent>, packages: Set<String>,
     check: () -> Unit,
   ): Map<String, ByteArray> {
+    val paths = archive.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
+    return replacements(context, paths, { path, limit -> archive.readBounded(path, limit) }, targets, packages, check)
+  }
+
+  fun replacements(
+    context: Context,
+    paths: Set<String>,
+    read: (String, Int) -> ByteArray?,
+    targets: List<IconPackComponent>,
+    packages: Set<String>,
+    check: () -> Unit,
+  ): Map<String, ByteArray> {
     if (packages.isEmpty()) return emptyMap()
     val selected = ExtraIcon.entries.filter { it.packageName in packages }
       .associateWith { icon -> targets.filter(icon::accepts) }
       .filterValues { it.isNotEmpty() }
     if (selected.isEmpty()) return emptyMap()
     val renderer = ColorOsFallbackRenderer(context)
-    val paths = archive.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
     val byOwner = paths.groupBy(CustomIconResources::owner)
-    val shape = IconMaskPolicy.fromConfig(archive.readBounded(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES))
+    val shape = IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES))
       ?: IconMaskPolicy.hyperOs4Preview().resolve(null)
     return buildMap {
       for ((icon, applications) in selected) {
@@ -48,7 +59,7 @@ internal object PublishedExtraIcons {
             .filterNot(written::contains)
           val rendered = mutableMapOf<Int, ByteArray?>()
           val plans = names.map { name ->
-            plan(archive, name, byOwner[name].orEmpty(), check) {
+            plan(read, name, byOwner[name].orEmpty(), check) {
               renderer.renderExtra(icon, target, 192, shape, original = true, check = check)?.toPng()
             }
           }
@@ -81,7 +92,7 @@ internal object PublishedExtraIcons {
   private data class Plan(val name: String, val day: ByteArray, val size: Int, val flat: List<String>,
     val nightPath: String?, val palette: Pair<ByteArray, ByteArray>?, val legacyScalarBinders: Boolean)
 
-  private fun plan(archive: ZipFile, name: String, owned: List<String>, check: () -> Unit,
+  private fun plan(read: (String, Int) -> ByteArray?, name: String, owned: List<String>, check: () -> Unit,
     original: () -> ByteArray?): Plan? {
     check()
     if (!validNativeIconName(name)) return null
@@ -89,24 +100,24 @@ internal object PublishedExtraIcons {
     val root = "fancy_icons/$name/"
     val fancy = owned.filter { it.startsWith(root) }
     if (owned.any { it !in flat && it !in fancy }) return null
-    val manifest = archive.readBounded(root + "manifest.xml", 32 * 1024)
+    val manifest = read(root + "manifest.xml", 32 * 1024)
     val authoredPair = try { manifest?.let { NativeMamlPair.parse(it, check) } }
       catch (_: IconPackException) { null }
-    val day = archive.readBounded(root + (authoredPair?.light ?: "day.png"), MAX_IMAGE)
-      ?: archive.readBounded("$DRAWABLE$name.png", MAX_IMAGE)
-      ?: flat.firstOrNull { !it.startsWith("nightmode/") }?.let { archive.readBounded(it, MAX_IMAGE) }
+    val day = read(root + (authoredPair?.light ?: "day.png"), MAX_IMAGE)
+      ?: read("$DRAWABLE$name.png", MAX_IMAGE)
+      ?: flat.firstOrNull { !it.startsWith("nightmode/") }?.let { read(it, MAX_IMAGE) }
       ?: (if (owned.isEmpty()) original() else null) ?: return null
     val size = try { NativeDayNightIcon.pngSize(day) } catch (_: IllegalArgumentException) { return null }
     if (size !in 32..512) return null
     val compact = manifest?.contentEquals(NativeDayNightIcon.manifest(size, true)) == true
     val pair = authoredPair ?: if (manifest?.contentEquals(NativeDayNightIcon.manifest(size, false)) == true)
       NativeMamlPair("day.png", "night.png") else null
-    val mask = archive.readBounded(root + "mask.png", MAX_IMAGE)
-    val background = archive.readBounded(root + "bg.png", MAX_IMAGE)
+    val mask = read(root + "mask.png", MAX_IMAGE)
+    val background = read(root + "bg.png", MAX_IMAGE)
     val palette = if (manifest != null && mask != null && background != null &&
       fancy.all { it.removePrefix(root) in paletteFiles } &&
       NativePaletteIcon.recognizes(name, manifest, day,
-        archive.readBounded(root + "night.png", MAX_IMAGE) ?: day, mask, background)) mask to background else null
+        read(root + "night.png", MAX_IMAGE) ?: day, mask, background)) mask to background else null
     val compactResources = compact && fancy.all { it.removePrefix(root) in setOf("day.png", "manifest.xml") }
     if (fancy.isNotEmpty() && palette == null && !compactResources &&
       (pair == null || fancy.any { it.removePrefix(root) !in setOf("manifest.xml", pair.light, pair.dark) })) return null

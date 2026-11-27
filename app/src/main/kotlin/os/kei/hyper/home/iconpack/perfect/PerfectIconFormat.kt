@@ -16,12 +16,87 @@ import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
 
 internal data class PerfectIconBlob(val path: String, val sha: String, val size: Long, val source: String = path)
+
+internal data class StaticLayerPair(
+  val background: PerfectIconBlob,
+  val foreground: PerfectIconBlob,
+) {
+  val isCustom: Boolean
+    get() = background.source.startsWith(PerfectCustomStatic.SOURCE_PREFIX) ||
+      foreground.source.startsWith(PerfectCustomStatic.SOURCE_PREFIX)
+
+  fun toList(): List<PerfectIconBlob> = listOf(background, foreground)
+}
+
+internal data class StaticIconEntry(
+  val id: String,
+  val flat: PerfectIconBlob? = null,
+  val layers: StaticLayerPair? = null,
+) {
+  init { require(flat != null || layers != null) }
+
+  fun dayBlobs(): List<PerfectIconBlob> = flat?.let(::listOf) ?: requireNotNull(layers).toList()
+
+  fun nightInputs(): List<PerfectIconBlob>? {
+    if (layers?.isCustom == true) return null
+    return when {
+      flat != null -> {
+        val sourcePrefix = flat.source.removeSuffix(".png")
+        val sameTheme = layers != null &&
+          layers.background.source == "$sourcePrefix/0.png" &&
+          layers.foreground.source == "$sourcePrefix/1.png"
+        if (sameTheme) listOf(flat, layers.background, layers.foreground) else listOf(flat)
+      }
+      layers != null -> layers.toList()
+      else -> null
+    }
+  }
+
+  fun allBlobs(): List<PerfectIconBlob> = buildList(3) {
+    flat?.let(::add)
+    layers?.let { add(it.background); add(it.foreground) }
+  }
+}
+
+internal data class DynamicIconGroup(
+  val id: String,
+  val resources: Map<String, PerfectIconBlob>,
+  val quietOnly: Boolean = false,
+)
+
 internal data class PerfectIconPlan(
-  val files: Map<String, PerfectIconBlob>,
+  val staticIcons: Map<String, StaticIconEntry>,
+  val dynamicGroups: Map<String, DynamicIconGroup>,
   val staticIds: Set<String>,
   val dynamicIds: Set<String>,
   val rejectedDynamic: Map<String, String> = emptyMap(),
-)
+) {
+  val hasLayerDirectory: Boolean get() = dynamicGroups.isNotEmpty()
+  val isEmpty: Boolean get() = staticIcons.isEmpty() && dynamicGroups.isEmpty()
+
+  fun allBlobs(): Sequence<PerfectIconBlob> = sequence {
+    staticIcons.values.forEach { yieldAll(it.allBlobs()) }
+    dynamicGroups.values.forEach { yieldAll(it.resources.values) }
+  }
+
+  /** Materialized archive-path view for stable publication hashing and test inspection. */
+  val files: Map<String, PerfectIconBlob> by lazy(LazyThreadSafetyMode.NONE) {
+    sortedMapOf<String, PerfectIconBlob>().apply {
+      staticIcons.forEach { (id, entry) ->
+        entry.flat?.let { put("res/drawable-xxhdpi/$id.png", it) }
+        entry.layers?.let {
+          put("res/drawable-xxhdpi/$id/0.png", it.background)
+          put("res/drawable-xxhdpi/$id/1.png", it.foreground)
+        }
+      }
+      dynamicGroups.forEach { (id, group) ->
+        group.resources.forEach { (relative, blob) ->
+          put("layer_animating_icons/$id/$relative", blob)
+        }
+      }
+    }
+  }
+}
 
 /** Source-data paths and bounded validation for the pzcn repository snapshot.
  * Static layers and resource selection are specified from retained source inputs in
@@ -93,20 +168,26 @@ internal object PerfectIconFormat {
       putAll(staticGroups(themed))
       putAll(customPairs)
     }
-    val files = sortedMapOf<String, PerfectIconBlob>()
-    val staticIds = sortedSetOf<String>()
+    val layerPairs = sortedMapOf<String, StaticLayerPair>()
+    val flats = sortedMapOf<String, PerfectIconBlob>()
     pairs.filterKeys(::selected).forEach { (name, layers) ->
-      staticIds += name
-      layers.forEach { files["res/drawable-xxhdpi/$name/${it.path.substringAfter('/')}"] = it }
+      val bg = layers.first { it.path.endsWith("/0.png") }
+      val fg = layers.first { it.path.endsWith("/1.png") }
+      layerPairs[name] = StaticLayerPair(bg, fg)
     }
     // Single-image style resources are independent of the static-layer chain.
     themed.filter { '/' !in it.path && it.path.endsWith(".png") }.forEach {
       val name = it.path.removeSuffix(".png")
       if (id(name) && selected(name) && name !in customPairs) {
-        files["res/drawable-xxhdpi/$name.png"] = it
-        staticIds += name
+        flats[name] = it
       }
     }
+    val staticIcons = sortedMapOf<String, StaticIconEntry>()
+    (layerPairs.keys + flats.keys).forEach { name ->
+      staticIcons[name] = StaticIconEntry(name, flat = flats[name], layers = layerPairs[name])
+    }
+    val staticIds = staticIcons.keys.toSortedSet()
+    val dynamicGroups = sortedMapOf<String, DynamicIconGroup>()
     val dynamicIds = sortedSetOf<String>()
     if (options.dynamic) {
       fun groups(blobs: List<PerfectIconBlob>) = blobs.filter {
@@ -117,13 +198,29 @@ internal object PerfectIconFormat {
       val dynamic = groups(commonDynamic).toMutableMap().apply { putAll(groups(themedDynamic)) }
       dynamic.filterKeys(::selected).forEach { (name, resources) ->
         dynamicIds += name
-        resources.forEach { files["layer_animating_icons/${it.path}"] = it }
+        val map = sortedMapOf<String, PerfectIconBlob>()
+        resources.forEach { map[it.path.substringAfter('/')] = it }
+        dynamicGroups[name] = DynamicIconGroup(name, map)
       }
     }
-    require(files.size <= MAX_FILES) { "Perfect Icons file limit exceeded" }
-    require(files.values.sumOf { it.size } <= MAX_PACK) { "Perfect Icons pack exceeds 512 MiB" }
+    var fileCount = 0
+    var totalBytes = 0L
+    staticIcons.values.forEach { entry ->
+      entry.allBlobs().forEach { blob ->
+        fileCount++
+        totalBytes += blob.size
+      }
+    }
+    dynamicGroups.values.forEach { group ->
+      group.resources.values.forEach { blob ->
+        fileCount++
+        totalBytes += blob.size
+      }
+    }
+    require(fileCount <= MAX_FILES) { "Perfect Icons file limit exceeded" }
+    require(totalBytes <= MAX_PACK) { "Perfect Icons pack exceeds 512 MiB" }
     staticIds.removeAll(dynamicIds)
-    return PerfectIconPlan(files, staticIds, dynamicIds)
+    return PerfectIconPlan(staticIcons, dynamicGroups, staticIds, dynamicIds)
   }
 
   /** Verify chunks/CRC without decoding, scaling, composing or re-encoding upstream artwork. */
@@ -284,53 +381,53 @@ internal object PerfectIconFormat {
 
   /** Use the returned plan: invalid dynamic groups may fall back to their validated static ID. */
   fun validate(plan: PerfectIconPlan, read: (PerfectIconBlob) -> ByteArray): PerfectIconPlan {
-    plan.files.forEach { (path, blob) ->
+    fun validateStaticPng(path: String, blob: PerfectIconBlob) {
       safePath(path)
-      if (!path.startsWith("layer_animating_icons/") && path.endsWith(".png", true)) {
-        try {
-          raster(read(blob))
-        } catch (failure: Exception) {
-          if (failure is CancellationException || failure is InterruptedException) throw failure
-          throw IOException("Invalid static PNG $path (source ${blob.source}): ${failure.message}", failure)
-        }
+      try {
+        raster(read(blob))
+      } catch (failure: Exception) {
+        if (failure is CancellationException || failure is InterruptedException) throw failure
+        throw IOException("Invalid static PNG $path (source ${blob.source}): ${failure.message}", failure)
       }
     }
-    val files = plan.files.toSortedMap().toMutableMap()
-    val staticIds = sortedSetOf<String>()
-    val dynamicIds = sortedSetOf<String>()
-    val rejected = plan.rejectedDynamic.toSortedMap()
-    val staticResources = plan.files.filterKeys { it.startsWith("res/drawable-xxhdpi/") }.map {
-      (path, blob) -> blob.copy(path = path.removePrefix("res/drawable-xxhdpi/"))
+    plan.staticIcons.forEach { (id, entry) ->
+      entry.flat?.let { validateStaticPng("res/drawable-xxhdpi/$id.png", it) }
+      entry.layers?.let {
+        validateStaticPng("res/drawable-xxhdpi/$id/0.png", it.background)
+        validateStaticPng("res/drawable-xxhdpi/$id/1.png", it.foreground)
+      }
     }
-    staticIds += staticGroups(staticResources).keys
-    staticIds += staticResources.filter { '/' !in it.path && it.path.endsWith(".png") }
-      .map { it.path.removeSuffix(".png") }.filter(::id)
-    val groups = plan.files.keys.filter { it.startsWith("layer_animating_icons/") }
-      .map { it.removePrefix("layer_animating_icons/").substringBefore('/') }.toSortedSet()
-    groups.forEach { name ->
-      val prefix = "layer_animating_icons/$name/"
-      val resources = plan.files.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }
+    val staticIds = plan.staticIcons.keys.toSortedSet()
+    val dynamicIds = sortedSetOf<String>()
+    val keptGroups = sortedMapOf<String, DynamicIconGroup>()
+    val rejected = plan.rejectedDynamic.toSortedMap()
+    plan.dynamicGroups.forEach { (name, group) ->
+      group.resources.keys.forEach { relative -> safePath("layer_animating_icons/$name/$relative") }
       try {
         val rendering = PerfectDynamicIconValidator.validate(
-          resources, preserveNativeWeather = name == "com.miui.weather2", read = read,
+          group.resources, preserveNativeWeather = name == "com.miui.weather2", read = read,
         )
         when {
-          rendering == PerfectDynamicIconValidator.Rendering.QUIET -> staticIds += name
-          rendering == PerfectDynamicIconValidator.Rendering.OTHER_PROVIDER_BACKED_FANCY && name in staticIds -> {
-            files.keys.removeAll { it.startsWith(prefix) }
+          rendering == PerfectDynamicIconValidator.Rendering.QUIET -> {
+            keptGroups[name] = group.copy(quietOnly = true)
+            staticIds += name
+          }
+          rendering == PerfectDynamicIconValidator.Rendering.OTHER_PROVIDER_BACKED_FANCY && name in plan.staticIcons -> {
             rejected[name] = "external content provider is launch-sensitive; kept static fallback"
           }
-          else -> dynamicIds += name
+          else -> {
+            keptGroups[name] = group.copy(quietOnly = false)
+            dynamicIds += name
+          }
         }
       } catch (failure: Exception) {
         if (failure is CancellationException || failure is InterruptedException) throw failure
-        if (name !in staticIds) throw IOException("Invalid dynamic icon $name: ${failure.message}", failure)
-        files.keys.removeAll { it.startsWith(prefix) }
+        if (name !in plan.staticIcons) throw IOException("Invalid dynamic icon $name: ${failure.message}", failure)
         rejected[name] = failure.message ?: failure.javaClass.simpleName
       }
     }
     staticIds.removeAll(dynamicIds)
-    return PerfectIconPlan(files, staticIds, dynamicIds, rejected)
+    return PerfectIconPlan(plan.staticIcons, keptGroups, staticIds, dynamicIds, rejected)
   }
 
 }

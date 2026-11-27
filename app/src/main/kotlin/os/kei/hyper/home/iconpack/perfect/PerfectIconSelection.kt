@@ -15,7 +15,7 @@ internal object PerfectIconSelection {
         val plan = PerfectIconFormat.plan(base, branch("themes/$style/icons"), common,
           branch("themes/$style/layer_animating_icons"),
           PerfectIconOptions(style = style, installedOnly = false, dynamic = true), emptySet())
-        addAll(plan.files.values.map { it.source })
+        addAll(plan.allBlobs().map { it.source })
         val description = "themes/$style/description.xml"
         if (description in paths) add(description)
       }

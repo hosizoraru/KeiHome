@@ -3,9 +3,12 @@ package os.kei.hyper.home.xposed
 import org.junit.Assert.*
 import org.junit.Test
 import os.kei.hyper.home.iconpack.NativeIconPngFixtures
+import os.kei.hyper.home.iconpack.perfect.DynamicIconGroup
 import os.kei.hyper.home.iconpack.perfect.PerfectIconBlob
 import os.kei.hyper.home.iconpack.perfect.PerfectIconFormat
 import os.kei.hyper.home.iconpack.perfect.PerfectIconPlan
+import os.kei.hyper.home.iconpack.perfect.StaticIconEntry
+import os.kei.hyper.home.iconpack.perfect.StaticLayerPair
 
 class LocalWeatherLayerProgramTest {
   private val base = "layer_animating_icons/com.miui.weather2/1/fancy/"
@@ -109,9 +112,24 @@ class LocalWeatherLayerProgramTest {
     )
     fun validate(files: Map<String, ByteArray>): PerfectIconPlan {
       val blobs = files.mapValues { (path, bytes) -> PerfectIconBlob(path, path, bytes.size.toLong()) }
-      return PerfectIconFormat.validate(PerfectIconPlan(blobs, setOf(icon), setOf(icon))) {
-        files.getValue(it.path)
-      }
+      val staticEntry = StaticIconEntry(
+        id = icon,
+        layers = StaticLayerPair(
+          background = blobs.getValue("${static}0.png"),
+          foreground = blobs.getValue("${static}1.png"),
+        ),
+      )
+      val dynamicGroup = DynamicIconGroup(
+        id = icon,
+        resources = blobs.filterKeys { it.startsWith(root) }.mapKeys { (path, _) -> path.removePrefix(root) },
+      )
+      val plan = PerfectIconPlan(
+        staticIcons = mapOf(icon to staticEntry),
+        dynamicGroups = mapOf(icon to dynamicGroup),
+        staticIds = setOf(icon),
+        dynamicIds = setOf(icon),
+      )
+      return PerfectIconFormat.validate(plan) { files.getValue(it.path) }
     }
     val weather = validate(source)
     assertEquals(weather.rejectedDynamic.toString(), setOf(icon), weather.dynamicIds)

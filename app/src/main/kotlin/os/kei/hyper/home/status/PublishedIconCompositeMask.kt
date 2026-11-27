@@ -39,6 +39,117 @@ internal object PublishedIconCompositeMask {
     override fun equals(other: Any?) = other is Template && bytes.contentEquals(other.bytes)
   }
 
+  internal data class MaskPlan(
+    val mask: NativeAdaptiveIconMask,
+    val candidates: Set<String>,
+  )
+
+  internal fun plan(
+    paths: Set<String>,
+    read: (String, Int) -> ByteArray?,
+    check: () -> Unit = {},
+  ): MaskPlan? {
+    if (NativeIconShapeConfig.hasLegacyStyle(paths.asSequence())) return null
+    val mask = IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, MAX_XML_BYTES))
+      ?: return null
+    val candidates = linkedSetOf<String>()
+    fun add(name: String) {
+      if (name in paths) candidates += name
+    }
+    val groups = linkedMapOf<String, MutableSet<String>>()
+    for (name in paths) {
+      check()
+      flat.matchEntire(name)?.groupValues?.get(1)?.takeIf(::validNativeIconName)?.let { add(name) }
+      for (pattern in groupPatterns) {
+        val match = pattern.find(name)?.takeIf { it.range.first == 0 } ?: continue
+        if (validNativeIconName(match.groupValues[1]))
+          groups.getOrPut(match.value) { linkedSetOf() } += name.removePrefix(match.value)
+      }
+    }
+    // Large native packs commonly repeat one day/night XML template for thousands of apps.
+    val templates = linkedMapOf<Template, NativeMamlPair?>()
+    for ((root, groupPaths) in groups) {
+      check()
+      val base = if ("${root}manifest.xml" in paths) root else "${root}fancy/"
+      val pair = try {
+        read("${base}manifest.xml", MAX_XML_BYTES)?.let { bytes ->
+          val key = Template(bytes)
+          if (templates.containsKey(key)) templates[key]
+          else NativeMamlPair.parse(bytes, check).also {
+            if (templates.size == 32) templates.remove(templates.keys.first())
+            templates[key] = it
+          }
+        }
+      } catch (_: IconPackException) { null }
+      if (pair != null) {
+        add(base + pair.light)
+        add(base + pair.dark)
+        add("${root}quiet/quietImage.png")
+      }
+      if ("${root}quiet/quietImage.png" !in paths || "/layer_animating_icons/" !in "/$root") continue
+      val configBytes = read("${root}config.xml", MAX_XML_BYTES) ?: continue
+      val config = try {
+        val availableLayers = NativeLayerConfig.availableLayerDirectories("", groupPaths)
+        NativeLayerConfig.parse(
+          configBytes,
+          IconPackLimits(maxXmlBytes = MAX_XML_BYTES),
+          check,
+          availableLayers,
+        )
+      } catch (_: IconPackException) { continue }
+      if (config.layers.size != 2) continue
+      // Only the exact weather display/provider schema identifies this root quiet as a
+      // complete fallback. Unknown group quiets and all per-layer quiets remain untouched.
+      val weather = config.layers.last()
+      if (weather !in config.fancyOnly) continue
+      val program = read("$root$weather/fancy/manifest.xml", MAX_XML_BYTES) ?: continue
+      check()
+      if (NativeWeatherLayerProgram.resources(program, "$weather/fancy/", groupPaths) != null)
+        add("${root}quiet/quietImage.png")
+    }
+    if (candidates.isEmpty()) return null
+    return MaskPlan(mask, candidates)
+  }
+
+  internal fun maskIfNeeded(
+    image: ByteArray,
+    scanner: MaskScanner,
+    mask: NativeAdaptiveIconMask,
+    check: () -> Unit = {},
+  ): ByteArray? {
+    if (image.size > MAX_IMAGE_BYTES) return null
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(image, 0, image.size, options)
+    if (options.outMimeType !in staticImageTypes || options.outWidth !in 1..MAX_DIMENSION ||
+      options.outHeight != options.outWidth) return null
+    check()
+    val bitmap = BitmapFactory.decodeByteArray(image, 0, image.size) ?: return null
+    var clipped: Bitmap? = null
+    return try {
+      if (!scanner.needsMask(bitmap, check)) return null
+      val result = IconMaskPolicy.clip(bitmap, mask)
+      clipped = result
+      val encoded = ByteArrayOutputStream()
+      val pngOutput = object : OutputStream() {
+        override fun write(value: Int) {
+          require(encoded.size() < MAX_IMAGE_BYTES)
+          encoded.write(value)
+        }
+        override fun write(bytes: ByteArray, offset: Int, count: Int) {
+          check()
+          require(encoded.size().toLong() + count <= MAX_IMAGE_BYTES)
+          encoded.write(bytes, offset, count)
+        }
+      }
+      require(result.compress(Bitmap.CompressFormat.PNG, 100, pngOutput))
+      check()
+      encoded.toByteArray()
+    } finally {
+      if (clipped !== bitmap) clipped?.recycle()
+      bitmap.recycle()
+    }
+  }
+
   /** False leaves output absent; callers must explicitly opt into the completed shape policy. */
   fun write(
     source: File,
@@ -87,7 +198,6 @@ internal object PublishedIconCompositeMask {
             slash = name.indexOf('/', slash + 1)
           }
         }
-        if (NativeIconShapeConfig.hasLegacyStyle(entries.keys.asSequence())) return false
         fun read(name: String, max: Int): ByteArray? = entries[name]?.let { entry ->
           if (entry.isDirectory || entry.size > max) return@let null
           zip.getInputStream(entry).use { input ->
@@ -104,107 +214,19 @@ internal object PublishedIconCompositeMask {
             out.toByteArray()
           }
         }
-        val mask = IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, MAX_XML_BYTES))
-          ?: return false
-        val candidates = linkedSetOf<String>()
-        fun add(name: String) {
-          if (entries[name]?.isDirectory == false) {
-            candidates += name
-          }
-        }
-        val groups = linkedMapOf<String, MutableSet<String>>()
-        for (name in entries.keys) {
-          check()
-          flat.matchEntire(name)?.groupValues?.get(1)?.takeIf(::validNativeIconName)?.let { add(name) }
-          for (pattern in groupPatterns) {
-            val match = pattern.find(name)?.takeIf { it.range.first == 0 } ?: continue
-            if (validNativeIconName(match.groupValues[1]))
-              groups.getOrPut(match.value) { linkedSetOf() } += name.removePrefix(match.value)
-          }
-        }
-        // Large native packs commonly repeat one day/night XML template for thousands of apps.
-        val templates = linkedMapOf<Template, NativeMamlPair?>()
-        for ((root, paths) in groups) {
-          check()
-          val base = if ("${root}manifest.xml" in entries) root else "${root}fancy/"
-          val pair = try {
-            read("${base}manifest.xml", MAX_XML_BYTES)?.let { bytes ->
-              val key = Template(bytes)
-              if (templates.containsKey(key)) templates[key]
-              else NativeMamlPair.parse(bytes, check).also {
-                if (templates.size == 32) templates.remove(templates.keys.first())
-                templates[key] = it
-              }
-            }
-          } catch (_: IconPackException) { null }
-          if (pair != null) {
-            add(base + pair.light)
-            add(base + pair.dark)
-            add("${root}quiet/quietImage.png")
-          }
-          if ("${root}quiet/quietImage.png" !in entries || "/layer_animating_icons/" !in "/$root") continue
-          val configBytes = read("${root}config.xml", MAX_XML_BYTES) ?: continue
-          val config = try {
-            val availableLayers = NativeLayerConfig.availableLayerDirectories("", paths)
-            NativeLayerConfig.parse(
-              configBytes,
-              IconPackLimits(maxXmlBytes = MAX_XML_BYTES),
-              check,
-              availableLayers,
-            )
-          } catch (_: IconPackException) { continue }
-          if (config.layers.size != 2) continue
-          // Only the exact weather display/provider schema identifies this root quiet as a
-          // complete fallback. Unknown group quiets and all per-layer quiets remain untouched.
-          val weather = config.layers.last()
-          if (weather !in config.fancyOnly) continue
-          val program = read("$root$weather/fancy/manifest.xml", MAX_XML_BYTES) ?: continue
-          check()
-          if (NativeWeatherLayerProgram.resources(program, "$weather/fancy/", paths) != null)
-            add("${root}quiet/quietImage.png")
-        }
-        if (candidates.isEmpty()) return false
-        val scanner = MaskScanner(mask)
+        val maskPlan = plan(files, ::read, check) ?: return false
+        val scanner = MaskScanner(maskPlan.mask)
         val total = entries.values.count { !it.isDirectory }
         var visited = 0
         onProgress(0, total)
         RawIconArchive.write(source, output, check = check, limits = limits,
           maxOutputBytes = limits.maxInputBytes, transform = transform@{ _, entry ->
             onProgress(++visited, total)
-            if (entry.name !in candidates || entry.size > MAX_IMAGE_BYTES) return@transform null
+            if (entry.name !in maskPlan.candidates || entry.size > MAX_IMAGE_BYTES) return@transform null
             val image = requireNotNull(read(entry.name, MAX_IMAGE_BYTES)) {
               "Published image size limit exceeded"
             }
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(image, 0, image.size, options)
-            if (options.outMimeType !in staticImageTypes || options.outWidth !in 1..MAX_DIMENSION ||
-              options.outHeight != options.outWidth) return@transform null
-            check()
-            val bitmap = BitmapFactory.decodeByteArray(image, 0, image.size) ?: return@transform null
-            var clipped: Bitmap? = null
-            try {
-              if (!scanner.needsMask(bitmap, check)) return@transform null
-              val result = IconMaskPolicy.clip(bitmap, mask)
-              clipped = result
-              val encoded = ByteArrayOutputStream()
-              val pngOutput = object : OutputStream() {
-                override fun write(value: Int) {
-                  require(encoded.size() < MAX_IMAGE_BYTES)
-                  encoded.write(value)
-                }
-                override fun write(bytes: ByteArray, offset: Int, count: Int) {
-                  check()
-                  require(encoded.size().toLong() + count <= MAX_IMAGE_BYTES)
-                  encoded.write(bytes, offset, count)
-                }
-              }
-              require(result.compress(Bitmap.CompressFormat.PNG, 100, pngOutput))
-              check()
-              encoded.toByteArray()
-            } finally {
-              if (clipped !== bitmap) clipped?.recycle()
-              bitmap.recycle()
-            }
+            maskIfNeeded(image, scanner, maskPlan.mask, check)
           })
         owned = true
         onProgress(total, total)
@@ -217,7 +239,7 @@ internal object PublishedIconCompositeMask {
     }
   }
 
-  private class MaskScanner(private val mask: NativeAdaptiveIconMask) {
+  internal class MaskScanner(private val mask: NativeAdaptiveIconMask) {
     private var size = 0
     private var coverage = IntArray(0)
     private var pixels = IntArray(0)

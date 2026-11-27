@@ -76,7 +76,8 @@ internal class RecentTaskAppIconRuntime(
             val candidate = CrossSurfaceIconCache(context, maxEntries = MAX_TASKS,
               maxIdentities = 2 * MAX_TASKS, refreshOnMinute = true, notifyOnMiss = true,
               acceptsComponent = ::isLauncherEntry,
-              originalOnMiss = setOf(BuildConfig.APPLICATION_ID)) { ready(profile) }
+              originalOnMiss = setOf(BuildConfig.APPLICATION_ID),
+              onReady = { ready(profile) })
             synchronized(lock) {
               if (stopped) {
                 closingCaches += candidate

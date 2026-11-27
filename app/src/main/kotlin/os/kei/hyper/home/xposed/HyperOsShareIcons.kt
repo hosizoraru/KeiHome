@@ -245,7 +245,7 @@ internal class HyperOsShareIcons(
     replayQueued.set(false)
     if (!lifecycle.enter()) return@Runnable
     try {
-      views.forEach { (view, bound) ->
+      views.entries.toList().forEach { (view, bound) ->
         if (view.isAttachedToWindow && view.windowVisibility != View.GONE)
           apply(view, bound)
       }
@@ -281,10 +281,10 @@ internal class HyperOsShareIcons(
         if (stopped) return@Thread
         val profile = HyperOsShareProfile.resolve(application, classLoader)
         if (stopped) return@Thread
-        val icons = CrossSurfaceIconCache(application, maxEntries = 64, systemPaletteEvents = true,
-          eagerReload = false, refreshOnMinute = true) {
-          queueReplay()
-        }
+        val icons = CrossSurfaceIconCache(
+          application, maxEntries = 64, maxIdentities = 128, systemPaletteEvents = true,
+          eagerReload = false, refreshOnMinute = true, onReady = ::queueReplay,
+        )
         cache = icons
         icons.start()
         replace(profile.bind, "bind") { chain ->

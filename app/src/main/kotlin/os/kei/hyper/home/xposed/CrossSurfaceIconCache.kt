@@ -46,9 +46,10 @@ internal class CrossSurfaceIconCache(
   private val originalOnMiss: Set<String> = emptySet(),
   private val maxIdentities: Int = maxEntries,
   private val watchThemeArchive: Boolean = false,
-  private val onReady: (() -> Unit)? = null,
   /** Called on the worker before an archive or appearance reload, so host caches can follow it. */
   private val beforeAppearanceReload: (() -> Unit)? = null,
+  /** Kept last so Kotlin trailing-lambda callers always wire cache-ready replay notifications. */
+  private val onReady: (() -> Unit)? = null,
 ) {
   init {
     require(maxEntries in 1..64)

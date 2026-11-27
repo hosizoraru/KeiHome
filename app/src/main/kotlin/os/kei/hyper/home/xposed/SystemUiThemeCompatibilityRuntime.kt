@@ -167,7 +167,7 @@ internal class SystemUiThemeCompatibilityRuntime(
       if (splashReady) hostInitialization.run("splash icon hooks") {
         splashIconRuntime?.close()
         SplashIconFallbackRuntime(xposed, classLoader, lifecycle, splashIconsEnabled, ::replace,
-          ::reportOptionalFailure, ::scheduleSplashArtwork).also {
+          ::reportOptionalFailure, ::scheduleSplashArtwork, hostContext = { hostContext }).also {
             splashIconRuntime = it
             it.install()
           }
@@ -238,13 +238,14 @@ internal class SystemUiThemeCompatibilityRuntime(
         result
       })
       // The template's coroutine can bind its subject after the initial keyguard view bind.
-      guard.run(Unit) {
+      val imageGuard = optionalGuard("keyguard depth image")
+      imageGuard.run(Unit) {
         val template = Class.forName("com.android.keyguard.tinyPanel.templates.BaseTinyTemplateView", false, classLoader)
         val setImage = template.getDeclaredMethod("setImageIfImageView", android.view.View::class.java,
           android.graphics.Bitmap::class.java)
         replace(setImage, "keihome.systemui.keyguard-depth-image", XposedInterface.Hooker { chain ->
           val result = chain.proceed()
-          guard.run(Unit) { (chain.getArg(0) as? android.view.View)?.let { depthDimming?.bindSubject(it) } }
+          imageGuard.run(Unit) { (chain.getArg(0) as? android.view.View)?.let { depthDimming?.bindSubject(it) } }
           result
         })
       }
@@ -580,16 +581,16 @@ internal class SystemUiThemeCompatibilityRuntime(
     ) {
       initializationWork.close()
       try {
-        check(appIconRuntime?.stop(deadline) != false) {
-          "Notification icon runtime has not stopped: ${appIconRuntime?.retirementStatus()}"
-        }
-        appIconRuntime = null
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
         check(gestureTint?.closeBefore(deadline) != false) { "Gesture material cleanup pending" }
         gestureTint = null
         check(depthDimming?.closeBefore(deadline) != false) { "Keyguard depth dimming cleanup pending" }
         depthDimming = null
+        check(appIconRuntime?.stop(deadline) != false) {
+          "Notification icon runtime has not stopped: ${appIconRuntime?.retirementStatus()}"
+        }
+        appIconRuntime = null
         saveState()
         splashIconRuntime?.close()
         splashIconRuntime = null

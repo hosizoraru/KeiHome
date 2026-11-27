@@ -46,12 +46,14 @@ internal class SystemUiAppIconRuntime(
   @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
   @Volatile private var folded: SystemUiFoldedIconReplay? = null
   @Volatile private var nativeCaches: SystemUiNativeIconCaches? = null
+  private class FoldedSource(val bitmap: java.lang.ref.WeakReference<Bitmap>, val usedSnapshot: Boolean)
   private val foldGuard = SystemUiHookGuard { reportFailure("native folded icon payload", it) }
   private val foldedRequest = ThreadLocal<Boolean>()
-  private val foldedSources = LinkedHashMap<String, java.lang.ref.WeakReference<Bitmap>>()
+  private val foldedSources = LinkedHashMap<String, FoldedSource>()
   private var foldedInitialized = false
   @Volatile private var notificationRows: SystemUiNotificationRowReplay? = null
   @Volatile private var island: SystemUiIslandAppIconAdapter? = null
+  @Volatile private var islandCacheField: java.lang.reflect.Field? = null
   private val islandLock = Any()
   @Volatile private var stopped = false
   private val currentUser = Process.myUid() / 100000
@@ -94,11 +96,25 @@ internal class SystemUiAppIconRuntime(
       guard.run(Unit) {
         val dropped = nativeCaches?.refresh() ?: return@run
         report(Log.INFO, TAG, "Native app-icon caches refreshed; dropped=${dropped.size}")
+        clearIslandNativeCache()
         statusBar?.adoptNative(dropped)
         statusBar?.rescanUnbound()
         queueReplay(refreshRows = true)
       }
     } finally { lifecycle.leave() }
+  }
+
+  private fun clearIslandNativeCache() {
+    val field = islandCacheField ?: return
+    try {
+      val sparse = field.get(null) as? android.util.SparseArray<*> ?: return
+      synchronized(sparse) {
+        val map = sparse.get(currentUser) as? MutableMap<*, *> ?: return@synchronized
+        synchronized(map) { map.clear() }
+      }
+    } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+    }
   }
 
   // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
@@ -110,8 +126,8 @@ internal class SystemUiAppIconRuntime(
     // Match the tracked-view bound so replay cannot churn a smaller wanted set.
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
       systemPaletteEvents = true, refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true,
-      onReady = { queueReplay(refreshRows = true) },
-      beforeAppearanceReload = { main.post(refreshNative) })
+      beforeAppearanceReload = { main.post(refreshNative) },
+      onReady = { queueReplay(refreshRows = false) })
     cache = iconCache
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     foldGuard.run(Unit) {
@@ -122,7 +138,9 @@ internal class SystemUiAppIconRuntime(
           foldGuard.run(Unit) {
             val dependencies = synchronized(foldedSources) { foldedSources.toMap() }
             if (foldedInitialized && dependencies.none { (name, previous) ->
-              cache?.get(name)?.let { !it.isRecycled && it !== previous.get() } == true
+              val current = cache?.get(name)?.takeUnless { it.isRecycled }
+              (current != null && current !== previous.bitmap.get()) ||
+                (current == null && previous.usedSnapshot && cache?.isMissing(name) == true)
             }) return@run
             val count = native.rebuild()
             if (count > 0) {
@@ -155,7 +173,7 @@ internal class SystemUiAppIconRuntime(
             if (snapshot != null) bindings.remember(snapshot, name)
             if (foldedRequest.get() == true) synchronized(foldedSources) {
               foldedSources.remove(name)
-              foldedSources[name] = java.lang.ref.WeakReference(snapshot)
+              foldedSources[name] = FoldedSource(java.lang.ref.WeakReference(snapshot), snapshot != null)
               while (foldedSources.size > 64) foldedSources.remove(foldedSources.keys.first())
             }
             result
@@ -164,9 +182,10 @@ internal class SystemUiAppIconRuntime(
       }
     }
     replace(profile.consumer, "$HOOK_ID.consumer", ::consume)
-    val cachedProfile = guard.run<SystemUiNotificationAppIconProfile?>(null) {
-      SystemUiNotificationAppIconProfile.resolve(context, loader)
-    }
+    val cachedProfile = SystemUiHookGuard { reportFailure("notification app-icon profile", it) }
+      .run<SystemUiNotificationAppIconProfile?>(null) {
+        SystemUiNotificationAppIconProfile.resolve(context, loader)
+      }
     if (cachedProfile != null) {
       cachedProfile.callers.forEach(deoptimize)
       notificationRows = rowGuard.run<SystemUiNotificationRowReplay?>(null) {
@@ -204,16 +223,17 @@ internal class SystemUiAppIconRuntime(
       val nativeManager = requireNotNull(statusProfile.nativeManager).invoke(null,
         statusProfile.nativeCaches.first().declaringClass)
       val descriptorType = statusProfile.descriptorIcon.declaringClass
-      val preload = guard.run<((Any, Drawable) -> Any)?>(null) {
-        val method = descriptorType.getMethod("clone")
-        val field = descriptorType.getField("preloadedIcon")
-        check(method.returnType === descriptorType && field.type == Drawable::class.java &&
-          !Modifier.isStatic(field.modifiers) && !Modifier.isFinal(field.modifiers))
-        val copy: (Any, Drawable) -> Any = { descriptor, icon ->
-          requireNotNull(method.invoke(descriptor)).also { field.set(it, icon) }
+      val preload = SystemUiHookGuard { reportFailure("status-bar weather preload", it) }
+        .run<((Any, Drawable) -> Any)?>(null) {
+          val method = descriptorType.getMethod("clone")
+          val field = descriptorType.getField("preloadedIcon")
+          check(method.returnType === descriptorType && field.type == Drawable::class.java &&
+            !Modifier.isStatic(field.modifiers) && !Modifier.isFinal(field.modifiers))
+          val copy: (Any, Drawable) -> Any = { descriptor, icon ->
+            requireNotNull(method.invoke(descriptor)).also { field.set(it, icon) }
+          }
+          copy
         }
-        copy
-      }
       val runtime = SystemUiStatusBarIconRuntime(context, statusProfile, lifecycle, currentUser,
         { name -> cache?.get(name) }, { failure -> reportFailure("status-bar app icon", failure) },
         ready = ::queueReplay, nativeManagerInstance = nativeManager,
@@ -230,7 +250,7 @@ internal class SystemUiAppIconRuntime(
           }
         })
       statusBar = runtime
-      guard.run(Unit) {
+      SystemUiHookGuard { reportFailure("native icon caches", it) }.run(Unit) {
         nativeCaches = SystemUiNativeIconCaches(requireNotNull(nativeManager), statusProfile.nativeCaches, currentUser)
       }
       replace(statusProfile.consumer, "$HOOK_ID.statusbar-descriptor.v1") { chain ->
@@ -271,10 +291,8 @@ internal class SystemUiAppIconRuntime(
       val icon = chain.thisObject as? Icon
       if (!stopped && icon != null && result is Drawable && lifecycle.enter()) {
         try {
-          guard.run(result) {
-            bindings.rememberLoaded(icon, result)
-            statusBar?.loaded(icon, result) ?: result
-          }
+          guard.run(Unit) { bindings.rememberLoaded(icon, result) }
+          statusBar?.loaded(icon, result) ?: result
         } finally { lifecycle.leave() }
       } else result
     }
@@ -324,12 +342,14 @@ internal class SystemUiAppIconRuntime(
       synchronized(islandLock) {
         check(!stopped) { "Application icon runtime retired during Super Island resolution" }
         island = adapter
+        islandCacheField = islandProfile.cacheField
       }
       replace(islandProfile.factory, "$HOOK_ID.island-app-factory.v1") { chain ->
         adapter.intercept(chain.getArg(0) as? String, chain.getArg(1) as? Int,
           chain.getArg(2) as? ApplicationInfo, chain.getArg(4) as? Context) { chain.proceed() }
       }
-      guard.run(Unit) {
+      val islandPicturesGuard = SystemUiHookGuard { reportFailure("Super Island picture identity", it) }
+      islandPicturesGuard.run(Unit) {
         val base = Class.forName("miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder", false, loader)
         check(base.classLoader === loader)
         val pictures = base.getDeclaredMethod("getBitmapBundle").apply { isAccessible = true }
@@ -340,7 +360,7 @@ internal class SystemUiAppIconRuntime(
         replace(pictures, "$HOOK_ID.island-identity-pictures.v1") { chain ->
           val result = chain.proceed()
           if (!stopped && result is android.os.Bundle && lifecycle.enter()) try {
-            guard.run(Unit) {
+            islandPicturesGuard.run(Unit) {
               val source = data.invoke(chain.thisObject) ?: return@run
               val values = extras.invoke(source) as? android.os.Bundle ?: return@run
               SystemUiIslandPictureBindings.remember(result, values, currentUser) { icon, name ->
@@ -547,14 +567,16 @@ internal class SystemUiAppIconRuntime(
     if (notification == null) nativeRequest.remove() else nativeRequest.set(notification)
     try {
       val result = chain.proceed()
-      guard.run(Unit) {
-        if (stopped) return@run
-        val notification = chain.getArg(1) ?: return@run
-        val view = chain.getArg(2) as? ImageView ?: return@run
+      val bound = guard.run<SystemUiAppIconBindings.Binding?>(null) {
+        if (stopped) return@run null
+        val notification = chain.getArg(1) ?: return@run null
+        val view = chain.getArg(2) as? ImageView ?: return@run null
         val frameworkNotice = notification as? android.service.notification.StatusBarNotification
-        if (frameworkNotice != null && bindWeatherHeader(view, frameworkNotice, profile)) return@run
-        val name = profile.identity(notification, currentUser) ?: return@run
-        val cached = profile.cached(notification) ?: return@run
+        if (frameworkNotice != null) {
+          bindWeatherHeader(view, frameworkNotice, profile)?.let { return@run it }
+        }
+        val name = profile.identity(notification, currentUser) ?: return@run null
+        val cached = profile.cached(notification) ?: return@run null
         if (view.drawable !== cached) {
           if (bindings.associated(view, name)) {
             if (frameworkNotice != null &&
@@ -562,12 +584,13 @@ internal class SystemUiAppIconRuntime(
           } else {
             bindings.clear(view)
           }
-          return@run
+          return@run null
         }
         if (frameworkNotice != null &&
           notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
-        bindings.bindNative(view, cached, name)?.let(::boundReady)
+        bindings.bindNative(view, cached, name)
       }
+      bound?.let(::boundReady)
       return result
     } finally {
       if (previous == null) nativeRequest.remove() else nativeRequest.set(previous)
@@ -580,12 +603,17 @@ internal class SystemUiAppIconRuntime(
     notification: android.service.notification.StatusBarNotification,
     profile: SystemUiNotificationAppIconProfile,
   ): Boolean {
-    if (bindWeatherHeader(view, notification, profile)) return true
+    bindWeatherHeader(view, notification, profile)?.let {
+      boundReady(it)
+      return true
+    }
     val name = profile.identity(notification, currentUser) ?: return false
     val current = view.drawable ?: return false
     val extras = notification.notification.extras
-    if (extras.get("custom_app_icon") != null &&
-      profile.customIdentity(notification, currentUser) == null) return false
+    val isCustomNonApp = extras.get("custom_app_icon") != null ||
+      notification.opPkg == "com.miui.hybrid" ||
+      (notification.packageName == "com.os.callservice" && !extras.getString("miui.category").isNullOrEmpty())
+    if (isCustomNonApp && profile.customIdentity(notification, currentUser) == null) return false
     if (notificationRows?.remember(view, notification) == true) queueReplay()
     if (!bindings.associated(view, name)) {
       bindings.bindNative(view, current, name)?.let { bound ->
@@ -599,20 +627,24 @@ internal class SystemUiAppIconRuntime(
   private fun bindWeatherHeader(
     view: ImageView, notification: android.service.notification.StatusBarNotification,
     profile: SystemUiNotificationAppIconProfile,
-  ): Boolean {
-    if (!profile.weatherHeader(notification, currentUser)) return false
-    val original = view.drawable ?: return false
-    val bound = bindings.bindNative(view, original, WeatherIconTemperature.PACKAGE) ?: return false
-    boundReady(bound)
-    return true
+  ): SystemUiAppIconBindings.Binding? {
+    if (!profile.weatherHeader(notification, currentUser)) return null
+    val original = view.drawable ?: return null
+    if (notificationRows?.remember(view, notification) == true) queueReplay()
+    return bindings.bindNative(view, original, WeatherIconTemperature.PACKAGE)
   }
 
   private fun bind(chain: XposedInterface.Chain, async: Boolean): Any? {
     if (stopped || writing.get() == true || !lifecycle.enter()) return chain.proceed()
     try {
       val view = chain.thisObject as? ImageView ?: return chain.proceed()
+      if (statusBar?.ownsView(view) == true) {
+        guard.run(Unit) { bindings.clear(view) }
+        return chain.proceed()
+      }
+      val incoming = chain.getArg(0)
       val bound = guard.run<SystemUiAppIconBindings.Binding?>(null) {
-        bindings.bind(view, chain.getArg(0))
+        bindings.bind(view, incoming, incoming as? Drawable)
       }
       // Keep native calls outside optional-work guards; native failures propagate.
       val result = if (bound == null) chain.proceed() else write { chain.proceed() }
@@ -643,10 +675,15 @@ internal class SystemUiAppIconRuntime(
     val view = bindings.current(bound) ?: return
     val bitmap = cache?.get(bound.name)?.takeUnless { it.isRecycled }
     if (bitmap == null) {
-      // When Monet turns off for an uncovered app, trigger row re-inflation so native artwork returns.
-      if (cache?.isMissing(bound.name) == true) notificationRows?.markPending()
+      // When Monet turns off for an uncovered/missing app, restore native artwork once.
+      if (bound.usedSnapshot && cache?.isMissing(bound.name) == true) {
+        bound.usedSnapshot = false
+        bound.original?.get()?.let { orig -> write { view.setImageDrawable(orig) } }
+        notificationRows?.markPending()
+      }
       return
     }
+    bound.usedSnapshot = true
     write { view.setImageBitmap(bitmap) }
     logOnce(appliedLogged, "Published notification icon snapshot applied")
   }
@@ -679,6 +716,7 @@ internal class SystemUiAppIconRuntime(
     synchronized(islandLock) {
       stopped = true
       island?.stop()
+      islandCacheField = null
     }
     notificationRows?.clear()
     val stoppedStatus = try { statusBar?.stop(deadline) != false } catch (failure: Throwable) {

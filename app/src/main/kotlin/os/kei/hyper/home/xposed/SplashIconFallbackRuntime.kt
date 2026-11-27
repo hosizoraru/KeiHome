@@ -24,6 +24,7 @@ internal class SplashIconFallbackRuntime(
   private val replace: (Method, String, XposedInterface.Hooker) -> Unit,
   private val reportFailure: (String, Throwable) -> Unit,
   maintenance: () -> Unit,
+  private val hostContext: () -> Context? = { null },
 ) {
   private data class Request(
     val context: Context,
@@ -174,7 +175,7 @@ internal class SplashIconFallbackRuntime(
           var source = "native"
           var cache = "unused"
           if (reason == "fill") {
-            if (ownPalette && !enabled.get()) artwork.prepare(request.context)
+            if (ownPalette && !enabled.get()) artwork.prepare(hostContext() ?: request.context)
             val result = artwork.load(request.context, ai, paletteState.takeIf { ownPalette })
             cache = result.cache
             val snapshot = result.snapshot

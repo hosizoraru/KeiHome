@@ -103,20 +103,22 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
         return@safely
       }
       if (callbackContext == null && context != null) {
-        val application = context.applicationContext ?: context
-        application.registerComponentCallbacks(callbacks)
-        try {
-          // HyperOS can keep SystemUI's own configuration pinned across a global toggle.
-          application.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("ui_night_mode"), false, nightModeObserver)
-          application.contentResolver.registerContentObserver(
-            Settings.System.getUriFor(NativePaletteIcon.STATE_KEY), false, nightModeObserver)
-        } catch (failure: Exception) {
-          try { application.contentResolver.unregisterContentObserver(nightModeObserver) } catch (_: Exception) { }
-          application.unregisterComponentCallbacks(callbacks)
-          throw failure
+        val application = context.applicationContext
+        if (application != null) {
+          application.registerComponentCallbacks(callbacks)
+          try {
+            // HyperOS can keep SystemUI's own configuration pinned across a global toggle.
+            application.contentResolver.registerContentObserver(
+              Settings.Secure.getUriFor("ui_night_mode"), false, nightModeObserver)
+            application.contentResolver.registerContentObserver(
+              Settings.System.getUriFor(NativePaletteIcon.STATE_KEY), false, nightModeObserver)
+          } catch (failure: Exception) {
+            try { application.contentResolver.unregisterContentObserver(nightModeObserver) } catch (_: Exception) { }
+            application.unregisterComponentCallbacks(callbacks)
+            throw failure
+          }
+          callbackContext = application
         }
-        callbackContext = application
       }
       archive(SystemClock.uptimeMillis())
       if (context != null) nightMode(context)

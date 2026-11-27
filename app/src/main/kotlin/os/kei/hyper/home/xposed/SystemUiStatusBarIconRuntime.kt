@@ -157,14 +157,14 @@ internal class SystemUiStatusBarIconBindings(private val limit: Int = 64) {
   @Synchronized fun forget(view: ImageView) {
     views.removeAll { it.view.get() == null || it.view.get() === view }
   }
-  @Synchronized fun bind(view: ImageView, icon: Icon, applied: Bitmap?) {
+  @Synchronized fun bind(view: ImageView, icon: Icon, applied: Bitmap?, maybeSnapshot: Boolean = false) {
     val retainedSnapshot = views.firstOrNull {
       it.view.get() === view && it.name == (name(icon) ?: "")
     }?.usedSnapshot == true
     forget(view)
     val name = name(icon) ?: return
     views += Binding(WeakReference(view), WeakReference(icon), name, WeakReference(applied),
-      applied != null || retainedSnapshot)
+      applied != null || maybeSnapshot || retainedSnapshot)
     while (views.size > limit) views.removeAt(0)
   }
   @Synchronized fun snapshot(): List<Binding> {
@@ -216,6 +216,7 @@ internal class SystemUiStatusBarIconRuntime(
   }
   private val requests = ThreadLocal<Request>()
   fun buildingDescriptor(): Boolean = requests.get() != null
+  fun ownsView(view: ImageView): Boolean = profile.drawable.declaringClass.isInstance(view)
   private val userHandle = UserHandle.getUserHandleForUid(currentUser * 100_000)
   private val recomputing = ThreadLocal<Boolean>()
   private val overrides = ThreadLocal<HeldBitmap>()
@@ -269,10 +270,18 @@ internal class SystemUiStatusBarIconRuntime(
       reader.invoke(manager, name, currentUser, true) as? Bitmap
     } else null
     if (bitmap != null && !bitmap.isRecycled) return HeldBitmap(name, currentUser, bitmap)
-    // A ready shared snapshot is only probe input. Package/user gates never prove ownership:
-    // the actual native app branch must consume it and return the witnessed factory Icon.
-    val ready = snapshot(name)?.takeUnless { it.isRecycled } ?: return null
-    return HeldBitmap(name, currentUser, ready, requireFactory = true)
+    // Prefer the descriptor's existing native bitmap as probe input so StatusBarIcon.icon
+    // never permanently bakes a Monet snapshot that breaks Monet ON -> OFF revert.
+    val existingNative = if (name == WeatherIconTemperature.PACKAGE) null else {
+      (profile.descriptorIcon.get(descriptor) as? Icon)
+        ?.takeIf { it.type == Icon.TYPE_BITMAP }
+        ?.let { runCatching { profile.bitmap.invoke(it) as? Bitmap }.getOrNull() }
+        ?.takeUnless { it.isRecycled }
+    }
+    // A ready shared snapshot is still checked so sharedOnly probes wait until artwork is warm.
+    val ready = snapshot(name)?.takeUnless { it.isRecycled }
+    val probeBitmap = existingNative?.takeIf { !sharedOnly || ready != null } ?: ready ?: return null
+    return HeldBitmap(name, currentUser, probeBitmap, requireFactory = true)
   }
 
   fun produced(user: Int, name: String, bitmap: Any?) {
@@ -539,7 +548,7 @@ internal class SystemUiStatusBarIconRuntime(
               val icon = profile.viewDescriptor.get(view)?.let { profile.descriptorIcon.get(it) as? Icon }
               if (icon != null && bindings.name(icon) == null) {
                 if (restoreIdentity(view, icon)) {
-                  bindings.bind(view, icon, null)
+                  bindings.bind(view, icon, null, maybeSnapshot = true)
                   restored++
                 } else if (icon.type == Icon.TYPE_BITMAP || icon.type == Icon.TYPE_RESOURCE &&
                   icon.resPackage == WeatherIconTemperature.PACKAGE) {
@@ -650,7 +659,7 @@ internal class SystemUiStatusBarIconRuntime(
           found += Existing(WeakReference(view), WeakReference(icon))
         }
         if (icon != null && restoreIdentity(view, icon)) {
-          bindings.bind(view, icon, null)
+          bindings.bind(view, icon, null, maybeSnapshot = true)
           proofs++
         }
       }

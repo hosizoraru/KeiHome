@@ -26,7 +26,12 @@ internal class SystemUiAppIconBindings {
   private class Token(icon: Any, val name: String) {
     val icon = WeakReference(icon)
   }
-  class Binding(view: ImageView, val name: String) {
+  class Binding(
+    view: ImageView,
+    val name: String,
+    val original: WeakReference<Drawable>? = null,
+    var usedSnapshot: Boolean = false,
+  ) {
     val view = WeakReference(view)
   }
   private val tokens = ArrayList<Token>()
@@ -49,19 +54,24 @@ internal class SystemUiAppIconBindings {
     remember(icon, name)
   }
 
-  @Synchronized fun bindNative(view: ImageView, cached: Drawable, name: String): Binding? {
+  @Synchronized fun bindNative(
+    view: ImageView,
+    cached: Drawable,
+    name: String,
+    original: Drawable? = null,
+  ): Binding? {
     if (view.drawable !== cached) {
       clear(view)
       return null
     }
     remember(cached, name)
-    return bind(view, cached)
+    return bind(view, cached, original)
   }
 
   @Synchronized fun associated(view: ImageView, name: String): Boolean =
     views.any { it.view.get() === view && it.name == name }
 
-  @Synchronized fun bind(view: ImageView, icon: Any?): Binding? {
+  @Synchronized fun bind(view: ImageView, icon: Any?, original: Drawable? = null): Binding? {
     views.removeAll { it.view.get() == null || it.view.get() === view }
     val bitmap = (icon as? BitmapDrawable)?.bitmap
     val name = tokens.firstOrNull {
@@ -69,7 +79,7 @@ internal class SystemUiAppIconBindings {
       known != null && (known === icon || bitmap != null && known === bitmap)
     }?.name ?: return null
     if (views.size >= 64) views.removeAt(0)
-    return Binding(view, name).also { views += it }
+    return Binding(view, name, original?.let(::WeakReference)).also { views += it }
   }
 
   @Synchronized fun clear(view: ImageView) {

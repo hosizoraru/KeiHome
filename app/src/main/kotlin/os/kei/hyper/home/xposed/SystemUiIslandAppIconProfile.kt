@@ -3,6 +3,7 @@ package os.kei.hyper.home.xposed
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.util.SparseArray
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import org.luckypray.dexkit.annotations.DexKitExperimentalApi
@@ -82,7 +83,10 @@ internal object SystemUiIslandAppIconContract {
 }
 
 /** Startup-only APK/reflection work. No native cache reads or new package lookups on a hook. */
-internal class SystemUiIslandAppIconProfile private constructor(val factory: Method) {
+internal class SystemUiIslandAppIconProfile private constructor(
+  val factory: Method,
+  val cacheField: Field,
+) {
   companion object {
     @OptIn(DexKitExperimentalApi::class)
     fun resolve(context: Context, loader: ClassLoader): SystemUiIslandAppIconProfile {
@@ -128,7 +132,10 @@ internal class SystemUiIslandAppIconProfile private constructor(val factory: Met
         val method = factory.getMethodInstance(loader)
         check(method.returnType == Drawable::class.java &&
           method.parameterTypes.map { it.name } == contract.PARAMETERS)
-        SystemUiIslandAppIconProfile(method.apply { isAccessible = true })
+        SystemUiIslandAppIconProfile(
+          method.apply { isAccessible = true },
+          reflectedField.apply { isAccessible = true },
+        )
       }
     }
   }

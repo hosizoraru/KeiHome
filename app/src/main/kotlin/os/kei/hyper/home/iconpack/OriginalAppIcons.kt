@@ -7,11 +7,9 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import kotlinx.coroutines.CancellationException
 
@@ -36,7 +34,7 @@ internal object OriginalAppIcons {
       check()
       val bitmap = rasterize(drawable, sizePx)
       try {
-        IconMaskPolicy.clip(bitmap, OriginalIconShape.mask).also { if (it !== bitmap) bitmap.recycle() }
+        IconMaskPolicy.clipIfExceeds(bitmap, OriginalIconShape.mask, check)
       } catch (failure: Throwable) {
         bitmap.recycle()
         throw failure
@@ -52,7 +50,7 @@ internal object OriginalAppIcons {
     activity: ActivityInfo,
     sizePx: Int,
     dark: Boolean,
-    legacyBitmapMask: NativeAdaptiveIconMask? = null,
+    mask: NativeAdaptiveIconMask? = OriginalIconShape.mask,
   ): Bitmap? {
     val icon = activity.iconResource
     if (icon == 0) return null
@@ -62,25 +60,22 @@ internal object OriginalAppIcons {
       val owner = withAppearance(packageContext, dark)
       if (owner !== context) owner.setTheme(activity.themeResource)
       val drawable = owner.getDrawable(icon)?.mutate() ?: return null
-      if (drawable is Animatable) null else rasterizeLaunchIcon(drawable, sizePx, legacyBitmapMask)
+      if (drawable is Animatable) null else rasterizeLaunchIcon(drawable, sizePx, mask)
     } catch (_: PackageManager.NameNotFoundException) { null }
     catch (_: android.content.res.Resources.NotFoundException) { null }
   }
 
-  internal fun rasterizeLaunchIcon(drawable: Drawable, sizePx: Int, legacyBitmapMask: NativeAdaptiveIconMask?): Bitmap {
+  internal fun rasterizeLaunchIcon(
+    drawable: Drawable,
+    sizePx: Int,
+    mask: NativeAdaptiveIconMask?,
+  ): Bitmap {
     val bitmap = rasterize(drawable, sizePx)
-    if (legacyBitmapMask == null || drawable !is BitmapDrawable || drawable.bitmap.width != drawable.bitmap.height) {
-      return bitmap
-    }
-    val last = sizePx - 1
-    if (Color.alpha(bitmap.getPixel(0, 0)) != 255 || Color.alpha(bitmap.getPixel(last, 0)) != 255 ||
-      Color.alpha(bitmap.getPixel(0, last)) != 255 || Color.alpha(bitmap.getPixel(last, last)) != 255) {
-      return bitmap
-    }
     return try {
-      IconMaskPolicy.clip(bitmap, legacyBitmapMask)
-    } finally {
+      IconMaskPolicy.clipIfExceeds(bitmap, mask)
+    } catch (failure: Throwable) {
       bitmap.recycle()
+      throw failure
     }
   }
 

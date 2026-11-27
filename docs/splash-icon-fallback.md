@@ -6,9 +6,6 @@ applied theme archive or the stock HyperOS icon producer. Existing app-authored
 splash icons, branding, custom backgrounds and task snapshots remain owned by
 the platform.
 
-This is separate from the earlier build-flag-only prototype documented in
-`splash-icon-fallback-prototype.md`.
-
 On HyperOS, a theme can set `windowDisablePreview` and still receive a modern
 Shell splash. The completion path may fill an existing type-6 splash from a
 normal splash request only when the request describes a new, cold task and
@@ -38,16 +35,21 @@ See `b0655-cold-{1,2}-wechat.mp4` and the matching logs under
   the original starting window.
 - With an active archive, the shared surface renderer resolves applied artwork
   and respects original-icon preservation. On a miss, the activity's original
-  resource is rendered at the effective light or dark appearance. Legacy square
-  bitmap icons with four opaque corners are clipped to the active archive's
-  mask, or the stock mask when the archive has none. Explicitly preserved icons
-  keep their original artwork. Fixed-size layers compose in the resource's
-  intrinsic viewport before scaling.
+  resource is rendered at the effective light or dark appearance and passed
+  through the shared coverage-gated mask (`IconMaskPolicy.clipIfExceeds`) using
+  the active archive's mask (falling back to `OriginalIconShape.mask`). Any
+  drawable whose rasterized pixels protrude outside the mask contour—including
+  `<layer-list>` (`LayerDrawable`, e.g., MiShare), `BitmapDrawable`, and
+  `VectorDrawable`—is alpha-intersected to the active shape without adding a
+  background, while already-shaped or transparent artwork passes through
+  untouched. Explicitly preserved icons follow the same `OriginalIconShape.mask`
+  contract as previews and other runtime surfaces. Fixed-size layers compose in
+  the resource's intrinsic viewport before scaling.
 - With the stock theme, identified by the absence of the active archive, the
   splash worker queries HyperOS `IconCustomizer.getIcon` for the resolved
-  activity and uses its completed artwork. If the producer is unavailable, it
-  renders the activity's APK artwork with the shared stock shape. Animated
-  drawables are left to the Shell starting-window path.
+  activity (falling back to the activity's APK resource when unavailable) and
+  passes the rasterized result through the same `OriginalIconShape.mask`
+  coverage gate. Animated drawables are left to the Shell starting-window path.
 - Switching to the icon window and setting its drawable are one operation.
   A missing snapshot leaves the Shell request intact. This avoids Shell's
   legacy white-backed wrapping of raw layer-list resources when the theme

@@ -37,9 +37,7 @@ import os.kei.hyper.home.iconpack.IconGenerationManifest
 internal object SurfaceIconSnapshotRenderer {
   const val SIZE = 192
   private const val IMAGE_LIMIT = 4 * 1024 * 1024
-  private class MaskCoverage(val alpha: IntArray?)
   private val masks = WeakHashMap<ZipFile, NativeAdaptiveIconMask?>()
-  private val coverages = WeakHashMap<NativeAdaptiveIconMask, MaskCoverage>()
   private val preserved = WeakHashMap<ZipFile, Set<String>>()
 
   fun render(
@@ -73,15 +71,7 @@ internal object SurfaceIconSnapshotRenderer {
         weatherTemperature, onDynamic) }
       ?: return null
     return try {
-      check()
-      val alpha = resolvedMask?.let { coverage(it, check) } ?: return bitmap
-      val pixels = IntArray(SIZE * SIZE)
-      bitmap.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
-      // Published PNGs can already carry this exact mask. Re-intersecting their
-      // antialiased edges would multiply alpha again and shrink the artwork.
-      if (pixels.indices.none { Color.alpha(pixels[it]) > alpha[it] }) return bitmap
-      check()
-      IconMaskPolicy.clip(bitmap, resolvedMask).also { if (it !== bitmap) bitmap.recycle() }
+      IconMaskPolicy.clipIfExceeds(bitmap, resolvedMask, check)
     } catch (failure: Throwable) { bitmap.recycle(); throw failure }
   }
 
@@ -101,28 +91,10 @@ internal object SurfaceIconSnapshotRenderer {
       // Missing masks are cached too. ZIP lifetime/revision stays owned by the
       // publisher; weak keys never retain its archives or require main-thread IO.
       // GC may empty weak keys after size() even while this monitor is held.
-      if (masks.size >= 4) masks.keys.iterator().run { if (hasNext()) { next(); remove() } }
+      if (masks.size >= 4) masks.keys.firstOrNull()?.let(masks::remove)
       mask.also { masks[zip] = it }
     }
   }
-
-  private fun coverage(mask: NativeAdaptiveIconMask, check: () -> Unit): IntArray? =
-    synchronized(coverages) {
-      coverages[mask]?.let { return@synchronized it.alpha }
-      check()
-      val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-      val alpha = try {
-        Canvas(bitmap).drawPath(mask.pathForBounds(Rect(0, 0, SIZE, SIZE)),
-          Paint(Paint.ANTI_ALIAS_FLAG))
-        IntArray(SIZE * SIZE).also { values ->
-          bitmap.getPixels(values, 0, SIZE, 0, 0, SIZE, SIZE)
-          for (i in values.indices) values[i] = Color.alpha(values[i])
-        }.takeUnless { values -> values.all { value -> value == 255 } }
-      } finally { bitmap.recycle() }
-      check()
-      if (coverages.size >= 4) coverages.keys.iterator().run { if (hasNext()) { next(); remove() } }
-      MaskCoverage(alpha).also { coverages[mask] = it }.alpha
-    }
 
   private fun renderArtwork(
     zip: ZipFile, name: String, dark: Boolean, locale: Locale, now: Long,

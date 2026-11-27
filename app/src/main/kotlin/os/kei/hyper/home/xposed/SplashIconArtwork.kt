@@ -31,7 +31,6 @@ import java.util.zip.ZipFile
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.iconpack.IconPackComponent
-import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.OriginalAppIcons
 import os.kei.hyper.home.iconpack.OriginalIconShape
@@ -195,14 +194,16 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
         val snapshot = traced("KeiHomeSplash/render") {
           if (zip == null) return@traced stockSnapshot(context, activity, dark)
 
+          val resolvedMask = SurfaceIconSnapshotRenderer.resolveMask(zip)
           val original by lazy(LazyThreadSafetyMode.NONE) {
-            OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark)
-              ?.let { Snapshot(it, "original-apk") }
+            OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark,
+              mask = OriginalIconShape.mask)?.let { Snapshot(it, "original-apk") }
           }
           var preserved = false
           val themed = SurfaceIconSnapshotRenderer.render(zip,
             nativeLauncherActivityName(component) ?: activity.packageName,
             dark, locale, wallTime, palette, packageName = activity.packageName,
+            resolvedMask = resolvedMask,
             weatherTemperature = { global -> weatherTemperature.read(context, global, wallTime) },
             onDynamic = { dynamic = true }, originalIcon = {
               preserved = true
@@ -212,8 +213,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
             preserved -> original
             themed != null -> Snapshot(themed, "applied-theme")
             else -> OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark,
-              legacyBitmapMask = SurfaceIconSnapshotRenderer.resolveMask(zip) ?: OriginalIconShape.mask)
-              ?.let { Snapshot(it, "original-apk") }
+              mask = resolvedMask ?: OriginalIconShape.mask)?.let { Snapshot(it, "original-apk") }
           }
         }
         // The archive or resource configuration can change during decoding.
@@ -236,10 +236,11 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
     val size = SurfaceIconSnapshotRenderer.SIZE
     val native = SplashStockIcons.load(callbackContext ?: context, activity)
     if (native is Animatable) return null
-    if (native != null) return Snapshot(OriginalAppIcons.rasterize(native, size), "stock-hyperos")
-    return OriginalAppIcons.renderLaunchIcon(context, activity, size, dark)?.let {
-      Snapshot(shapeStockFallback(it), "stock-apk")
+    if (native != null) {
+      return Snapshot(OriginalAppIcons.rasterizeLaunchIcon(native, size, OriginalIconShape.mask), "stock-hyperos")
     }
+    return OriginalAppIcons.renderLaunchIcon(context, activity, size, dark, OriginalIconShape.mask)
+      ?.let { Snapshot(it, "stock-apk") }
   }
 
   private inline fun <T> safely(block: () -> T): T? = try {
@@ -255,12 +256,6 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
   }
 
   companion object {
-    internal fun shapeStockFallback(bitmap: Bitmap): Bitmap = try {
-      IconMaskPolicy.clip(bitmap, OriginalIconShape.mask)
-    } finally {
-      bitmap.recycle()
-    }
-
     fun completedDrawable(context: Context, bitmap: Bitmap) =
       BitmapDrawable(context.resources, bitmap).apply {
         gravity = android.view.Gravity.FILL

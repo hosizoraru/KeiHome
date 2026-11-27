@@ -3,6 +3,7 @@ package os.kei.hyper.home.xposed
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
@@ -11,60 +12,57 @@ import android.view.Gravity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.OriginalAppIcons
 import os.kei.hyper.home.iconpack.OriginalIconShape
 
 @RunWith(AndroidJUnit4::class)
 class OriginalAppIconGeometryDeviceTest {
-  @Test fun archiveMissShapesOpaqueSquareBitmapAndKeepsItsCenter() {
+  @Test fun fullBleedBitmapAndLayerListAreClippedToActiveMask() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val source = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
     source.eraseColor(Color.WHITE)
     source.setPixel(32, 32, Color.RED)
-    val drawable = BitmapDrawable(context.resources, source)
-    val fallback = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, OriginalIconShape.mask)
-    val preserved = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, null)
+    val bitmapFallback = OriginalAppIcons.rasterizeLaunchIcon(
+      BitmapDrawable(context.resources, source), 64, OriginalIconShape.mask)
+    val layerIcon = LayerDrawable(arrayOf(ColorDrawable(Color.BLUE), ColorDrawable(Color.WHITE))).apply {
+      setLayerSize(0, 108, 108)
+      setLayerSize(1, 94, 94)
+      setLayerGravity(1, Gravity.CENTER)
+    }
+    val layerFallback = OriginalAppIcons.rasterizeLaunchIcon(layerIcon, 64, OriginalIconShape.mask)
     try {
-      assertEquals(Color.TRANSPARENT, fallback.getPixel(0, 0))
-      assertEquals(Color.TRANSPARENT, fallback.getPixel(63, 63))
-      assertEquals(Color.RED, fallback.getPixel(32, 32))
-      assertEquals(Color.WHITE, preserved.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, bitmapFallback.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, bitmapFallback.getPixel(63, 63))
+      assertEquals(Color.RED, bitmapFallback.getPixel(32, 32))
+      assertEquals(Color.TRANSPARENT, layerFallback.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, layerFallback.getPixel(63, 63))
+      assertEquals(Color.WHITE, layerFallback.getPixel(32, 32))
     } finally {
-      fallback.recycle()
-      preserved.recycle()
+      bitmapFallback.recycle()
+      layerFallback.recycle()
       source.recycle()
     }
   }
 
-  @Test fun archiveMissKeepsLegacyBitmapWithAuthoredCornerTransparency() {
+  @Test fun authoredShapedAndAlreadyMaskedArtworkPassThroughUntouched() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val source = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
-    source.eraseColor(Color.BLUE)
-    source.setPixel(0, 0, Color.TRANSPARENT)
-    val drawable = BitmapDrawable(context.resources, source)
-    val fallback = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, OriginalIconShape.mask)
+    val circle = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    Canvas(circle).drawCircle(32f, 32f, 24f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLUE })
+    val shaped = OriginalAppIcons.rasterizeLaunchIcon(
+      BitmapDrawable(context.resources, circle), 64, OriginalIconShape.mask)
+    val rechecked = IconMaskPolicy.clipIfExceeds(shaped, OriginalIconShape.mask)
     try {
-      assertEquals(Color.TRANSPARENT, fallback.getPixel(0, 0))
-      assertEquals(Color.BLUE, fallback.getPixel(63, 63))
+      assertEquals(Color.TRANSPARENT, shaped.getPixel(0, 0))
+      assertEquals(Color.BLUE, shaped.getPixel(32, 32))
+      assertSame("Already-contained artwork must not be re-clipped", shaped, rechecked)
     } finally {
-      fallback.recycle()
-      source.recycle()
-    }
-  }
-
-  @Test fun stockApkFallbackRemovesSquareCornersWithoutChangingArtwork() {
-    val source = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
-    source.eraseColor(Color.BLUE)
-    val snapshot = SplashIconArtwork.shapeStockFallback(source)
-    try {
-      assertEquals(Color.TRANSPARENT, snapshot.getPixel(0, 0))
-      assertEquals(Color.TRANSPARENT, snapshot.getPixel(191, 191))
-      assertEquals(Color.BLUE, snapshot.getPixel(96, 96))
-    } finally {
-      snapshot.recycle()
+      shaped.recycle()
+      circle.recycle()
     }
   }
 
@@ -73,7 +71,7 @@ class OriginalAppIconGeometryDeviceTest {
     val source = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
     val output = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
     try {
-      val paint = android.graphics.Paint().apply { color = Color.RED }
+      val paint = Paint().apply { color = Color.RED }
       Canvas(source).drawRect(0f, 0f, 8f, 8f, paint)
       paint.color = Color.BLUE
       Canvas(source).drawRect(24f, 24f, 32f, 32f, paint)
@@ -90,7 +88,7 @@ class OriginalAppIconGeometryDeviceTest {
   }
 
   @Test
-  fun completedLaunchDrawablePreservesFixedLayersAcrossOutputSizes() {
+  fun completedLaunchDrawablePreservesFixedLayersAndClipsSquareCornersAcrossOutputSizes() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val icon = LayerDrawable(arrayOf(ColorDrawable(Color.BLUE), ColorDrawable(Color.WHITE)))
     icon.setLayerSize(0, 108, 108)
@@ -101,6 +99,8 @@ class OriginalAppIconGeometryDeviceTest {
     val snapshot = OriginalAppIcons.rasterizeLaunchIcon(icon, 192, OriginalIconShape.mask)
     try {
       assertEquals(originalBounds, icon.bounds)
+      assertEquals(Color.TRANSPARENT, snapshot.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, snapshot.getPixel(191, 191))
       assertEquals(Color.BLUE, snapshot.getPixel(180, 96))
       assertEquals(Color.WHITE, snapshot.getPixel(96, 96))
       for (size in listOf(96, 246)) {

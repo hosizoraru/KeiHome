@@ -3,10 +3,12 @@ package os.kei.hyper.home.iconpack
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import java.util.WeakHashMap
 import os.kei.hyper.home.data.AppDisplayStorage
 
 /** One immutable worker-thread snapshot shared by preview and publication. */
@@ -50,6 +52,9 @@ internal data class IconMaskPolicy(
         runCatching { NativeAdaptiveIconMask.fromPathData("icon-mask", path) }.getOrNull()
       }
 
+    private class MaskCoverage(val alpha: IntArray?)
+    private val coverages = WeakHashMap<NativeAdaptiveIconMask, LinkedHashMap<Long, MaskCoverage>>()
+
     /** Alpha-only intersection; never adds a background or brightens edge pixels. */
     fun clip(bitmap: Bitmap, mask: NativeAdaptiveIconMask?): Bitmap {
       if (mask == null) return bitmap
@@ -62,6 +67,61 @@ internal data class IconMaskPolicy(
       canvas.drawBitmap(bitmap, 0f, 0f, paint)
       paint.xfermode = null
       return output
+    }
+
+    /**
+     * Clips [bitmap] to [mask] only when at least one pixel exceeds [mask]'s alpha coverage.
+     * Already-shaped artwork (circles, authored transparent bounds, pre-masked PNGs, matching
+     * adaptive icons) passes through unchanged without re-multiplying antialiased edges.
+     * When clipping is required, [bitmap] is recycled and the clipped bitmap is returned.
+     */
+    fun clipIfExceeds(
+      bitmap: Bitmap,
+      mask: NativeAdaptiveIconMask?,
+      check: () -> Unit = {},
+    ): Bitmap {
+      if (mask == null) return bitmap
+      check()
+      val alpha = coverage(mask, bitmap.width, bitmap.height, check) ?: return bitmap
+      val pixels = IntArray(bitmap.width * bitmap.height)
+      bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+      if (pixels.indices.none { Color.alpha(pixels[it]) > alpha[it] }) return bitmap
+      check()
+      return clip(bitmap, mask).also { if (it !== bitmap) bitmap.recycle() }
+    }
+
+    private fun coverage(
+      mask: NativeAdaptiveIconMask,
+      width: Int,
+      height: Int,
+      check: () -> Unit,
+    ): IntArray? {
+      val sizeKey = (width.toLong() shl 32) or (height.toLong() and 0xFFFF_FFFFL)
+      synchronized(coverages) {
+        coverages[mask]?.get(sizeKey)?.let { return it.alpha }
+      }
+      check()
+      val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+      val alpha = try {
+        Canvas(rendered).drawPath(mask.pathForBounds(Rect(0, 0, width, height)),
+          Paint(Paint.ANTI_ALIAS_FLAG))
+        IntArray(width * height).also { values ->
+          rendered.getPixels(values, 0, width, 0, 0, width, height)
+          for (i in values.indices) values[i] = Color.alpha(values[i])
+        }.takeUnless { values -> values.all { it == 255 } }
+      } finally { rendered.recycle() }
+      check()
+      synchronized(coverages) {
+        if (coverages.size >= 8 && !coverages.containsKey(mask)) {
+          coverages.keys.firstOrNull()?.let(coverages::remove)
+        }
+        val bySize = coverages.getOrPut(mask) { LinkedHashMap(4, 0.75f, true) }
+        if (bySize.size >= 4 && !bySize.containsKey(sizeKey)) {
+          bySize.keys.firstOrNull()?.let(bySize::remove)
+        }
+        bySize[sizeKey] = MaskCoverage(alpha)
+      }
+      return alpha
     }
   }
 }

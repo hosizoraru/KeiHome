@@ -218,6 +218,11 @@ internal class CrossSurfaceIconCache(
       val palette = paletteState()
       if (observedPalette == palette) return
       observedPalette = palette
+      beforeAppearanceReload?.let { step ->
+        try { step() } catch (failure: Exception) {
+          Log.w(TAG, "Host icon caches kept their previous artwork", failure)
+        }
+      }
       invalidate()
     } catch (failure: Exception) {
       if (!warned) {
@@ -379,7 +384,6 @@ internal class CrossSurfaceIconCache(
       stampGeneration = generation
       val hasArchive = file.length() in 1..(1024L * 1024 * 1024)
       val canUseOriginal = key.name in originalOnMiss
-      if (!hasArchive && !canUseOriginal) return publish(key, generation, null, false, now)
       val component = IconPackComponent(key.name, key.activity)
       if (acceptsComponent?.invoke(component) == false)
         return publish(key, generation, null, false, now)
@@ -411,7 +415,9 @@ internal class CrossSurfaceIconCache(
           paletteState().also { observedPalette = it })
           .also { appearance = it }
       }
-      fun original() = os.kei.hyper.home.iconpack.OriginalAppIcons.render(
+      val monetActive = current.palette ushr 48 == 1L
+      if (!hasArchive && !canUseOriginal && !monetActive) return publish(key, generation, null, false, now)
+      fun original(): Bitmap? = os.kei.hyper.home.iconpack.OriginalAppIcons.render(
         context, component, SurfaceIconSnapshotRenderer.SIZE, current.dark, ::checkCurrent)
       if (hasArchive) {
         val zip = archive ?: ZipFile(file).also { archive = it }
@@ -422,7 +428,18 @@ internal class CrossSurfaceIconCache(
           dynamic = true
         }
       }
-      if (bitmap == null && canUseOriginal) bitmap = original()
+      if (bitmap == null && (canUseOriginal || monetActive)) {
+        bitmap = if (monetActive) {
+          val resolvedMask = archive?.let { SurfaceIconSnapshotRenderer.resolveMask(it, ::checkCurrent) }
+            ?: os.kei.hyper.home.iconpack.OriginalIconShape.mask
+          os.kei.hyper.home.iconpack.OriginalAppIcons.renderTintedMonochrome(
+            context, component, SurfaceIconSnapshotRenderer.SIZE, current.dark, current.palette,
+            mask = resolvedMask, check = ::checkCurrent,
+          ) ?: if (canUseOriginal) original() else null
+        } else {
+          original()
+        }
+      }
     } catch (failure: Exception) {
       if (active && generation == revision.get() && !warned) {
         warned = true

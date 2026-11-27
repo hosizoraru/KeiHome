@@ -129,7 +129,7 @@ internal class HostAppIconRuntime(
         }.getOrNull() else null
         if (stopped) return@Thread
         val icons = CrossSurfaceIconCache(
-          application, maxEntries = 48, eagerReload = false, refreshOnMinute = true,
+          application, maxEntries = 48, systemPaletteEvents = true, eagerReload = false, refreshOnMinute = true,
           onReady = ::queueReplay,
         )
         cache = icons

@@ -195,7 +195,15 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
         snapshots.get(key, now, minute)?.let { return@safely Result(it.value, "hit") }
         var dynamic = false
         val snapshot = traced("KeiHomeSplash/render") {
-          if (zip == null) return@traced stockSnapshot(context, activity, dark)
+          if (zip == null) {
+            if (palette ushr 48 == 1L) {
+              OriginalAppIcons.renderLaunchTintedMonochrome(
+                context, activity, SurfaceIconSnapshotRenderer.SIZE, dark, palette,
+                mask = OriginalIconShape.mask,
+              )?.let { return@traced Snapshot(it, "original-monet") }
+            }
+            return@traced stockSnapshot(context, activity, dark)
+          }
 
           val resolvedMask = SurfaceIconSnapshotRenderer.resolveMask(zip)
           val original by lazy(LazyThreadSafetyMode.NONE) {
@@ -215,6 +223,12 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
           when {
             preserved -> original
             themed != null -> Snapshot(themed, "applied-theme")
+            palette ushr 48 == 1L -> OriginalAppIcons.renderLaunchTintedMonochrome(
+              context, activity, SurfaceIconSnapshotRenderer.SIZE, dark, palette,
+              mask = resolvedMask ?: OriginalIconShape.mask,
+            )?.let { Snapshot(it, "original-monet") }
+              ?: OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark,
+                mask = resolvedMask ?: OriginalIconShape.mask)?.let { Snapshot(it, "original-apk") }
             else -> OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark,
               mask = resolvedMask ?: OriginalIconShape.mask)?.let { Snapshot(it, "original-apk") }
           }

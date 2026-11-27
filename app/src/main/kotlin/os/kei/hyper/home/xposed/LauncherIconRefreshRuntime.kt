@@ -844,8 +844,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             // Native HyperOS frontends can own icon resources without an Android
             // MAIN/LAUNCHER activity. A targeted update must still reach their owner.
             val packages = (activityOwners + shortcutsByPackage.keys).toSortedSet()
-            // A resource change reloads many icons; Home takes them in one model update.
-            val batched = if (cause == IconRefreshCause.RESOURCE_CHANGE && requestedPackages == null) {
+            // A resource change or Monet palette toggle reloads many icons; Home takes them in one model update.
+            val batched = if ((cause == IconRefreshCause.RESOURCE_CHANGE ||
+                cause == IconRefreshCause.PALETTE_ACK) && requestedPackages == null) {
               val eligible = iconBatch.eligible(activities.map {
                 LauncherIconBatch.Entry(it.componentName.packageName,
                   it.applicationInfo.flags and ApplicationInfo.FLAG_SUSPENDED != 0)

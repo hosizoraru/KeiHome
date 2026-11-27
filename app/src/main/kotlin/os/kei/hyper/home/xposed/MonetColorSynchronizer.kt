@@ -99,13 +99,12 @@ internal class MonetColorSynchronizer(
     val theme: ActiveIconTheme.Signature?,
     val userId: Int,
   ) {
-    // Changed backgrounds reach mounted icons through the launcher's own Rx.
-    // An unchanged background can suppress that event, so foreground-only
-    // changes still need the package refresh fallback.
+    // Any palette, denial, process, theme or user change requires refreshing mounted icons
+    // (including MAML NativePaletteIcon entries whose colors do not observe key_monochrome_color).
     fun needsPackageRefresh(previous: Publication?): Boolean = previous == null ||
       userId != previous.userId || denied != previous.denied ||
       process != previous.process || theme != previous.theme ||
-      (colors.background == previous.colors.background && colors.foreground != previous.colors.foreground)
+      colors != previous.colors
   }
   private var previousPolicy: Publication? = null
   private var acknowledgedReset = false
@@ -512,7 +511,7 @@ internal class MonetColorSynchronizer(
       previousPolicy = policy
       lastResetProcess = null
       if (changed) resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
-      return if (changed || paletteChanged) SynchronizationResult.Applied(selected, refreshPackages)
+      return if (changed || paletteChanged) SynchronizationResult.Applied(selected, refreshPackages || paletteChanged)
       else SynchronizationResult.Unchanged(selected)
     }
     if (!Settings.System.putInt(resolver, KEY_MONOCHROME_COLOR, selected)) {
@@ -529,7 +528,7 @@ internal class MonetColorSynchronizer(
     previousPolicy = policy
     lastResetProcess = null
     resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
-    return SynchronizationResult.Applied(selected, refreshPackages)
+    return SynchronizationResult.Applied(selected, refreshPackages || paletteChanged)
   }
 
   private fun publishMamlPalette(

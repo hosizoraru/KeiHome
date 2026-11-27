@@ -17,10 +17,10 @@ class MonetPublicationTest {
     assertTrue(baseline.needsPackageRefresh(null))
   }
 
-  @Test fun changedBackgroundUsesTheObserverButForegroundOnlyStillRebuilds() {
+  @Test fun anyPaletteColorChangeRebuildsForMamlAndNativeIcons() {
     assertTrue(baseline.copy(colors = baseline.colors.copy(foreground = 0xffddffdd.toInt()))
       .needsPackageRefresh(baseline))
-    assertFalse(baseline.copy(colors = baseline.colors.copy(background = 0xff203020.toInt()))
+    assertTrue(baseline.copy(colors = baseline.colors.copy(background = 0xff203020.toInt()))
       .needsPackageRefresh(baseline))
     assertFalse(baseline.needsPackageRefresh(baseline))
   }

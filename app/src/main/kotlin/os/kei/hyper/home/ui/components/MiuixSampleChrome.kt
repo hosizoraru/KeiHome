@@ -40,11 +40,7 @@ fun rememberKeiHomeBlurBackdrop(): LayerBackdrop? {
   val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
   if (style == AppTopBarBlur.OFF) return null
   if (!isRuntimeShaderSupported()) return null
-  val surfaceColor = MiuixTheme.colorScheme.surface
-  return rememberLayerBackdrop {
-    drawRect(surfaceColor)
-    drawContent()
-  }
+  return rememberLayerBackdrop(backgroundColor = MiuixTheme.colorScheme.surface)
 }
 
 @Composable

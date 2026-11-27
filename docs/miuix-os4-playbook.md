@@ -47,9 +47,9 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-2026-11-26 的迁移使用 `0.9.5-bc1024d7-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
+2026-11-27 的迁移使用 `0.9.5-e636bd6c-SNAPSHOT` 和 AndroidX Compose `1.13.0`。
 以[当前版本目录](../gradle/libs.versions.toml)为准。
-构件、调用链和验证范围见 [bc1024d7 迁移记录](miuix/snapshots/miuix-snapshot-bc1024d7.md) 与 [588d029f 迁移记录](miuix/snapshots/miuix-snapshot-588d029f.md)。
+构件、调用链和验证范围见 [e636bd6c 迁移记录](miuix/snapshots/miuix-snapshot-e636bd6c.md) 与 [bc1024d7 迁移记录](miuix/snapshots/miuix-snapshot-bc1024d7.md)。
 
 Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
@@ -648,6 +648,8 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [e636bd6c 迁移](miuix/snapshots/miuix-snapshot-e636bd6c.md)记录单遍 `LayerBackdrop(backgroundColor = ...)`、
+  `KeiHomeBackdropPipeline.requiresOffscreenCompositing = false`、弹窗安全区与预测返回回弹以及依赖同步升级。
 - [bc1024d7 迁移](miuix/snapshots/miuix-snapshot-bc1024d7.md)记录渐进模糊线性斜率与 `bottomContent` 锚定、
   `BandOverhang` 调整、顶栏内嵌标签静置/滚动切换以及底部面板 `GlassIconButton`/`GlassCard` 统一。
 - [588d029f 迁移](miuix/snapshots/miuix-snapshot-588d029f.md)记录底部面板默认值、顶栏绘制修复、

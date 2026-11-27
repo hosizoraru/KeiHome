@@ -49,6 +49,7 @@ class KeiHomeBackdropPipelineDeviceTest {
     assertNotSame(first.colors, equal.colors)
     assertEquals(first, equal)
     assertEquals(first.hashCode(), equal.hashCode())
+    assertFalse(first.requiresOffscreenCompositing(Size(96f, 64f), Density(1f)))
     val original = Modifier.drawBackdrop(PatternBackdrop, pipeline = first)
     assertEquals(original, Modifier.drawBackdrop(PatternBackdrop, pipeline = equal))
     assertEquals(original.hashCode(), Modifier.drawBackdrop(PatternBackdrop, pipeline = equal).hashCode())

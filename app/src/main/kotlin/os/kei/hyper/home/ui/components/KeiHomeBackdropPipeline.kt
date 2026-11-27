@@ -3,8 +3,10 @@ package os.kei.hyper.home.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
 import top.yukonga.miuix.kmp.blur.BackdropPipeline
 import top.yukonga.miuix.kmp.blur.BlurColors
@@ -22,6 +24,8 @@ internal data class KeiHomeBackdropPipeline(
       textureBlurEffect(blurRadiusX = blurRadius, colors = colors)
     }
   }
+
+  override fun requiresOffscreenCompositing(size: Size, density: Density): Boolean = false
 }
 
 @Composable

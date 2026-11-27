@@ -524,9 +524,10 @@ internal class SystemUiStatusBarIconRuntime(
           val rows = ArrayList<WeakReference<Any>>()
           var visited = 0
           var restored = 0
-          while (queue.isNotEmpty() && visited < 2_048 && unbound.size < 64) {
+          while (queue.isNotEmpty() && visited < 4_096 && unbound.size < 64) {
             val view = queue.removeFirst()
             visited++
+            if (view is ImageView) onExistingImage(view)
             if (rows.size < 64) profile.bootstrap.rowEntries.forEach { path ->
               if (path.first().declaringClass.isInstance(view)) {
                 var entry: Any? = view
@@ -546,7 +547,7 @@ internal class SystemUiStatusBarIconRuntime(
                 }
               }
             }
-            if (view is ViewGroup && queue.size + view.childCount <= 2_048) {
+            if (view is ViewGroup && queue.size + view.childCount <= 4_096) {
               for (i in 0 until view.childCount) queue.addLast(view.getChildAt(i))
             }
           }
@@ -630,7 +631,7 @@ internal class SystemUiStatusBarIconRuntime(
     var count = visited
     var batch = 0
     var proofs = restored
-    while (queue.isNotEmpty() && count < 2_048 && batch++ < 128 && found.size < 64) {
+    while (queue.isNotEmpty() && count < 4_096 && batch++ < 128 && found.size < 64) {
       val view = queue.removeFirst()
       count++
       if (view is ImageView) onExistingImage(view)
@@ -653,11 +654,11 @@ internal class SystemUiStatusBarIconRuntime(
           proofs++
         }
       }
-      if (view is ViewGroup && queue.size + view.childCount <= 2_048) {
+      if (view is ViewGroup && queue.size + view.childCount <= 4_096) {
         for (i in 0 until view.childCount) queue.addLast(view.getChildAt(i))
       }
     }
-    if (queue.isNotEmpty() && count < 2_048 && found.size < 64) {
+    if (queue.isNotEmpty() && count < 4_096 && found.size < 64) {
       post {
         if (stopped || !lifecycle.enter()) return@post
         try { bootstrapGuard.run(Unit) { scanExisting(queue, found, rows, count, proofs) } }

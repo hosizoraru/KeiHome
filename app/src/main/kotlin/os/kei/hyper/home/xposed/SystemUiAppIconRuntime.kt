@@ -66,6 +66,7 @@ internal class SystemUiAppIconRuntime(
   private val main = Handler(Looper.getMainLooper())
   private val replayQueued = AtomicBoolean()
   private val boundLogged = AtomicBoolean()
+  private val existingHeaderLogged = AtomicBoolean()
   private val appliedLogged = AtomicBoolean()
   private val customLogged = AtomicBoolean()
   private val statusBarLogged = AtomicBoolean()
@@ -95,6 +96,7 @@ internal class SystemUiAppIconRuntime(
         report(Log.INFO, TAG, "Native app-icon caches refreshed; dropped=${dropped.size}")
         statusBar?.adoptNative(dropped)
         statusBar?.rescanUnbound()
+        queueReplay(refreshRows = true)
       }
     } finally { lifecycle.leave() }
   }
@@ -224,7 +226,7 @@ internal class SystemUiAppIconRuntime(
         onExistingImage = { view ->
           if (cachedProfile != null) rowGuard.run(Unit) {
             val notification = cachedProfile.existingNotification(view) ?: return@run
-            bindWeatherHeader(view, notification, cachedProfile)
+            bindExistingHeader(view, notification, cachedProfile)
           }
         })
       statusBar = runtime
@@ -554,7 +556,12 @@ internal class SystemUiAppIconRuntime(
         val name = profile.identity(notification, currentUser) ?: return@run
         val cached = profile.cached(notification) ?: return@run
         if (view.drawable !== cached) {
-          if (!bindings.associated(view, name)) bindings.clear(view)
+          if (bindings.associated(view, name)) {
+            if (frameworkNotice != null &&
+              notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
+          } else {
+            bindings.clear(view)
+          }
           return@run
         }
         if (frameworkNotice != null &&
@@ -566,6 +573,27 @@ internal class SystemUiAppIconRuntime(
       if (previous == null) nativeRequest.remove() else nativeRequest.set(previous)
       lifecycle.leave()
     }
+  }
+
+  private fun bindExistingHeader(
+    view: ImageView,
+    notification: android.service.notification.StatusBarNotification,
+    profile: SystemUiNotificationAppIconProfile,
+  ): Boolean {
+    if (bindWeatherHeader(view, notification, profile)) return true
+    val name = profile.identity(notification, currentUser) ?: return false
+    val current = view.drawable ?: return false
+    val extras = notification.notification.extras
+    if (extras.get("custom_app_icon") != null &&
+      profile.customIdentity(notification, currentUser) == null) return false
+    if (notificationRows?.remember(view, notification) == true) queueReplay()
+    if (!bindings.associated(view, name)) {
+      bindings.bindNative(view, current, name)?.let { bound ->
+        logOnce(existingHeaderLogged, "Adopted existing notification app-icon header")
+        boundReady(bound)
+      }
+    }
+    return true
   }
 
   private fun bindWeatherHeader(

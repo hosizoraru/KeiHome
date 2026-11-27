@@ -193,4 +193,36 @@ class MonetSchemesTest {
     assertEquals(seeds, MonetSchemes.wallpaperSeeds(pixels))
     assertArrayEquals(original, pixels)
   }
+
+  @Test
+  fun fastSeedIconRolesAndPreviewSwatchesMatchFullPaletteGeneration() {
+    val seed = 0xff6750a4.toInt()
+    val overrides = mapOf(MonetPaletteFamily.PRIMARY to MonetTonalSpec(210.0, 48.0))
+    for (style in MonetSchemeStyle.entries) {
+      val full = MonetSchemes.generate(seed, style, overrides)
+      val plainFull = MonetSchemes.generate(seed, style)
+      assertEquals(
+        listOf(
+          plainFull.getValue("primary60"),
+          plainFull.getValue("secondary60"),
+          plainFull.getValue("tertiary60"),
+          plainFull.getValue("neutral90"),
+        ),
+        MonetSchemes.previewSwatches(seed, style),
+      )
+      for (appearance in IconPackAppearance.entries) for (dark in listOf(false, true)) {
+        val choice = MonetCustomization(
+          source = MonetSeedSource.BASIC_COLOR,
+          style = style,
+          color = seed,
+          paletteOverrides = overrides,
+          iconAppearance = appearance,
+        )
+        assertEquals(
+          MonetSchemes.iconRoles(full, dark, choice),
+          MonetSchemes.iconRolesForSeed(seed, style, overrides, dark, choice),
+        )
+      }
+    }
+  }
 }

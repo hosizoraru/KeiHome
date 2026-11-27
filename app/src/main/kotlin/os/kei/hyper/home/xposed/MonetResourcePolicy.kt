@@ -27,6 +27,11 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
   private var previousSources: List<Source>? = null
   private var previousDenied: Set<String> = emptySet()
   private var previousUserId: Int? = null
+  private var cachedRevision: Long = -1L
+  private var cachedUserId: Int = -1
+  private var cachedConfiguration: Configuration? = null
+  private var cachedThemeRevision: String? = null
+  private var cachedResult: Set<String>? = null
   var themeSignature: ActiveIconTheme.Signature? = null
     private set
   private val masksCache = IconMaskCache<CacheConfiguration, Source>()
@@ -53,25 +58,28 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
       revision.get()
     }
     val active = { isCurrent() && revision.get() == resourceRevision }
-    val userId = Context::class.java.getMethod("getUserId").invoke(context) as Int
+    val userId = NativeMonetPlatformMembers.contextUser.invoke(context) as Int
+    val configuration = Configuration(context.resources.configuration)
+    val themeDescription = iconTheme.describe()
+    val fastCached = cachedResult
+    if (fastCached != null && themeDescription.complete &&
+      cachedRevision == resourceRevision && cachedUserId == userId &&
+      cachedConfiguration == configuration && cachedThemeRevision == themeDescription.revision
+    ) {
+      return fastCached
+    }
     val manager = context.getSystemService(UserManager::class.java) ?: return emptySet()
     // LauncherApps.getProfiles uses Binder caller user 0 in system_server,
     // even when its Context has been scoped to another foreground user.
-    val userInfo = Class.forName("android.content.pm.UserInfo")
-    val handles = userInfo.getMethod("getUserHandle")
-    val profiles = (UserManager::class.java.getMethod(
-      "getEnabledProfiles", Int::class.javaPrimitiveType,
-    ).invoke(manager, userId) as? List<*>)?.map {
-      handles.invoke(it) as UserHandle
+    val profiles = (NativeMonetPlatformMembers.enabledProfiles.invoke(manager, userId) as? List<*>)?.map {
+      NativeMonetPlatformMembers.userInfoHandle.invoke(it) as UserHandle
     } ?: return emptySet()
     if (profiles.isEmpty()) return emptySet()
     // A desktop entry or pinned shortcut can borrow another package's icon.
     // Inspect resource owners without requiring their own MAIN/LAUNCHER entry.
     // This privileged enumeration runs only in system_server, not the module UI.
     val applications = profiles.flatMap { user ->
-      val scoped = Context::class.java.getMethod(
-        "createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType,
-      ).invoke(context, user, 0) as Context
+      val scoped = NativeMonetPlatformMembers.userContext.invoke(context, user, 0) as Context
       scoped.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
         .filter { it.icon != 0 }
     }
@@ -85,12 +93,12 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
       // A replacing/unreadable theme must not inherit the previous pack's APK-Monet choices.
       // Keep every icon on the original native source until this inventory can be read again.
       themeSignature = theme.signature
+      cachedResult = null
       return byPackage.keys
     }
     val sameTheme = theme.signature == themeSignature
     if (!sameTheme) android.util.Log.i("KeiHomeIconTheme",
       "Resource inventory complete=${theme.complete} themedPackages=${theme.coveredPackages.size}")
-    val configuration = Configuration(context.resources.configuration)
     val sources = applications.map { app ->
       val file = File(app.sourceDir)
       val paths = (listOfNotNull(app.sourceDir, app.publicSourceDir) +
@@ -130,7 +138,20 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
       fresh, SystemClock.elapsedRealtime())
     // The Dart veto selects the launcher's original styled path, preserving theme day/night art.
     // A theme PNG/MAML is not an APK monochrome mask and must not inherit its verdict.
-    return denied + theme.coveredPackages
+    val result = denied + theme.coveredPackages
+    val latestTheme = iconTheme.describe()
+    if (latestTheme.complete && latestTheme.revision == themeDescription.revision &&
+      revision.get() == resourceRevision
+    ) {
+      cachedRevision = resourceRevision
+      cachedUserId = userId
+      cachedConfiguration = configuration
+      cachedThemeRevision = latestTheme.revision
+      cachedResult = result
+    } else {
+      cachedResult = null
+    }
+    return result
   }
 }
 

@@ -69,8 +69,9 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
     else Density(platformDensity.density * (scalePercent / 100f), platformDensity.fontScale)
   }
   val context = LocalContext.current
+  val paletteReader = remember(context) { os.kei.hyper.home.data.MonetPaletteReader(context.applicationContext) }
   val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-  val palette by androidx.compose.runtime.produceState<os.kei.hyper.home.data.MonetPaletteSnapshot?>(null, context, colorMode, lifecycle) {
+  val palette by androidx.compose.runtime.produceState<os.kei.hyper.home.data.MonetPaletteSnapshot?>(null, paletteReader, colorMode, lifecycle) {
     if (colorMode != os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS) return@produceState
     lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
     kotlinx.coroutines.flow.callbackFlow {
@@ -78,13 +79,22 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
         override fun onChange(selfChange: Boolean) { trySend(Unit) }
       }
       val resolver = context.contentResolver
-      resolver.registerContentObserver(android.provider.Settings.System.CONTENT_URI, true, observer)
-      resolver.registerContentObserver(android.provider.Settings.Secure.CONTENT_URI, true, observer)
+      val uris = listOf(
+        android.provider.Settings.System.getUriFor("key_monochrome"),
+        android.provider.Settings.System.getUriFor("key_monochrome_color"),
+        android.provider.Settings.Secure.getUriFor("keihome_monet_auto_color"),
+        android.provider.Settings.Secure.getUriFor("keihome_monet_customization"),
+        android.provider.Settings.Secure.getUriFor("keihome_monet_applied_revision"),
+        android.provider.Settings.Secure.getUriFor("keihome_wallpaper_seeds"),
+        android.provider.Settings.Secure.getUriFor("theme_customization_overlay_packages"),
+        android.net.Uri.parse("content://com.miui.launcher.wallpaper.palette"),
+      )
+      uris.forEach { uri -> resolver.registerContentObserver(uri, false, observer) }
       trySend(Unit)
       awaitClose { resolver.unregisterContentObserver(observer) }
     }.conflate().collect {
       value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        os.kei.hyper.home.data.MonetPaletteReader(context).read()
+        paletteReader.read()
       }
     }
     }

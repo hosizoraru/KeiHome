@@ -10,6 +10,7 @@ internal data class MonetActionRequest(
   val revision: Long, val userId: Int, val customization: MonetCustomization? = null,
   val enabled: Boolean = true,
   val preserveEnabled: Boolean = false,
+  val submittedAt: Long = revision,
 )
 
 internal enum class MonetActionStatus { IDLE, APPLYING, APPLIED, UNCONFIRMED, UNAVAILABLE, FAILED }
@@ -22,6 +23,7 @@ internal object MonetAction {
   const val REQUEST_CUSTOMIZATION = "request_customization"
   const val REQUEST_ENABLED = "request_enabled"
   const val REQUEST_PRESERVE_REVISION = "request_preserve_revision"
+  const val REQUEST_SUBMITTED_AT = "request_submitted_at"
   const val REFRESH_REVISION = "refresh_revision"
   const val REFRESH_USER = "refresh_user"
   const val PALETTE_REFRESHED = "keihome_palette_refreshed"
@@ -87,8 +89,10 @@ internal object MonetAction {
     } else legacyRevision
     val user = snapshot[REQUEST_USER] as? Int ?: return null
     val customization = MonetCustomization.decode(snapshot[REQUEST_CUSTOMIZATION] as? String)
-    return MonetActionRequest(revision, user, customization, snapshot[REQUEST_ENABLED] as? Boolean ?: true, preserve)
-      .takeIf { revision > 0 && user >= 0 }
+    val submittedAt = (snapshot[REQUEST_SUBMITTED_AT] as? Long)?.takeIf { it > 0L } ?: revision
+    return MonetActionRequest(
+      revision, user, customization, snapshot[REQUEST_ENABLED] as? Boolean ?: true, preserve, submittedAt,
+    ).takeIf { revision > 0 && user >= 0 }
   }
 
   fun read(preferences: SharedPreferences?): MonetActionRequest? =
@@ -114,7 +118,7 @@ internal object MonetAction {
     request ?: return null
     return request.takeIf {
       it.userId == userId && isUnconsumed(it, selection) &&
-        it.revision <= now && now - it.revision <= REQUEST_LIFETIME_MS
+        it.submittedAt <= now && now - it.submittedAt <= REQUEST_LIFETIME_MS
     }
   }
 
@@ -146,9 +150,15 @@ internal object MonetAction {
     else ApplyResult.WRITE_FAILED
   }
 
-  fun requestPaletteRefresh(service: XposedService): MonetActionRequest = requestPaletteRefresh(
-    service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(),
-  )
+  @Synchronized
+  fun requestPaletteRefresh(service: XposedService): MonetActionRequest {
+    if (service.apiVersion < 102 || service.frameworkProperties and XposedService.PROP_CAP_REMOTE == 0L) {
+      throw UnsupportedOperationException("Framework remote preferences unavailable")
+    }
+    return requestPaletteRefresh(
+      service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(),
+    )
+  }
 
   internal fun requestPaletteRefresh(preferences: SharedPreferences, appUid: Int, now: Long): MonetActionRequest {
     val previous = preferences.all[REFRESH_REVISION] as? Long ?: 0L
@@ -183,13 +193,17 @@ internal object MonetAction {
     val snapshot = preferences.all
     val previous = maxOf(snapshot[REQUEST_REVISION] as? Long ?: 0L,
       snapshot[REQUEST_PRESERVE_REVISION] as? Long ?: 0L)
-    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000, customization, enabled, preserveEnabled)
+    val revision = nextRevision(previous, now)
+    val submittedAt = if (now > 0L) now else revision
+    val request = MonetActionRequest(revision, appUid / 100_000, customization, enabled, preserveEnabled, submittedAt)
     // commit can update the service client's cache before a failed Binder write. Never infer
     // persistence from that cache and never report application success from commit alone.
     val editor = preferences.edit().putLong(REQUEST_REVISION, if (preserveEnabled) -request.revision else request.revision)
       .putInt(REQUEST_USER, request.userId)
       .putBoolean(REQUEST_ENABLED, enabled)
       .putString(REQUEST_CUSTOMIZATION, customization?.encode())
+    if (submittedAt != revision) editor.putLong(REQUEST_SUBMITTED_AT, submittedAt)
+    else editor.putString(REQUEST_SUBMITTED_AT, null)
     if (preserveEnabled) editor.putLong(REQUEST_PRESERVE_REVISION, request.revision)
     check(editor.commit()) { "Monet request commit failed" }
     return request
@@ -224,10 +238,22 @@ internal object MonetAction {
    */
   fun applyAcknowledged(
     request: MonetActionRequest, color: Int, initial: Selection, store: Store,
-    nativeAcknowledged: Boolean, isCurrent: () -> Boolean,
+    nativeAcknowledged: Boolean,
+    isCurrent: () -> Boolean,
+  ): ApplyResult = applyAcknowledged(
+    request, color, initial, store, nativeAcknowledged,
+    publish = { ApplyResult.APPLIED },
+    isCurrent = isCurrent,
+  )
+
+  fun applyAcknowledged(
+    request: MonetActionRequest, color: Int, initial: Selection, store: Store,
+    nativeAcknowledged: Boolean,
+    publish: (Selection) -> ApplyResult,
+    isCurrent: () -> Boolean,
   ): ApplyResult {
     require(!request.preserveEnabled)
-    return applyColors(request, color, initial, store, nativeAcknowledged, { ApplyResult.APPLIED }, isCurrent)
+    return applyColors(request, color, initial, store, nativeAcknowledged, publish, isCurrent)
   }
 
   /**

@@ -25,4 +25,10 @@ internal object NativeMonetPlatformMembers {
     Context::class.java.getMethod("createContextAsUser", UserHandle::class.java,
       Int::class.javaPrimitiveType)
   }
+  val enabledProfiles by lazy {
+    android.os.UserManager::class.java.getMethod("getEnabledProfiles", Int::class.javaPrimitiveType)
+  }
+  val userInfoHandle by lazy {
+    Class.forName("android.content.pm.UserInfo").getMethod("getUserHandle")
+  }
 }

@@ -78,11 +78,11 @@ internal class MonetColorSynchronizer(
   }
 
   fun synchronizeLauncherLabels(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
-    if (!mayWrite()) return false
+    if (!mayWrite() || Thread.currentThread().isInterrupted) return false
     val user = currentUserId() ?: return false
     val context = contextForUser(baseContext, user) ?: return false
     val mode = os.kei.hyper.home.data.LauncherLabelPreferences.read(preferences).nativeValue
-    val current = { mayWrite() && currentUserId() == user &&
+    val current = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == user &&
       os.kei.hyper.home.data.LauncherLabelPreferences.read(preferences).nativeValue == mode }
     return launcherLabels.synchronize(mode, user, SystemClock::elapsedRealtime, current) { attempted ->
       if (native.setLauncherLabels(context, mode, attempted)) native.acknowledgedLabelProcess else null
@@ -109,6 +109,7 @@ internal class MonetColorSynchronizer(
   }
   private var previousPolicy: Publication? = null
   private var acknowledgedReset = false
+  private var lastResetProcess: NativeMonetProcessIdentity? = null
   private val paletteQuery = AtomicReference<CancellationSignal?>()
 
   fun start(): Boolean = native.start()
@@ -204,7 +205,9 @@ internal class MonetColorSynchronizer(
       moduleVersion = BuildConfig.VERSION_CODE.toLong(), checkedAtElapsed = SystemClock.elapsedRealtime(),
       nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
       refresh = identities.retainEarlierAcknowledgement(refresh),
-      launcherLabelMode = launcherLabels.acknowledgedMode(acknowledgementProcess, SystemClock.elapsedRealtime()),
+      launcherLabelMode = launcherLabels.acknowledgedMode(
+        acknowledgementProcess, SystemClock.elapsedRealtime(), request.userId,
+      ),
       dockGlassEnabled = dockEnabled,
       dockGlassCornerStyle = dockOptions,
       dockGlassPid = dockProcess?.pid.takeIf { dockEnabled != null },
@@ -247,10 +250,19 @@ internal class MonetColorSynchronizer(
     val resolver = context.contentResolver
     val refresh = MonetAction.paletteRefresh(actionPreferences, userId)
     val forceRefresh = refresh != null && refresh != lastPaletteRefresh
-    val wallpaper = wallpaperSeeds.readAndPublish(context, userId, forceRefresh || wallpaperChanged, stillCurrent)
-    if (forceRefresh && stillCurrent()) {
-      Settings.Secure.putString(resolver, MonetAction.PALETTE_REFRESHED, refresh.toString())
-      lastPaletteRefresh = refresh
+    var wallpaperCache: os.kei.hyper.home.data.WallpaperColorSnapshot? = null
+    fun ensureWallpaper(force: Boolean): os.kei.hyper.home.data.WallpaperColorSnapshot {
+      wallpaperCache?.let { return it }
+      return wallpaperSeeds.readAndPublish(context, userId, force, stillCurrent).also {
+        wallpaperCache = it
+      }
+    }
+    if (forceRefresh) {
+      ensureWallpaper(force = true)
+      if (stillCurrent()) {
+        Settings.Secure.putString(resolver, MonetAction.PALETTE_REFRESHED, refresh.toString())
+        lastPaletteRefresh = refresh
+      }
     }
     val actionStore = object : MonetAction.Store {
       override fun read() = MonetAction.Selection(
@@ -289,44 +301,68 @@ internal class MonetColorSynchronizer(
     }
     actionInterruption()?.let { return it }
     if (action?.enabled == false && !action.preserveEnabled) {
+      val reset = withdraw(context, excludingObserver, actionCurrent)
+      if (!acknowledgedReset) return actionInterruption() ?: SynchronizationResult.NativeUnavailable
       val disabled = MonetAction.applyDisabled(action, initial, actionStore, actionCurrent)
+      if (disabled == MonetAction.ApplyResult.WRITE_FAILED) return SynchronizationResult.WriteFailed(0)
       if (disabled != MonetAction.ApplyResult.APPLIED) return SynchronizationResult.SelectionChanged
       val expected = initial.updated(MonetAction.Setting.HANDLED, action.revision.toString())
         .updated(MonetAction.Setting.ENABLED, "0")
       val disabledCurrent = { actionCurrent() && actionStore.read() == expected }
-      withdraw(context, excludingObserver, disabledCurrent)
-      if (!acknowledgedReset) return SynchronizationResult.NativeUnavailable
       if (!disabledCurrent()) return SynchronizationResult.SelectionChanged
       if (!actionStore.write(MonetAction.Setting.APPLIED, action.revision.toString())) {
         return SynchronizationResult.WriteFailed(0)
       }
-      return SynchronizationResult.Applied(0, refreshPackages = true)
+      return SynchronizationResult.Applied(0, refreshPackages = initial.enabled == "1" || reset)
     }
     if (action == null && initial.enabled != "1") {
+      if (wallpaperChanged) ensureWallpaper(force = true)
+      if (acknowledgedReset && previousPolicy == null && !forceRefresh &&
+        lastResetProcess != null && NativeMonetSocketBroker.latestProcess() == lastResetProcess
+      ) {
+        return SynchronizationResult.Disabled
+      }
       val reset = withdraw(context, excludingObserver, stillCurrent)
       // The background remains stored when the toggle alone is turned off.
       // Keep its ownership marker so re-enabling can resume automatic colors.
       return if (reset) SynchronizationResult.Restored else SynchronizationResult.Disabled
     }
 
+    val wallpaper = ensureWallpaper(force = wallpaperChanged)
     // Compatibility comes from the live native resolver and its authenticated
     // policy ACK below. A launcher update must not require an APK hash allowlist.
     val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
-    val palette = if (customization?.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR &&
-      customization.paletteOverrides.isEmpty()) {
-      readFrameworkPalette(context) ?: return SynchronizationResult.NoPalette
-    } else if (customization != null) {
+    val uiMode = context.resources.configuration.uiMode
+    val colors = if (customization != null &&
+      !(customization.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR &&
+        customization.paletteOverrides.isEmpty())
+    ) {
       val seed = if (customization.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR)
         readFrameworkPalette(context)?.get("primary50") else customization.seed(wallpaper)
       if (seed == null) return SynchronizationResult.NoPalette
-      MonetSchemes.generate(seed, customization.style, customization.paletteOverrides)
-    } else readPalette(context, resolver, stillCurrent) ?: return SynchronizationResult.NoPalette
-    val colors = MonetColorPolicy.selectPair(
-      palette = palette,
-      uiMode = context.resources.configuration.uiMode,
-      customization = customization,
-    )
-      ?: return SynchronizationResult.NoColor
+      val systemDark = uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+        android.content.res.Configuration.UI_MODE_NIGHT_YES
+      MonetSchemes.iconRolesForSeed(
+        seed = seed,
+        style = customization.style,
+        overrides = customization.paletteOverrides,
+        dark = systemDark,
+        choice = customization,
+      )?.takeIf { MonetColorPolicy.isLegiblePair(it.foreground, it.background) }
+        ?.let { IconColors(it.foreground, it.background) }
+        ?: return SynchronizationResult.NoColor
+    } else {
+      val palette = if (customization?.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR) {
+        readFrameworkPalette(context) ?: return SynchronizationResult.NoPalette
+      } else {
+        readPalette(context, resolver, stillCurrent) ?: return SynchronizationResult.NoPalette
+      }
+      MonetColorPolicy.selectPair(
+        palette = palette,
+        uiMode = uiMode,
+        customization = customization,
+      ) ?: return SynchronizationResult.NoColor
+    }
     val selected = colors.background
     fun preserveSelection(denied: Set<String>): SynchronizationResult {
       val request = checkNotNull(action)
@@ -336,6 +372,7 @@ internal class MonetColorSynchronizer(
           native.publish(context, colors.foreground, selected, denied).also { acknowledged ->
             if (acknowledged) {
               acknowledgedReset = false
+              lastResetProcess = null
               policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature, userId)
             }
           }
@@ -357,8 +394,11 @@ internal class MonetColorSynchronizer(
         }, isCurrent = actionCurrent)
       return when (result) {
         MonetAction.ApplyResult.APPLIED -> {
-          if (initial.enabled == "1") previousPolicy = policy
-          SynchronizationResult.Applied(selected, refreshPackages = true)
+          if (initial.enabled == "1") {
+            previousPolicy = policy
+            lastResetProcess = null
+          }
+          SynchronizationResult.Applied(selected, refreshPackages = initial.enabled == "1")
         }
         MonetAction.ApplyResult.WRITE_FAILED -> {
           withdraw(context, excludingObserver) {
@@ -366,14 +406,17 @@ internal class MonetColorSynchronizer(
           }
           SynchronizationResult.WriteFailed(selected)
         }
-        MonetAction.ApplyResult.SELECTION_CHANGED -> SynchronizationResult.SelectionChanged
+        MonetAction.ApplyResult.SELECTION_CHANGED -> {
+          if (policy != null) withdraw(context, excludingObserver, stillCurrent)
+          SynchronizationResult.SelectionChanged
+        }
         MonetAction.ApplyResult.NATIVE_UNAVAILABLE -> SynchronizationResult.NativeUnavailable
       }
     }
     if (action?.preserveEnabled == true && initial.enabled != "1") return preserveSelection(emptySet())
     val currentRaw = Settings.System.getString(resolver, KEY_MONOCHROME_COLOR)
-    val current = parseInt32(currentRaw)
-    val marker = parseInt32(Settings.Secure.getString(resolver, KEY_AUTO_COLOR))
+    val current = MonetColorPolicy.parseColor(currentRaw)
+    val marker = MonetColorPolicy.parseColor(Settings.Secure.getString(resolver, KEY_AUTO_COLOR))
 
     if (action == null && ((currentRaw != null && current == null) ||
       !MonetColorPolicy.mayReplace(true, current, marker))
@@ -404,12 +447,13 @@ internal class MonetColorSynchronizer(
     val policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature, userId)
     val refreshPackages = policy.needsPackageRefresh(previousPolicy)
     acknowledgedReset = false
+    lastResetProcess = null
     var paletteChanged = false
     fun publishPalette(): SynchronizationResult? {
       val result = publishMamlPalette(context, colors, excludingObserver) {
         actionCurrent() && Settings.System.getInt(resolver, KEY_MONOCHROME, 0) == 1 &&
-          parseInt32(Settings.System.getString(resolver, KEY_MONOCHROME_COLOR)) == selected &&
-          parseInt32(Settings.Secure.getString(resolver, KEY_AUTO_COLOR)) == selected
+          MonetColorPolicy.parseColor(Settings.System.getString(resolver, KEY_MONOCHROME_COLOR)) == selected &&
+          MonetColorPolicy.parseColor(Settings.Secure.getString(resolver, KEY_AUTO_COLOR)) == selected
       }
       return when (result) {
         GeneratedPalettePublication.Result.CHANGED -> { paletteChanged = true; null }
@@ -423,12 +467,28 @@ internal class MonetColorSynchronizer(
       }
     }
     if (action != null) {
-      return when (MonetAction.applyAcknowledged(
-        action, selected, initial, actionStore, nativeAcknowledged = true, isCurrent = actionCurrent,
-      )) {
+      val applyResult = MonetAction.applyAcknowledged(
+        action, selected, initial, actionStore, nativeAcknowledged = true,
+        publish = { expected ->
+          when (publishMamlPalette(context, colors, excludingObserver) {
+            actionCurrent() && actionStore.read() == expected
+          }) {
+            GeneratedPalettePublication.Result.CHANGED -> {
+              paletteChanged = true
+              MonetAction.ApplyResult.APPLIED
+            }
+            GeneratedPalettePublication.Result.UNCHANGED -> MonetAction.ApplyResult.APPLIED
+            GeneratedPalettePublication.Result.SELECTION_CHANGED -> MonetAction.ApplyResult.SELECTION_CHANGED
+            GeneratedPalettePublication.Result.NATIVE_UNAVAILABLE -> MonetAction.ApplyResult.NATIVE_UNAVAILABLE
+            GeneratedPalettePublication.Result.WRITE_FAILED -> MonetAction.ApplyResult.WRITE_FAILED
+          }
+        },
+        isCurrent = actionCurrent,
+      )
+      return when (applyResult) {
         MonetAction.ApplyResult.APPLIED -> {
-          publishPalette()?.let { return it }
           previousPolicy = policy
+          lastResetProcess = null
           SynchronizationResult.Applied(selected, refreshPackages = true)
         }
         MonetAction.ApplyResult.WRITE_FAILED -> {
@@ -450,18 +510,24 @@ internal class MonetColorSynchronizer(
     if (current == selected && marker == current) {
       publishPalette()?.let { return it }
       previousPolicy = policy
+      lastResetProcess = null
       if (changed) resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
       return if (changed || paletteChanged) SynchronizationResult.Applied(selected, refreshPackages)
       else SynchronizationResult.Unchanged(selected)
     }
     if (!Settings.System.putInt(resolver, KEY_MONOCHROME_COLOR, selected)) {
+      withdraw(context, excludingObserver, stillCurrent)
       return SynchronizationResult.WriteFailed(selected)
     }
     // This marker is private to KeiHome and is only used to avoid replacing
     // a later user-selected color.
-    Settings.Secure.putString(resolver, KEY_AUTO_COLOR, selected.toString())
+    if (!Settings.Secure.putString(resolver, KEY_AUTO_COLOR, selected.toString())) {
+      withdraw(context, excludingObserver, stillCurrent)
+      return SynchronizationResult.WriteFailed(selected)
+    }
     publishPalette()?.let { return it }
     previousPolicy = policy
+    lastResetProcess = null
     resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
     return SynchronizationResult.Applied(selected, refreshPackages)
   }
@@ -501,6 +567,7 @@ internal class MonetColorSynchronizer(
     )
     previousPolicy = null
     acknowledgedReset = true
+    lastResetProcess = native.acknowledgedProcess
     return changed
   }
 
@@ -601,13 +668,6 @@ internal class MonetColorSynchronizer(
     } catch (_: Throwable) {
       null
     }
-  }
-
-  private fun parseInt32(value: String?): Int? {
-    val number = value?.trim()?.toLongOrNull() ?: return null
-    return number.takeIf {
-      it >= Int.MIN_VALUE.toLong() && it <= UInt.MAX_VALUE.toLong()
-    }?.toInt()
   }
 
   internal sealed interface SynchronizationResult {

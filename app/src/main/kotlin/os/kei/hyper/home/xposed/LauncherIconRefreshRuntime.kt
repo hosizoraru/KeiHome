@@ -339,6 +339,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               ) {
                 try {
                   monetColorMonitor.requestLauncherMaterials()
+                  monetColorMonitor.request()
                 } catch (failure: Exception) {
                   logFailure("could not queue launcher material replay", failure)
                 }

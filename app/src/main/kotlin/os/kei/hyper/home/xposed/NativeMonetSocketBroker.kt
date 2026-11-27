@@ -67,6 +67,8 @@ internal object NativeMonetSocketBroker {
     }
   }
 
+  fun latestProcess(): NativeMonetProcessIdentity? = synchronized(lock) { lastPublishedProcess }
+
   fun start(owner: Context): Boolean = synchronized(lock) {
     if (accepting) return true
     if (allocating != null || owned.isNotEmpty() || worker?.isStopped() == false) return false
@@ -181,6 +183,11 @@ internal object NativeMonetSocketBroker {
         }
         if (expired) candidate.close()
       })
+      val stillValid = synchronized(lock) {
+        matchesOwner(owner) && allocating === ticket && !candidate.closed &&
+          System.nanoTime() < candidate.expiresAt
+      }
+      if (!stillValid) return replyStatus(reply, STATUS_INACTIVE)
       replyStatus(reply, 0)
       // NDK reads optional<ParcelFileDescriptor>, including both presence and PFD comm markers.
       reply.writeTypedObject(pair[1], 0)
@@ -311,6 +318,9 @@ internal object NativeMonetSocketBroker {
     private val descriptor: ParcelFileDescriptor,
     private val cleanup: NativeMonetBrokerWorker,
   ) : Closeable {
+    private val fdLock = Any()
+    private var activeIo = 0
+    private var fdClosed = false
     private val closing = AtomicBoolean()
     val closed: Boolean get() = closing.get()
     @Volatile internal var borrowed = false // Written under broker lock; peer probe reads outside it.
@@ -327,27 +337,69 @@ internal object NativeMonetSocketBroker {
 
     internal fun cancelExpiry() { expiry?.cancel(false) }
 
+    internal fun beginIo(): Boolean = synchronized(fdLock) {
+      if (closing.get() || fdClosed) false
+      else {
+        activeIo++
+        true
+      }
+    }
+
+    internal fun endIo() {
+      val closeNow = synchronized(fdLock) {
+        activeIo = (activeIo - 1).coerceAtLeast(0)
+        closing.get() && activeIo == 0 && !fdClosed
+      }
+      if (closeNow) scheduleDescriptorClose()
+    }
+
     fun isCurrent(context: Context): Boolean = !closed &&
       NativeMonetLauncherIdentity.resolve(context) == target &&
       NativeMonetProcessIdentity.read(process.pid, target.uid) == process
 
-    internal fun peerClosed(): Boolean = try {
-      val poll = StructPollfd().apply {
-        fd = descriptor.fileDescriptor
-        events = OsConstants.POLLIN.toShort()
+    internal fun peerClosed(): Boolean {
+      if (!beginIo()) return true
+      return try {
+        val poll = StructPollfd().apply {
+          fd = descriptor.fileDescriptor
+          events = OsConstants.POLLIN.toShort()
+        }
+        Os.poll(arrayOf(poll), 0)
+        poll.revents.toInt() and (OsConstants.POLLHUP or OsConstants.POLLERR or OsConstants.POLLNVAL) != 0
+      } catch (_: Exception) {
+        true
+      } finally {
+        endIo()
       }
-      Os.poll(arrayOf(poll), 0)
-      poll.revents.toInt() and (OsConstants.POLLHUP or OsConstants.POLLERR or OsConstants.POLLNVAL) != 0
-    } catch (_: Exception) { true }
+    }
 
     override fun close() {
       if (!closing.compareAndSet(false, true)) return
       cancelExpiry()
+      // Wake any blocked read/write immediately without closing the FD out from under an active syscall.
+      val closeNow = synchronized(fdLock) {
+        if (!fdClosed) {
+          try { Os.shutdown(descriptor.fileDescriptor, OsConstants.SHUT_RDWR) } catch (_: Exception) { }
+        }
+        activeIo == 0 && !fdClosed
+      }
+      if (closeNow) scheduleDescriptorClose()
+    }
+
+    private fun scheduleDescriptorClose() {
+      val shouldClose = synchronized(fdLock) {
+        if (fdClosed || activeIo != 0) false
+        else {
+          fdClosed = true
+          true
+        }
+      }
+      if (!shouldClose) return
       cleanup.execute {
         try {
           try { Os.shutdown(descriptor.fileDescriptor, OsConstants.SHUT_RDWR) } catch (_: Exception) { }
           // LocalSocket(FileDescriptor) borrows the FD. Its synchronized close is a no-op for
-          // ownership and can contend with I/O; close only the actual PFD owner after shutdown.
+          // ownership and can contend with I/O; close only the actual PFD owner after all I/O exits.
           descriptor.close()
         } catch (failure: Exception) {
           lastFailure = nativeMonetFailure("broker FD cleanup", failure)

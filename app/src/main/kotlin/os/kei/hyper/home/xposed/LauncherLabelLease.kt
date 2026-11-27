@@ -6,8 +6,8 @@ internal class LauncherLabelLease {
   private var previous: Ack? = null
   private var dirty = false
 
-  fun acknowledgedMode(process: NativeMonetProcessIdentity?, now: Long): Int? = previous?.takeIf {
-    !dirty && it.process == process && now >= it.at && now - it.at < 45_000
+  fun acknowledgedMode(process: NativeMonetProcessIdentity?, now: Long, user: Int? = null): Int? = previous?.takeIf {
+    !dirty && it.process == process && (user == null || it.user == user) && now >= it.at && now - it.at < 45_000
   }?.mode
 
   fun synchronize(mode: Int, user: Int, now: () -> Long, isCurrent: () -> Boolean,

@@ -25,10 +25,28 @@ internal class WallpaperSeedPublisher {
       if (!isCurrent() || Thread.currentThread().isInterrupted) throw OperationCanceledException()
     }
     checkCurrent()
-    val manager = WallpaperManager.getInstance(context)
-    val homeId = manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
+    val manager = try {
+      WallpaperManager.getInstance(context)
+    } catch (cancelled: OperationCanceledException) {
+      throw cancelled
+    } catch (_: Exception) {
+      return cached
+    }
+    val homeId = try {
+      manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
+    } catch (cancelled: OperationCanceledException) {
+      throw cancelled
+    } catch (_: Exception) {
+      -1
+    }
     checkCurrent()
-    val lockId = manager.getWallpaperId(WallpaperManager.FLAG_LOCK)
+    val lockId = try {
+      manager.getWallpaperId(WallpaperManager.FLAG_LOCK)
+    } catch (cancelled: OperationCanceledException) {
+      throw cancelled
+    } catch (_: Exception) {
+      -1
+    }
     checkCurrent()
     val key = listOf(userId, homeId, lockId)
     if (force || key != cacheKey) {
@@ -36,19 +54,25 @@ internal class WallpaperSeedPublisher {
       // null color cache can otherwise ask the wallpaper service to extract again.
       val homeImage = extract(manager, WallpaperManager.FLAG_SYSTEM, ::checkCurrent)
       checkCurrent()
-      val home = homeImage.ifEmpty { manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM).seeds() }
+      val home = homeImage.ifEmpty {
+        try { manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM).seeds() }
+        catch (cancelled: OperationCanceledException) { throw cancelled }
+        catch (_: Exception) { emptyList() }
+      }
       checkCurrent()
       val lock = if (lockId < 0) home else
         extract(manager, WallpaperManager.FLAG_LOCK, ::checkCurrent).ifEmpty {
           checkCurrent()
-          manager.getWallpaperColors(WallpaperManager.FLAG_LOCK).seeds()
+          try { manager.getWallpaperColors(WallpaperManager.FLAG_LOCK).seeds() }
+          catch (cancelled: OperationCanceledException) { throw cancelled }
+          catch (_: Exception) { emptyList() }
         }
       checkCurrent()
       cached = WallpaperColorSnapshot(
         if (home.isEmpty() && lock.isEmpty()) MonetReadState.NOT_PROVIDED else MonetReadState.AVAILABLE,
         home, lock, homeImage.isNotEmpty(),
       )
-      cacheKey = key.takeIf { home.isNotEmpty() || lock.isNotEmpty() }
+      cacheKey = key
     }
     checkCurrent()
     val serialized = WallpaperSeedStorage.encode(cached)

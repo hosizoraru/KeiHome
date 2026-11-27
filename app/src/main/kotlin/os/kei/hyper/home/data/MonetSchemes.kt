@@ -70,6 +70,43 @@ internal object MonetSchemes {
     }
   }
 
+  /** Fast path: computes only the 2 tones needed for icon rendering instead of all 505 tones. */
+  fun iconRolesForSeed(
+    seed: Int,
+    style: MonetSchemeStyle,
+    overrides: Map<MonetPaletteFamily, MonetTonalSpec> = emptyMap(),
+    dark: Boolean,
+    choice: MonetCustomization? = null,
+  ): MonetIconRoles? {
+    val byFamily = MonetPaletteFamily.entries.zip(palettes(seed, style)).toMap()
+    fun tone(familyKey: String, tone: Int): Int? {
+      val family = MonetPaletteFamily.entries.firstOrNull { it.key == familyKey } ?: return null
+      val palette = overrides[family]?.let { TonalPalette.fromHueAndChroma(it.hue, it.chroma) }
+        ?: byFamily[family] ?: return null
+      return palette.tone(tone)
+    }
+    val sourceDark = choice?.iconAppearance?.sourceDarkMode(dark) ?: dark
+    fun color(role: MonetIconRole) = role.color(choice, ::tone)
+      ?.let { choice?.iconAppearance?.tintColor(it, dark) ?: it }
+    val foreground = color(if (sourceDark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)
+      ?: return null
+    val background = color(if (sourceDark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
+      ?: return null
+    val ratio = opaqueContrastRatio(foreground, background) ?: return null
+    return MonetIconRoles(foreground, background, ratio)
+  }
+
+  /** Fast path for Monet style-picker cards (only 4 preview tones instead of 505). */
+  fun previewSwatches(seed: Int, style: MonetSchemeStyle): List<Int> {
+    val list = palettes(seed, style)
+    return listOf(
+      list[0].tone(60),
+      list[1].tone(60),
+      list[2].tone(60),
+      list[3].tone(90),
+    )
+  }
+
   /**
    * Preview the AOSP icon roles used by MonetColorPolicy, without changing its acceptance policy.
    * This measures the actual opaque sRGB pair, not nominal HCT tones or rendered icon pixels.

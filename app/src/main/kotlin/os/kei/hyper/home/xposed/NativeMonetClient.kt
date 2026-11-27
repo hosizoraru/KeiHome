@@ -225,6 +225,10 @@ internal class NativeMonetClient {
           lease = acquired
         }
         checkActive()
+        if (!acquired.beginIo()) {
+          failure = "broker lease closed before I/O"
+          return@use false
+        }
         val connection = acquired.socket
         try {
           connected.countDown()
@@ -261,6 +265,7 @@ internal class NativeMonetClient {
           process = acquired.process
           true
         } finally {
+          acquired.endIo()
           NativeMonetSocketBroker.release(acquired)
         }
       }

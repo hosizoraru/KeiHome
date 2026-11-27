@@ -373,6 +373,37 @@ class MonetActionTest {
     assertEquals(newer.revision.toString(), store.selection.applied)
   }
 
+  @Test
+  fun burstSubmissionTracksFreshnessByWallClockSeparatelyFromMonotonicRevision() {
+    val remote = Preferences()
+    val first = MonetAction.submit(remote.preferences, 1_210_141, 100_000L)
+    val second = MonetAction.submit(remote.preferences, 1_210_141, 100_000L)
+    val backward = MonetAction.submit(remote.preferences, 1_210_141, 90_000L)
+    assertEquals(100_001L, second.revision)
+    assertEquals(100_000L, second.submittedAt)
+    assertEquals(100_002L, backward.revision)
+    assertEquals(90_000L, backward.submittedAt)
+    // Even though revision > now, submittedAt == now keeps the request pending immediately.
+    assertEquals(second, MonetAction.pending(second, 12, initial, 100_000L))
+    assertEquals(backward, MonetAction.pending(backward, 12, initial, 90_000L))
+    assertEquals(backward, MonetAction.decode(remote.values))
+  }
+
+  @Test
+  fun failedMamlPublicationPreventsWritingAppliedReceipt() {
+    val store = Store(initial)
+    assertEquals(
+      ApplyResult.WRITE_FAILED,
+      MonetAction.applyAcknowledged(
+        request, color, initial, store, nativeAcknowledged = true,
+        publish = { ApplyResult.WRITE_FAILED },
+        isCurrent = { true },
+      ),
+    )
+    assertNull(store.selection.applied)
+    assertFalse("APPLIED" in store.events)
+  }
+
   private fun apply(
     store: Store, acknowledged: Boolean = true, snapshot: MonetAction.Selection = initial,
     current: () -> Boolean = { true },

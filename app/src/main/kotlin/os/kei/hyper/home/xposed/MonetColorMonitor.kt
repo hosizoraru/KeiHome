@@ -50,7 +50,7 @@ internal class MonetColorMonitor(
 
   fun start(context: Context) = lifecycle.start(context)
 
-  fun request() = lifecycle.withWorker { (it as Watch).request() }
+  fun request(immediate: Boolean = false) = lifecycle.withWorker { (it as Watch).request(immediate) }
 
   fun requestLauncherMaterials() = lifecycle.withWorker {
     (it as Watch).requestMaterialsFromLauncher()
@@ -94,7 +94,7 @@ internal class MonetColorMonitor(
     // The framework holds listeners weakly. This worker owns the strong reference until stop.
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
-        key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
+        key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request(immediate = true)
     }
     private val statusDiagnostics = java.util.concurrent.atomic.AtomicInteger()
     private fun statusDiagnostic(message: String) {
@@ -173,8 +173,11 @@ internal class MonetColorMonitor(
       }
     }
 
+    private val retryMaterials = Runnable { requestMaterials() }
+
     private fun requestMaterials() {
       if (closed) return
+      handler.removeCallbacks(retryMaterials)
       handler.removeCallbacks(synchronizeMaterials)
       handler.post(synchronizeMaterials)
     }
@@ -185,7 +188,10 @@ internal class MonetColorMonitor(
         synchronizer.start()
       }
       if (!canRun) {
-        if (!closed) handler.postDelayed({ requestMaterials() }, 1_000L)
+        if (!closed) {
+          handler.removeCallbacks(retryMaterials)
+          handler.postDelayed(retryMaterials, 1_000L)
+        }
         return@Runnable
       }
       try {
@@ -202,8 +208,12 @@ internal class MonetColorMonitor(
         } catch (failure: Exception) {
           if (!closed) onFailure(failure)
         }
-        if (synchronizer.synchronizeLauncherLabels(context, materialPreferences) { !closed } && !closed)
-          onLauncherLabelsChanged()
+        try {
+          if (synchronizer.synchronizeLauncherLabels(context, materialPreferences) { !closed } && !closed)
+            onLauncherLabelsChanged()
+        } catch (failure: Exception) {
+          if (!closed) onFailure(failure)
+        }
         if (synchronizer.synchronizeThemeMaterials(context, materialPreferences) { !closed } && !closed) {
           onThemeMaterialsChanged()
         }
@@ -288,7 +298,7 @@ internal class MonetColorMonitor(
         } catch (_: OperationCanceledException) {
           wallpaperDirty.set(true)
         } catch (_: IconProbeCancelledException) {
-          wallpaperDirty.set(true)
+          // Probe cancellation reflects launcher/package invalidation, not a wallpaper change.
         } catch (failure: Throwable) {
           onFailure(failure)
         } finally {
@@ -391,11 +401,11 @@ internal class MonetColorMonitor(
       }
     }
 
-    fun request() {
+    fun request(immediate: Boolean = false) {
       if (closed) return
       handler.removeCallbacks(synchronize)
       handler.removeCallbacks(heartbeat)
-      handler.postDelayed(synchronize, DEBOUNCE_MS)
+      if (immediate) handler.post(synchronize) else handler.postDelayed(synchronize, DEBOUNCE_MS)
     }
 
     @Synchronized

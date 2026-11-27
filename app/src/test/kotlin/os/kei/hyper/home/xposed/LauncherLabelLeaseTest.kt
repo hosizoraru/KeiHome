@@ -40,6 +40,8 @@ class LauncherLabelLeaseTest {
     val lease = LauncherLabelLease()
     assertTrue(lease.synchronize(2, 0, { 1L }, { true }) { it(); process })
     assertEquals(2, lease.acknowledgedMode(process, 45_000))
+    assertEquals(2, lease.acknowledgedMode(process, 45_000, user = 0))
+    assertNull(lease.acknowledgedMode(process, 45_000, user = 10))
     assertNull(lease.acknowledgedMode(process, 45_001))
     assertNull(lease.acknowledgedMode(process.copy(startTicks = 101), 2))
     assertTrue(lease.synchronize(2, 0, { 45_001L }, { true }) { it(); process })

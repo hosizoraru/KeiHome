@@ -96,7 +96,7 @@ class IconPackUpdateNoticeTest {
 
   @Test fun genericMonetLayerGeometryUpgradeRequiresReapplyOnce() {
     for (format in listOf(pack.format, IconPackFormat.MIUI_ICONS)) {
-      for (schema in listOf(18, 21, 22, IconGenerationManifest.CURRENT_SCHEMA)) {
+      for (schema in listOf(18, 21, 22, 23, IconGenerationManifest.CURRENT_SCHEMA)) {
         val current = source.copy(generation =
           IconGenerationManifest(schemaVersion = schema, monetUnadaptedIcons = true,
             considered = setOf(target.flattened)))

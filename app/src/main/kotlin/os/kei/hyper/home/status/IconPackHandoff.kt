@@ -435,13 +435,18 @@ internal object IconPackHandoffs {
               if (runMonet) {
                 val monetProgress = progress(ColorOsGenerationStage.MONET)
                 val replacedFancyPaths = hashSetOf<String>()
+                val writtenMonetPaths = hashSetOf<String>()
+                val writeMonetEntries: (Map<String, ByteArray>) -> Unit = { layers ->
+                  writtenMonetPaths.addAll(layers.keys)
+                  overlay.putSpooled(layers) { caller.ensureActive() }
+                }
                 val monetExcluded = PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
                   caller.ensureActive()
                 }
                 val monetApplied = PublishedGenericMonet.apply(
                   paths = overlay.paths(),
                   read = { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
-                  writeEntries = { layers -> overlay.putSpooled(layers) { caller.ensureActive() } },
+                  writeEntries = writeMonetEntries,
                   replacedFancyPaths = replacedFancyPaths,
                   enabled = monetUnadaptedIcons,
                   excluded = monetExcluded,
@@ -462,7 +467,7 @@ internal object IconPackHandoffs {
                     context = context,
                     paths = overlay.paths(),
                     read = { path, limit -> overlay.read(path, limit) { caller.ensureActive() } },
-                    writeEntries = { layers -> overlay.putSpooled(layers) { caller.ensureActive() } },
+                    writeEntries = writeMonetEntries,
                     targets = targets,
                     excluded = monetExcluded,
                     insetFullBleed = monetFullBleedIconPadding,
@@ -470,9 +475,7 @@ internal object IconPackHandoffs {
                   )
                 } else false
                 if (monetApplied || uncoveredApplied) {
-                  // Only exclude stale fancy paths not rewritten by the newly generated palette entries.
-                  val stale = replacedFancyPaths.filterNot { it in overlay.spooled || it in overlay.inMemory }
-                  overlay.excludeAll(stale)
+                  overlay.excludeReplaced(replacedFancyPaths, writtenMonetPaths)
                   writeStage = ColorOsGenerationStage.MONET_WRITING
                 }
               }

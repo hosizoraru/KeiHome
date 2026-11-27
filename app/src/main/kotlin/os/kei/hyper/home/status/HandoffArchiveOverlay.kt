@@ -68,4 +68,14 @@ internal class HandoffArchiveOverlay(
   fun excludeAll(paths: Collection<String>) {
     paths.forEach(::exclude)
   }
+
+  /**
+   * Exclude replaced paths that were not rewritten by the replacing stage itself
+   * (including earlier in-memory additions such as foreign aliases).
+   */
+  fun excludeReplaced(replaced: Collection<String>, written: Set<String>) {
+    for (path in replaced) {
+      if (path !in written) exclude(path)
+    }
+  }
 }

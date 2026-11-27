@@ -44,7 +44,7 @@ internal class SystemUiNotificationRowReplay(
       if (existing.rebinding) return@synchronized false
       return@synchronized false
     }
-    if (rows.size == 8) return@synchronized false
+    if (rows.size == 64) return@synchronized false
     rows.add(Row(view))
     true
   }

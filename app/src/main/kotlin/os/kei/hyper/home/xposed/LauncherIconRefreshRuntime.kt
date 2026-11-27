@@ -157,12 +157,16 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             "Monet icon palette acknowledged: ${result.color.toUInt().toString(16)} " +
               "packageRefresh=${result.refreshPackages}",
           )
-          if (result.refreshPackages) schedulePaletteRefresh()
+          if (result.refreshPackages) {
+            pokeLauncher("monet palette changed")
+            schedulePaletteRefresh()
+          }
           iconPackImportMonitor.requestAppearanceSync()
         }
         is MonetColorSynchronizer.SynchronizationResult.WriteFailed ->
           xposed.log(Log.WARN, TAG, "Monet icon background could not be written")
         is MonetColorSynchronizer.SynchronizationResult.Restored -> {
+          pokeLauncher("monet palette restored")
           schedulePaletteRefresh()
           iconPackImportMonitor.requestAppearanceSync()
         }

@@ -106,7 +106,7 @@ internal class SystemUiAppIconRuntime(
     val profile = resolveProfile()
     // Match the tracked-view bound so replay cannot churn a smaller wanted set.
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
-      refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true,
+      systemPaletteEvents = true, refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true,
       onReady = { queueReplay(refreshRows = true) },
       beforeAppearanceReload = { main.post(refreshNative) })
     cache = iconCache
@@ -611,7 +611,12 @@ internal class SystemUiAppIconRuntime(
   private fun apply(bound: SystemUiAppIconBindings.Binding) {
     if (stopped) return
     val view = bindings.current(bound) ?: return
-    val bitmap = cache?.get(bound.name)?.takeUnless { it.isRecycled } ?: return
+    val bitmap = cache?.get(bound.name)?.takeUnless { it.isRecycled }
+    if (bitmap == null) {
+      // When Monet turns off for an uncovered app, trigger row re-inflation so native artwork returns.
+      if (cache?.isMissing(bound.name) == true) notificationRows?.markPending()
+      return
+    }
     write { view.setImageBitmap(bitmap) }
     logOnce(appliedLogged, "Published notification icon snapshot applied")
   }

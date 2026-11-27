@@ -63,6 +63,14 @@ internal data class HyperOsShareProfile(
   val resolveInfo: Method,
   val displayHolder: Method,
   val displayIcon: Method,
+  val appRowBind: Method? = null,
+  val appRowIcon: Field? = null,
+  val appRowImpl: Field? = null,
+  val appRowCollapsed: Field? = null,
+  val appRowListAdapter: Field? = null,
+  val appRowDisplayList: Field? = null,
+  val resolverBindIcon: Method? = null,
+  val resolverIcon: Field? = null,
 ) {
   fun accepts(type: Class<*>?): Boolean = type != null && (type == ordinaryTarget || type == groupedTarget)
   companion object {
@@ -141,7 +149,46 @@ internal data class HyperOsShareProfile(
       bound.isAccessible = true
       displayHolder.isAccessible = true
       displayIcon.isAccessible = true
-      return HyperOsShareProfile(bind, icon, bound, ordinary, grouped, info, displayHolder, displayIcon)
+
+      // Optional HyperOS 4 horizontal app-row adapter and ResolverListAdapter icon binders.
+      var appRowBind: Method? = null
+      var appRowIcon: Field? = null
+      var appRowImpl: Field? = null
+      var appRowCollapsed: Field? = null
+      var appRowListAdapter: Field? = null
+      var appRowDisplayList: Field? = null
+      runCatching {
+        val rowAdapter = Class.forName("com.android.intentresolver.adapter.AppResolveRowAdapter", false, loader)
+        val rowHolder = Class.forName("com.android.intentresolver.adapter.AppResolveRowAdapter\$IconViewHolder", false, loader)
+        val rowImpl = Class.forName("com.android.intentresolver.adapter.MiuiResolverAdapterImpl", false, loader)
+        val listAdapter = Class.forName("com.android.intentresolver.ResolverListAdapter", false, loader)
+        val mBind = rowAdapter.getDeclaredMethod("onBindViewHolder", recyclerHolder, Int::class.javaPrimitiveType)
+        val fIcon = rowHolder.getDeclaredField("icon").apply { require(type == ImageView::class.java); isAccessible = true }
+        val fImpl = rowAdapter.getDeclaredField("mMiuiResolverAdapterImpl").apply { isAccessible = true }
+        val fCollapsed = rowImpl.getDeclaredField("mCollapsedList").apply { isAccessible = true }
+        val fListAdapter = rowImpl.getDeclaredField("mResolverListAdapter").apply { isAccessible = true }
+        val fDisplayList = listAdapter.getDeclaredField("mDisplayList").apply { isAccessible = true }
+        appRowBind = mBind
+        appRowIcon = fIcon
+        appRowImpl = fImpl
+        appRowCollapsed = fCollapsed
+        appRowListAdapter = fListAdapter
+        appRowDisplayList = fDisplayList
+      }
+      var resolverBindIcon: Method? = null
+      var resolverIcon: Field? = null
+      runCatching {
+        val resHolder = Class.forName("com.android.intentresolver.ResolverListAdapter\$ViewHolder", false, loader)
+        val mBindIcon = resHolder.getDeclaredMethod("bindIcon", target, Boolean::class.javaPrimitiveType)
+        val fIcon = resHolder.getDeclaredField("icon").apply { require(type == ImageView::class.java); isAccessible = true }
+        resolverBindIcon = mBindIcon
+        resolverIcon = fIcon
+      }
+      return HyperOsShareProfile(
+        bind, icon, bound, ordinary, grouped, info, displayHolder, displayIcon,
+        appRowBind, appRowIcon, appRowImpl, appRowCollapsed, appRowListAdapter, appRowDisplayList,
+        resolverBindIcon, resolverIcon,
+      )
     }
   }
 }
@@ -219,6 +266,56 @@ internal class HyperOsShareIcons(
           } finally { lifecycle.leave() }
           result
         }
+        profile.appRowBind?.let { rowBind ->
+          val rowIcon = profile.appRowIcon
+          val rowImpl = profile.appRowImpl
+          val rowCollapsed = profile.appRowCollapsed
+          val rowListAdapter = profile.appRowListAdapter
+          val rowDisplayList = profile.appRowDisplayList
+          if (rowIcon != null && rowImpl != null && rowCollapsed != null &&
+            rowListAdapter != null && rowDisplayList != null) {
+            replace(rowBind, "appRowBind") { chain ->
+              val result = chain.proceed()
+              if (lifecycle.enter()) try {
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                  val adapter = chain.thisObject ?: return@replace result
+                  val holder = chain.getArg(0) ?: return@replace result
+                  val position = chain.getArg(1) as? Int ?: return@replace result
+                  if (rowIcon.declaringClass.isInstance(holder) && position >= 0) {
+                    val impl = rowImpl.get(adapter)
+                    val list = (impl?.let { rowCollapsed.get(it) }
+                      ?: impl?.let { rowListAdapter.get(it) }?.let { rowDisplayList.get(it) }) as? List<*>
+                    val target = list?.getOrNull(position)
+                    val view = rowIcon.get(holder) as? ImageView
+                    if (view != null && target != null) captureTarget(profile, view, target)
+                  }
+                }
+              } catch (failure: Exception) {
+                Log.w(TAG, "Keeping native app-row icon", failure)
+              } finally { lifecycle.leave() }
+              result
+            }
+          }
+        }
+        profile.resolverBindIcon?.let { resBind ->
+          val resIcon = profile.resolverIcon
+          if (resIcon != null) {
+            replace(resBind, "resolverBindIcon") { chain ->
+              val result = chain.proceed()
+              if (lifecycle.enter()) try {
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                  val holder = chain.thisObject ?: return@replace result
+                  val target = chain.getArg(0) ?: return@replace result
+                  val view = resIcon.get(holder) as? ImageView
+                  if (view != null) captureTarget(profile, view, target)
+                }
+              } catch (failure: Exception) {
+                Log.w(TAG, "Keeping native resolver icon", failure)
+              } finally { lifecycle.leave() }
+              result
+            }
+          }
+        }
         main.post { adoptVisibleRows(profile, application) }
         xposed.log(Log.INFO, TAG, "HyperOS app-target icons enabled; bounded async cache, native actions retained")
       } catch (failure: Exception) {
@@ -236,8 +333,12 @@ internal class HyperOsShareIcons(
 
   private fun capture(profile: HyperOsShareProfile, holder: Any, preload: Boolean = true) {
     val view = profile.icon.get(holder) as ImageView
-    val previous = views.remove(view)
     val target = profile.boundInfo.get(holder)
+    captureTarget(profile, view, target, preload)
+  }
+
+  private fun captureTarget(profile: HyperOsShareProfile, view: ImageView, target: Any?, preload: Boolean = true) {
+    val previous = views.remove(view)
     if (!profile.accepts(target?.javaClass)) return
     val info = profile.resolveInfo.invoke(target) as? ResolveInfo ?: return
     val identity = shareAppIdentity(info, Process.myUid() / 100_000) ?: return
@@ -249,8 +350,7 @@ internal class HyperOsShareIcons(
       it.name == identity.first && it.activity == identity.second && it.presentation.original === original
     } ?: Bound(identity.first, identity.second, ShareIconPresentation(original))
     views[view] = bound
-    if ((preload && !view.isAttachedToWindow) ||
-      (view.isShown && view.windowVisibility == View.VISIBLE)) apply(view, bound)
+    if (preload || (view.isShown && view.windowVisibility == View.VISIBLE)) apply(view, bound)
   }
 
   /** Adopt attached OEM rows after reload; do not retain old callbacks or scan the heap. */

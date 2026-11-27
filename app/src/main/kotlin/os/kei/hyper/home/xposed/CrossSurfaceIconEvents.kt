@@ -10,15 +10,18 @@ internal object CrossSurfaceIconEvents {
   const val PALETTE_CHANGED = "${BuildConfig.APPLICATION_ID}.ICON_PALETTE_CHANGED"
 
   fun publishPaletteChanged(context: Context) {
-    for (host in listOf("android", "com.android.systemui")) {
-      context.sendBroadcast(
-        Intent(PALETTE_CHANGED).setPackage(host)
-          .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
-      )
-    }
-    // The OEM resolver has its own UID. Its exported receiver checks the shared
-    // system sender identity in addition to requiring a system-only permission.
-    for (host in listOf(HyperOsShareProfile.PACKAGE, HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE)) {
+    context.sendBroadcast(
+      Intent(PALETTE_CHANGED).setPackage("android")
+        .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
+    )
+    // SystemUI, OEM resolver, Sidebar and Settings run outside system_server's process/UID.
+    // Their exported receivers require a system-only permission and verify sentFromUid == SYSTEM_UID.
+    for (host in listOf(
+      "com.android.systemui",
+      HyperOsShareProfile.PACKAGE,
+      HostAppIconRuntime.SIDEBAR_PACKAGE,
+      HostAppIconRuntime.SETTINGS_PACKAGE,
+    )) {
       context.sendBroadcast(
         Intent(PALETTE_CHANGED).setPackage(host)
           .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),

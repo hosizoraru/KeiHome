@@ -204,7 +204,7 @@ internal object PublishedGenericMonet {
       check()
       onProgress(processed++, candidates.size)
       val root = "fancy_icons/$name/"
-      if (name in protectedNames) continue
+      if (name in protectedNames || name in writtenPackageRoots) continue
       val manifest = read(root + "manifest.xml", 64 * 1024)
       if (manifest == null && name in fancyGroups) continue
       // Only export-owned, verified palette trees enter this path. A matching
@@ -314,6 +314,7 @@ internal object PublishedGenericMonet {
           writtenPackageRoots += pkgRoot
         }
         writeEntries(layers)
+        writtenPackageRoots += name
         replacedFancyPaths.addAll(fancyGroups[name].orEmpty())
         animatingGroups[name]?.let(replacedFancyPaths::addAll)
         modified = true
@@ -447,6 +448,7 @@ internal object PublishedGenericMonet {
     for (target in targets) {
       check()
       if (excluded.containsName(target.packageName)) continue
+      if (LIVE_DYNAMIC_PREFIXES.any { target.packageName == it || target.packageName.startsWith("$it.") }) continue
       // Only inspect and emit package-owned names (pkg#foreignClass, pkg.Activity, pkg).
       // Never include bare foreign class names (e.g. org.telegram.messenger.DefaultIcon on
       // org.telegram.messenger.beta), which belong to another package and would collide.

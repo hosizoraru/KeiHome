@@ -343,8 +343,9 @@ internal object IconPackHandoffs {
                 metadata(resolvedVersion, 80),
                 metadata(pack.description.author ?: pack.description.designer, 120),
               ).encode())
-              if (targets.any { TelegramChannelIcons.foreignLauncherClass(it) != null }) {
-                overlay.putAllInMemory(ForeignTelegramAliases.additions(sourceZip, targets, light.preservesNativeResources,
+              val telegramTargets = exportTargets.filterNot { it.packageName in custom.packages }
+              if (telegramTargets.any { TelegramChannelIcons.foreignLauncherClass(it) != null }) {
+                overlay.putAllInMemory(ForeignTelegramAliases.additions(sourceZip, telegramTargets, light.preservesNativeResources,
                   { caller.ensureActive() }) { component, dark ->
                   OriginalAppIcons.render(context, component, 144, dark) { caller.ensureActive() }?.let { bitmap ->
                     try {

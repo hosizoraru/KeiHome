@@ -126,17 +126,6 @@ internal fun appleMappingViewRows(rows: List<AppleMappingRow>, matchedOnly: Bool
   if (matchedOnly) listOf(rows, rows.filter { it.target.system }, rows.filterNot { it.target.system })
   else listOf(rows, rows.filter { it.app != null }, rows.filter { it.app == null })
 
-@Composable
-internal fun AppleMappingSortMenu(sort: AppleMappingSort, onSort: (AppleMappingSort) -> Unit) {
-  val choices = DropdownEntry(items = AppleMappingSort.entries.map {
-    DropdownItem(text = stringResource(it.label), selected = sort == it, onClick = { onSort(it) })
-  })
-  OverlayIconCascadingDropdownMenu(entries = listOf(choices)) {
-    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort), tint =
-      if (sort != AppleMappingSort.NAME) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
-  }
-}
-
 internal val AppleMappingFilter.label: Int get() = when (this) {
   AppleMappingFilter.ALL -> R.string.apple_filter_all
   AppleMappingFilter.MAPPED -> R.string.apple_filter_mapped

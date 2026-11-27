@@ -415,12 +415,5 @@ internal fun RefreshAction(model: HomeViewModel, page: Int, modifier: Modifier =
   }
 }
 
-@Composable
-internal fun appFilterLabels() = listOf(
-  stringResource(R.string.filter_supported), stringResource(R.string.filter_night),
-  stringResource(R.string.filter_monochrome), stringResource(R.string.filter_unknown),
-  stringResource(R.string.filter_all),
-)
-
 internal fun browserScopeLabels() = listOf(R.string.browser_scope_installed, R.string.browser_scope_launcher,
   R.string.browser_scope_pack)

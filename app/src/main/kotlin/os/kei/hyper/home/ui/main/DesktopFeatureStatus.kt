@@ -1,6 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import os.kei.hyper.home.R
 import os.kei.hyper.home.data.DockGlassChoice
 import os.kei.hyper.home.data.DockGlassCornerStyle
 import os.kei.hyper.home.status.NativeRuntimeState
@@ -217,21 +216,3 @@ internal fun desktopRuntimeReport(
   !runtime.readFailed && !runtime.timedOut && it.isFresh(now) && it.moduleVersion == moduleVersion &&
     it.nativeState != NativeRuntimeState.INACTIVE_USER
 }
-
-internal fun desktopStatusMessage(status: DesktopFeatureStatus, hasPending: Boolean = false,
-  preferenceUnavailable: Boolean = false, unsupportedMessage: Int = R.string.desktop_status_unavailable): Int? =
-  when (status) {
-    DesktopFeatureStatus.OUT_OF_SCOPE -> R.string.launcher_labels_scope
-    DesktopFeatureStatus.LOADING -> R.string.theme_effects_loading
-    DesktopFeatureStatus.SAVING -> R.string.theme_effects_saving
-    DesktopFeatureStatus.ERROR -> if (hasPending) R.string.theme_effects_save_failed else R.string.theme_effects_read_failed
-    DesktopFeatureStatus.UNAVAILABLE -> if (preferenceUnavailable) R.string.theme_effects_unavailable else unsupportedMessage
-    DesktopFeatureStatus.UNKNOWN -> R.string.desktop_status_unknown
-    DesktopFeatureStatus.CHECKING -> R.string.desktop_status_checking
-    DesktopFeatureStatus.READ_FAILED -> R.string.desktop_status_read_failed
-    DesktopFeatureStatus.TIMED_OUT -> R.string.desktop_status_timeout
-    DesktopFeatureStatus.LAYOUT_UNAVAILABLE -> R.string.dock_glass_layout_unavailable
-    DesktopFeatureStatus.HORIZONTAL_PADDING_UNAVAILABLE -> R.string.dock_glass_horizontal_padding_unavailable
-    DesktopFeatureStatus.PENDING -> R.string.launcher_glass_pending
-    DesktopFeatureStatus.ACCEPTED -> null
-  }

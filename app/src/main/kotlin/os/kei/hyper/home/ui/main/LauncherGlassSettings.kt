@@ -13,7 +13,6 @@ import os.kei.hyper.home.data.LauncherGlassPreferences
 import os.kei.hyper.home.data.LauncherGlassStyle
 import os.kei.hyper.home.data.SearchGlassStyle
 import os.kei.hyper.home.status.FrameworkConnection
-import os.kei.hyper.home.status.RuntimeStatusUiState
 
 @Immutable
 internal data class LauncherGlassUiState(
@@ -25,20 +24,6 @@ internal data class LauncherGlassUiState(
   val savedSearch: SearchGlassStyle? = null,
   val pendingSearch: SearchGlassStyle? = null,
 )
-
-internal enum class LauncherGlassRuntimeStatus { PENDING, UNAVAILABLE, ACCEPTED }
-
-internal fun launcherGlassRuntimeStatus(style: LauncherGlassStyle?, runtime: RuntimeStatusUiState,
-  now: Long, moduleVersion: Long): LauncherGlassRuntimeStatus {
-  val report = desktopRuntimeReport(runtime, now, moduleVersion)
-  return when {
-    report == null -> LauncherGlassRuntimeStatus.PENDING
-    report.supportsLauncherCapability(os.kei.hyper.home.status.LauncherRuntimeCapabilities.GLASS) == false ->
-      LauncherGlassRuntimeStatus.UNAVAILABLE
-    !report.acknowledgesLauncherGlass(style) -> LauncherGlassRuntimeStatus.PENDING
-    else -> LauncherGlassRuntimeStatus.ACCEPTED
-  }
-}
 
 internal class LauncherGlassSettings(private val scope: CoroutineScope, private val inScope: () -> Boolean) {
   val state: StateFlow<LauncherGlassUiState>

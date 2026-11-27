@@ -1,14 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import os.kei.hyper.home.ui.components.Os4Motion
-import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
-import os.kei.hyper.home.ui.components.Os4TrailingChevron
-import os.kei.hyper.home.ui.components.os4Clickable
-import os.kei.hyper.home.ui.components.os4ContentSize
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,199 +10,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetColorFamily
-import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetReadState
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Theme
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-@Composable
-internal fun MonetSummaryCard(
-  snapshot: MonetPaletteSnapshot?,
-  readFailed: Boolean,
-  onClick: () -> Unit,
-) {
-  val current = snapshot.takeUnless { readFailed }
-  // Only scalar values cross into the card; the source palette contains ordinary lists.
-  val summary = MonetSummaryState(
-    loading = snapshot == null && !readFailed,
-    readFailed = readFailed,
-    source = current?.source,
-    style = current?.style,
-    iconsEnabled = current?.monochrome?.enabled,
-    primary = current?.activePalette?.sample("primary", 60),
-    secondary = current?.activePalette?.sample("secondary", 60),
-    tertiary = current?.activePalette?.sample("tertiary", 60),
-    neutral = current?.activePalette?.sample("neutral", 80),
-    lastAppliedRevision = current?.lastAppliedRevision,
-  )
-  MonetSummaryContent(summary, onClick)
-}
-
-@Immutable
-private data class MonetSummaryState(
-  val loading: Boolean,
-  val readFailed: Boolean,
-  val source: String?,
-  val style: String?,
-  val iconsEnabled: Boolean?,
-  val primary: Int?,
-  val secondary: Int?,
-  val tertiary: Int?,
-  val neutral: Int?,
-  val lastAppliedRevision: Long?,
-)
-
-private fun MonetPaletteSource.sample(family: String, tone: Int): Int? {
-  if (state != MonetReadState.AVAILABLE) return null
-  return families.firstOrNull { it.name == family }?.colors
-    ?.minByOrNull { color -> color.tone?.let { kotlin.math.abs(it - tone) } ?: Int.MAX_VALUE }
-    ?.value
-}
-
-@Composable
-private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit) {
-  val openDetailsLabel = stringResource(R.string.monet_open_details)
-  Card(
-    modifier = Modifier.fillMaxWidth().os4ContentSize().os4Clickable(
-      cornerRadius = CardDefaults.CornerRadius, onClickLabel = openDetailsLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
-    insideMargin = PaddingValues(16.dp),
-    showIndication = true,
-  ) {
-    Column(
-      modifier = Modifier.semantics { this.onClick(label = openDetailsLabel, action = null) },
-      verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-      ) {
-        Icon(
-          imageVector = MiuixIcons.Glass.Theme,
-          modifier = Modifier.size(24.dp),
-          tint = MiuixTheme.colorScheme.primary,
-          contentDescription = null,
-        )
-        Text(
-          text = stringResource(R.string.settings_monet_title),
-          modifier = Modifier.weight(1f),
-          style = MiuixTheme.textStyles.body1,
-        )
-        Os4TrailingChevron()
-      }
-      Crossfade(
-        targetState = summary.loading || summary.readFailed,
-        animationSpec = tween(200),
-        label = "monet-summary-state",
-      ) { unavailable ->
-        if (unavailable) {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-              text = stringResource(
-                if (summary.readFailed) R.string.monet_unavailable else R.string.monet_loading,
-              ),
-              style = MiuixTheme.textStyles.body2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            )
-            if (summary.loading) {
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(4) { Os4ShimmerPlaceholder(Modifier.size(22.dp), cornerRadius = 7.dp) }
-              }
-            }
-          }
-        } else {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-              text = stringResource(
-                R.string.polish_monet_scheme,
-                monetSourceLabel(summary.source),
-                monetStyleLabel(summary.style),
-              ),
-              style = MiuixTheme.textStyles.body2,
-            )
-            Text(
-              text = stringResource(
-                R.string.polish_monet_icons,
-                stringResource(when (summary.iconsEnabled) {
-                  true -> R.string.monet_themed_icons_on
-                  false -> R.string.monet_themed_icons_off
-                  null -> R.string.monet_themed_icons_unknown
-                }),
-              ),
-              style = MiuixTheme.textStyles.footnote1,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            )
-            if (summary.primary != null || summary.secondary != null ||
-              summary.tertiary != null || summary.neutral != null
-            ) {
-              Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                SummarySwatch(summary.primary, stringResource(R.string.monet_family_primary))
-                SummarySwatch(summary.secondary, stringResource(R.string.monet_family_secondary))
-                SummarySwatch(summary.tertiary, stringResource(R.string.monet_family_tertiary))
-                SummarySwatch(summary.neutral, stringResource(R.string.monet_family_neutral))
-              }
-            } else {
-              Text(stringResource(R.string.polish_monet_no_palette),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-            LastAppliedPalette(summary.lastAppliedRevision)
-          }
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun SummarySwatch(color: Int?, label: String) {
-  if (color == null) return
-  val animated by animateColorAsState(Color(color), Os4Motion.colorSpring(), label = "monet-swatch")
-  val description = stringResource(
-    R.string.monet_swatch_description, label, "#%08X".format(color),
-  )
-  Box(Modifier.size(22.dp).squircleBackground(animated, 7.dp)
-    .semantics { contentDescription = description })
-}
-
-@Composable
-private fun monetSourceLabel(source: String?): String = stringResource(when (source) {
-  "HOME_WALLPAPER", "home_wallpaper" -> R.string.monet_source_home
-  "LOCK_WALLPAPER", "lock_wallpaper" -> R.string.monet_source_lock
-  "BASIC_COLOR", "preset" -> R.string.monet_source_basic
-  "SYSTEM_COLOR" -> R.string.pack_source_system
-  else -> R.string.polish_monet_source_unknown
-})
 
 @Composable
 private fun monetStyleLabel(style: String?): String = when (style) {
@@ -224,53 +40,6 @@ private fun monetStyleLabel(style: String?): String = when (style) {
   "FRUIT_SALAD" -> stringResource(R.string.monet_style_fruit_salad)
   "COLOROS_INSPIRATION" -> stringResource(R.string.pack_style_inspiration)
   else -> style?.takeIf { it.isNotBlank() } ?: stringResource(R.string.monet_unknown)
-}
-
-@Immutable
-private data class RelativePaletteAge(val unit: AgeUnit, val amount: Int)
-private enum class AgeUnit { NOW, MINUTES, HOURS, DAYS }
-
-private fun paletteAge(timestamp: Long, now: Long): RelativePaletteAge {
-  val minutes = ((now - timestamp).coerceAtLeast(0) / 60_000).toInt()
-  return when {
-    minutes == 0 -> RelativePaletteAge(AgeUnit.NOW, 0)
-    minutes < 60 -> RelativePaletteAge(AgeUnit.MINUTES, minutes)
-    minutes < 1_440 -> RelativePaletteAge(AgeUnit.HOURS, minutes / 60)
-    else -> RelativePaletteAge(AgeUnit.DAYS, minutes / 1_440)
-  }
-}
-
-@Composable
-private fun LastAppliedPalette(timestamp: Long?) {
-  if (timestamp == null) {
-    Text(stringResource(R.string.polish_monet_no_application),
-      style = MiuixTheme.textStyles.footnote1,
-      color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    return
-  }
-  val lifecycleOwner = LocalLifecycleOwner.current
-  // Keep the clock in this leaf. Equal age buckets do not invalidate the surrounding cards.
-  var age by remember(timestamp) { mutableStateOf(paletteAge(timestamp, System.currentTimeMillis())) }
-  LaunchedEffect(timestamp, lifecycleOwner) {
-    lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-      while (true) {
-        val now = System.currentTimeMillis()
-        age = paletteAge(timestamp, now)
-        delay(60_000 - (now - timestamp).coerceAtLeast(0) % 60_000)
-      }
-    }
-  }
-  val relative = when (age.unit) {
-    AgeUnit.NOW -> stringResource(R.string.polish_time_now)
-    AgeUnit.MINUTES -> pluralStringResource(R.plurals.polish_time_minutes, age.amount, age.amount)
-    AgeUnit.HOURS -> pluralStringResource(R.plurals.polish_time_hours, age.amount, age.amount)
-    AgeUnit.DAYS -> pluralStringResource(R.plurals.polish_time_days, age.amount, age.amount)
-  }
-  Text(
-    text = stringResource(R.string.polish_monet_last_applied, relative),
-    style = MiuixTheme.textStyles.footnote1,
-    color = MiuixTheme.colorScheme.onSurfaceSecondary,
-  )
 }
 
 @Composable

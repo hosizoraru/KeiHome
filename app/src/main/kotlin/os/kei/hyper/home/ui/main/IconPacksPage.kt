@@ -310,20 +310,6 @@ private fun PackNavigationRow(
 }
 
 @Composable
-internal fun PackNavigationCard(title: String, summary: String, onClick: () -> Unit) {
-  Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
-    onClick = onClick), insideMargin = PaddingValues(16.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MiuixTheme.textStyles.body1)
-        Text(summary, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      }
-      Os4TrailingChevron()
-    }
-  }
-}
-
-@Composable
 internal fun IconPackAppearancePreference(
   appearance: IconPackAppearance,
   onChange: (IconPackAppearance) -> Unit,

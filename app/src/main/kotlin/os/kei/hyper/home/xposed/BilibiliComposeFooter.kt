@@ -5,13 +5,90 @@ import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.result.MethodData
+
+internal data class BiliImageAbi(
+  val requestIndex: Int,
+  val modifierIndex: Int,
+  val onStateIndex: Int,
+  val composerIndex: Int,
+  val changedStartIndex: Int,
+  val changedCount: Int,
+  val defaultIndex: Int,
+) {
+  fun clearDirtyBits(args: Array<Any?>, paramIndex: Int) {
+    val slot = changedStartIndex + (paramIndex / 10)
+    if (slot >= defaultIndex) return
+    val current = args[slot] as? Int ?: return
+    val shift = 1 + (paramIndex % 10) * 3
+    args[slot] = current and (0x7 shl shift).inv()
+  }
+
+  fun clearDefaultBit(args: Array<Any?>, paramIndex: Int) {
+    if (paramIndex !in 0..30) return
+    val current = args[defaultIndex] as? Int ?: return
+    args[defaultIndex] = current and (1 shl paramIndex).inv()
+  }
+
+  fun hasDefaultFlag(args: Array<Any?>, paramIndex: Int): Boolean {
+    if (paramIndex !in 0..30) return false
+    val defaults = args[defaultIndex] as? Int ?: return false
+    return (defaults and (1 shl paramIndex)) != 0
+  }
+}
+
+internal fun parseBiliImageAbi(parameterTypeNames: List<String>): BiliImageAbi? {
+  if (parameterTypeNames.size < 8) return null
+  if (parameterTypeNames[0] != "kntr.base.imageloader.ImmutableImageRequest") return null
+  if (parameterTypeNames[1] != "androidx.compose.ui.Modifier") return null
+  val composerIndex = parameterTypeNames.indexOfLast { it == "androidx.compose.runtime.Composer" }
+  if (composerIndex < 5) return null
+  val trailingInts = parameterTypeNames.size - 1 - composerIndex
+  if (trailingInts !in 2..3) return null
+  for (i in (composerIndex + 1) until parameterTypeNames.size) {
+    if (parameterTypeNames[i] != "int") return null
+  }
+  val lifecycleIndex = parameterTypeNames.indexOfFirst { it == "androidx.lifecycle.Lifecycle" }
+  val searchStart = if (lifecycleIndex in 2 until composerIndex) lifecycleIndex + 1 else 2
+  val onStateIndex = (searchStart until composerIndex).firstOrNull {
+    parameterTypeNames[it] == "kotlin.jvm.functions.Function1"
+  } ?: return null
+  if (onStateIndex > 30) return null
+  val changedStartIndex = composerIndex + 1
+  val changedCount = trailingInts - 1
+  if (onStateIndex / 10 >= changedCount) return null
+  return BiliImageAbi(
+    requestIndex = 0,
+    modifierIndex = 1,
+    onStateIndex = onStateIndex,
+    composerIndex = composerIndex,
+    changedStartIndex = changedStartIndex,
+    changedCount = changedCount,
+    defaultIndex = parameterTypeNames.lastIndex,
+  )
+}
+
+internal fun resolveInvalidateMethod(scopeClass: Class<*>): Method? =
+  runCatching { scopeClass.getMethod("invalidate") }.getOrNull()
+    ?: scopeClass.declaredMethods.singleOrNull { method ->
+      !Modifier.isStatic(method.modifiers) &&
+        method.parameterCount == 0 &&
+        method.returnType == Void.TYPE
+    }?.apply { isAccessible = true }
+
+internal fun isNearIntegerPixel(value: Float): Boolean =
+  value.isFinite() && abs(value - value.roundToInt()) <= 0.05f
 
 /** Resolves the home footer's loaded image, placement and draw phase. */
 internal class BilibiliComposeFooter private constructor(
   val drawFooter: Method,
   val image: Method,
+  private val abi: BiliImageAbi,
   private val options: Method,
   private val contentScale: Method,
   private val alignment: Method,
@@ -29,15 +106,17 @@ internal class BilibiliComposeFooter private constructor(
   private val drawing: Drawing,
   private val unit: Any,
 ) {
-  private val scope = runCatching { image.parameterTypes[10].getMethod("getRecomposeScope") }.getOrNull()
-  private val useScope = scope?.let { runCatching {
-    it.declaringClass.getMethod("recordUsed", it.returnType)
-  }.getOrNull() }
-  private val invalidateScope = scope?.let { runCatching { it.returnType.getMethod("invalidate") }.getOrNull() }
+  private val scope = runCatching { image.parameterTypes[abi.composerIndex].getMethod("getRecomposeScope") }.getOrNull()
+  private val useScope = scope?.let {
+    runCatching { it.declaringClass.getMethod("recordUsed", it.returnType) }.getOrNull()
+  }
+  private val invalidateScope = scope?.let { resolveInvalidateMethod(it.returnType) }
 
-  fun observeScope(composer: Any?): Any? = scope?.let { getter ->
+  fun observeScope(args: Array<Any?>): Any? {
+    val composer = args.getOrNull(abi.composerIndex) ?: return null
+    val getter = scope ?: return null
     if (!getter.declaringClass.isInstance(composer) || invalidateScope == null) return null
-    getter.invoke(composer)?.also { useScope?.invoke(composer, it) }
+    return getter.invoke(composer)?.also { useScope?.invoke(composer, it) }
   }
 
   fun refreshScope(previous: Any) {
@@ -110,12 +189,13 @@ internal class BilibiliComposeFooter private constructor(
 
     fun observe(args: Array<Any?>): Array<Any?> {
       val copy = args.copyOf()
-      val observer = positioned.invoke(null, args[1], placement)
-      copy[1] = drawing.drawWithContent.invoke(null, observer, redrawArtwork)
-      copy[4] = onState
-      // Let Compose recompute the dirty bits for the two observed arguments.
-      copy[11] = (args[11] as Int) and (0x70 or 0xe000).inv()
-      copy[12] = (args[12] as Int) and (1 shl 4).inv()
+      val observer = positioned.invoke(null, args[abi.modifierIndex], placement)
+      copy[abi.modifierIndex] = drawing.drawWithContent.invoke(null, observer, redrawArtwork)
+      copy[abi.onStateIndex] = onState
+      // Let Compose recompute the dirty bits for the two observed arguments across $changed slots.
+      abi.clearDirtyBits(copy, abi.modifierIndex)
+      abi.clearDirtyBits(copy, abi.onStateIndex)
+      abi.clearDefaultBit(copy, abi.onStateIndex)
       return copy
     }
 
@@ -146,19 +226,20 @@ internal class BilibiliComposeFooter private constructor(
       val dimensions = size.invoke(node) as Long
       val x = Float.fromBits((xy shr 32).toInt())
       val y = Float.fromBits(xy.toInt())
-      if (!x.isFinite() || !y.isFinite() || x % 1f != 0f || y % 1f != 0f) return false
-      out.set(x.toInt(), y.toInt(), x.toInt() + (dimensions shr 32).toInt(),
-        y.toInt() + dimensions.toInt())
+      if (!isNearIntegerPixel(x) || !isNearIntegerPixel(y)) return false
+      val left = x.roundToInt()
+      val top = y.roundToInt()
+      out.set(left, top, left + (dimensions shr 32).toInt(), top + dimensions.toInt())
       return !out.isEmpty
     }
   }
 
   fun matches(args: Array<Any?>): Boolean {
-    val defaults = args[12] as Int
-    if (args[1] == null || args[4] != null ||
-      defaults and (1 shl 1) != 0 || defaults and (1 shl 4) == 0
+    if (args.size <= abi.defaultIndex) return false
+    if (args[abi.modifierIndex] == null || args[abi.onStateIndex] != null ||
+      abi.hasDefaultFlag(args, abi.modifierIndex) || !abi.hasDefaultFlag(args, abi.onStateIndex)
     ) return false
-    val requestOptions = options.invoke(args[0])
+    val requestOptions = options.invoke(args[abi.requestIndex])
     return contentScale.invoke(requestOptions) == crop && alignment.invoke(requestOptions) == topCenter &&
       alpha.invoke(requestOptions) == 1f && colorFilter.invoke(requestOptions) == null
   }
@@ -190,7 +271,7 @@ internal class BilibiliComposeFooter private constructor(
   }
 
   private fun callback(action: (Any?) -> Unit): Any {
-    val type = image.parameterTypes[4]
+    val type = image.parameterTypes[abi.onStateIndex]
     return Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { self, method, args ->
       when (method.name) {
         "invoke" -> {
@@ -210,55 +291,97 @@ internal class BilibiliComposeFooter private constructor(
     private const val LAYOUT = "androidx.compose.ui.layout"
     private const val IMAGE = "$LOADER.BiliImageKt"
 
-    fun resolve(dex: DexKitBridge, loader: ClassLoader): BilibiliComposeFooter {
-      val methods = run {
-        val candidates = dex.findMethod {
-          matcher {
-            name("invoke")
-            paramTypes(Any::class.java, Any::class.java, Any::class.java)
-            usingEqStrings("切换底部导航页")
-          }
-        }.filter { data ->
-          data.name == "invoke" && data.paramTypeNames.size == 3 &&
-            data.invokes.any { it.className == IMAGE && it.name == "BiliImage" } &&
-            data.invokes.any { it.className == "$LOADER.ImageRequest" && it.name == "contentScale" } &&
-            data.invokes.any { it.className == "$LOADER.ImageRequest" && it.name == "align" } &&
-            data.declaredClass?.methods.orEmpty().filter { it.name == "<init>" }.any { constructor ->
-              constructor.callers.any { parent ->
-                parent.invokes.any { it.className == "androidx.compose.foundation.layout.BoxWithConstraintsKt" &&
-                  it.name == "BoxWithConstraints" }
-              }
-            }
+    private fun isHomeFooterLambda(data: MethodData, requireBottomCenter: Boolean = false): Boolean {
+      if (data.name != "invoke" || data.paramTypeNames.size != 3) return false
+      val invokes = data.invokes
+      if (invokes.none { it.className == IMAGE && it.name == "BiliImage" }) return false
+      if (invokes.none { it.className == "$LOADER.ImageRequest" && it.name == "contentScale" }) return false
+      if (invokes.none { it.className == "$LOADER.ImageRequest" && it.name == "align" }) return false
+      if (invokes.none { it.className == "$LAYOUT.ContentScale\$Companion" && it.name == "getCrop" }) return false
+      if (invokes.none { it.className == "androidx.compose.ui.Alignment\$Companion" && it.name == "getTopCenter" }) return false
+      if (requireBottomCenter && invokes.none {
+          it.className == "androidx.compose.ui.Alignment\$Companion" && it.name == "getBottomCenter"
         }
-        val footer = candidates.single()
-        val image = footer.invokes.filter {
-          it.className == IMAGE && it.name == "BiliImage"
-        }.distinctBy { it.descriptor }.single()
-        footer.getMethodInstance(loader) to image.getMethodInstance(loader)
+      ) return false
+      return data.declaredClass?.methods.orEmpty().filter { it.name == "<init>" }.any { constructor ->
+        constructor.callers.any { parent ->
+          parent.invokes.any {
+            it.className == "androidx.compose.foundation.layout.BoxWithConstraintsKt" &&
+              it.name == "BoxWithConstraints"
+          }
+        }
       }
-      return bind(loader, methods.first, methods.second)
+    }
+
+    fun resolve(dex: DexKitBridge, loader: ClassLoader): BilibiliComposeFooter {
+      // Tier 1: Compose source-trace anchor (immune to localized A11y wording edits).
+      val tier1 = dex.findMethod {
+        matcher {
+          name("invoke")
+          paramTypes(Any::class.java, Any::class.java, Any::class.java)
+          usingStrings("HomeBottomTabContainer")
+        }
+      }.filter { isHomeFooterLambda(it) }
+
+      // Tier 2: Existing A11y string anchor (survives builds that strip Compose trace strings).
+      val tier2 = if (tier1.size == 1) tier1 else dex.findMethod {
+        matcher {
+          name("invoke")
+          paramTypes(Any::class.java, Any::class.java, Any::class.java)
+          usingEqStrings("切换底部导航页")
+        }
+      }.filter { isHomeFooterLambda(it) }
+
+      // Tier 3: Pure structural fingerprint (survives stripping both trace and A11y strings).
+      val candidates = if (tier2.size == 1) tier2 else dex.findMethod {
+        matcher {
+          name("invoke")
+          paramTypes(Any::class.java, Any::class.java, Any::class.java)
+          addInvoke {
+            declaredClass = IMAGE
+            name = "BiliImage"
+          }
+          addInvoke {
+            declaredClass = "$LOADER.ImageRequest"
+            name = "contentScale"
+          }
+          addInvoke {
+            declaredClass = "$LOADER.ImageRequest"
+            name = "align"
+          }
+          addInvoke {
+            declaredClass = "androidx.compose.ui.Alignment\$Companion"
+            name = "getBottomCenter"
+          }
+        }
+      }.filter { isHomeFooterLambda(it, requireBottomCenter = true) }
+
+      val footer = candidates.single()
+      val image = footer.invokes.filter {
+        it.className == IMAGE && it.name == "BiliImage"
+      }.distinctBy { it.descriptor }.single()
+      return bind(loader, footer.getMethodInstance(loader), image.getMethodInstance(loader))
     }
 
     fun bind(loader: ClassLoader, footer: Method, image: Method): BilibiliComposeFooter {
       require(footer.name == "invoke" && footer.parameterTypes.toList() == List(3) { Any::class.java })
-      require(image.declaringClass.name == IMAGE && image.name == "BiliImage" && image.parameterTypes.map { it.name } == listOf(
-        "$LOADER.ImmutableImageRequest", "androidx.compose.ui.Modifier", "java.lang.String",
-        "androidx.lifecycle.Lifecycle", "kotlin.jvm.functions.Function1",
-        "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function1",
-        "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function2",
-        "kotlin.jvm.functions.Function4", "androidx.compose.runtime.Composer", "int", "int",
-      )) { "Unrecognized Compose image ABI" }
+      require(image.declaringClass.name == IMAGE && image.name == "BiliImage") {
+        "Unrecognized Compose image owner"
+      }
+      val abi = requireNotNull(parseBiliImageAbi(image.parameterTypes.map { it.name })) {
+        "Unrecognized Compose image ABI"
+      }
       fun type(name: String) = Class.forName(name, false, loader)
       fun companion(owner: String, getter: String): Any {
         val instance = type(owner).getField("Companion").get(null)
         return checkNotNull(instance.javaClass.getMethod(getter).invoke(instance))
       }
-      val options = image.parameterTypes[0].getMethod("getOptions")
+      val options = image.parameterTypes[abi.requestIndex].getMethod("getOptions")
       val coordinates = type("$LAYOUT.LayoutCoordinates")
       val source = type("$LOADER.ImageState\$Success").getMethod("getSource")
       val bitmap = type("$LOADER.StaticImage").getMethod("getBitmap")
       return BilibiliComposeFooter(
-        footer, image, options,
+        footer, image, abi, options,
         options.returnType.getMethod("getContentScale"), options.returnType.getMethod("getAlign"),
         options.returnType.methods.single {
           it.name.startsWith("getAlpha-") && it.parameterCount == 0 && it.returnType == Float::class.javaPrimitiveType
@@ -266,14 +389,14 @@ internal class BilibiliComposeFooter private constructor(
         companion("$LAYOUT.ContentScale", "getCrop"),
         companion("androidx.compose.ui.Alignment", "getTopCenter"),
         type("$LAYOUT.OnGloballyPositionedModifierKt").getMethod(
-          "onGloballyPositioned", image.parameterTypes[1], image.parameterTypes[4],
+          "onGloballyPositioned", image.parameterTypes[abi.modifierIndex], image.parameterTypes[abi.onStateIndex],
         ),
         coordinates.getMethod("isAttached"),
         type("$LAYOUT.LayoutCoordinatesKt").getMethod("positionInWindow", coordinates),
         coordinates.methods.single { it.name.startsWith("getSize-") && it.parameterCount == 0 },
         source, bitmap, type("androidx.compose.ui.graphics.AndroidImageBitmap_androidKt")
           .getMethod("asAndroidBitmap", bitmap.returnType),
-        Drawing(loader, image.parameterTypes[1], image.parameterTypes[4]),
+        Drawing(loader, image.parameterTypes[abi.modifierIndex], image.parameterTypes[abi.onStateIndex]),
         checkNotNull(type("kotlin.Unit").getField("INSTANCE").get(null)),
       )
     }

@@ -67,7 +67,9 @@ internal class BilibiliFooterSampling(
       decor.findViewById<View>(it)?.takeIf(View::isShown)
     }.also { footer = it } ?: return false
     return view.getGlobalVisibleRect(bounds) && decor.getGlobalVisibleRect(decorBounds) &&
-      bounds.left == decorBounds.left && bounds.right == decorBounds.right && bounds.bottom == decorBounds.top + top &&
+      kotlin.math.abs(bounds.left - decorBounds.left) <= 1 &&
+      kotlin.math.abs(bounds.right - decorBounds.right) <= 1 &&
+      kotlin.math.abs(bounds.bottom - (decorBounds.top + top)) <= 1 &&
       bounds.height() > height - top
   }
 
@@ -83,11 +85,32 @@ internal class BilibiliFooterSampling(
       revision = artworkRevision
     }
     if (!ownsWindow() || (revision == null && !hasFooter())) return clear()
-    if (pending || (sampled && revision != null)) return
+    if (sampled && revision != null) {
+      // Target-SDK 35 edge-to-edge controllers (e.g. Bilibili's NavigationBarBackgroundController)
+      // can overwrite APPEARANCE_LIGHT_NAVIGATION_BARS on tab or theme updates without changing
+      // the static footer artwork. Re-assert our sampled polarity without re-running PixelCopy.
+      reassertSampledAppearance()
+      return
+    }
+    if (pending) return
     pending = true
     val token = epoch
     decor.viewTreeObserver.registerFrameCommitCallback {
       if (token == epoch) main.postAtTime(read, maxOf(SystemClock.uptimeMillis(), nextRead))
+    }
+  }
+
+  private fun reassertSampledAppearance() {
+    if (!handleSampling) return
+    val desiredDark = appliedDark ?: return
+    val controller = window.insetsController ?: return
+    val current = controller.systemBarsAppearance and APPEARANCE_LIGHT_NAVIGATION_BARS != 0
+    if (current != desiredDark) {
+      originalDark = current
+      controller.setSystemBarsAppearance(
+        if (desiredDark) APPEARANCE_LIGHT_NAVIGATION_BARS else 0,
+        APPEARANCE_LIGHT_NAVIGATION_BARS,
+      )
     }
   }
 

@@ -1,5 +1,39 @@
 # Gesture navigation backdrop investigation
 
+## Bilibili 9.21.0 (9210300) compatibility audit and resilience hardening (November 28)
+
+DexSQL inspection of `tv.danmaku.bili` `9.21.0` (`versionCode=9210300`, `targetSdkVersion=35`,
+`compileSdkVersion=36`) confirmed the active footer architecture (`MainActivityV2`,
+`BottomTabComponent` -> `HomeBottomTabContainer` -> `BiliImageKt.BiliImage`,
+`WindowAwareComposeView` at `id/tab_host`, legacy `TabHost` at `id/tab_background`, and
+`id/bottom_navigation`) while surfacing concrete forward-compatibility risks:
+
+- **Compose footer discovery (`BilibiliComposeFooter.resolve`)**: Bilibili 9.21.0 already moved
+  the legacy `TabHost` A11y string (`"切换底部导航页"`) out into a standalone `A11yMeta` helper.
+  `BilibiliComposeFooter.resolve` now cascades across three unique-match tiers:
+  1. Compose source-trace anchor (`HomeBottomTabContainer`) + structural checks;
+  2. Existing A11y string (`"切换底部导航页"`) + structural checks;
+  3. Zero-string structural fingerprint (`BiliImage` + `ImageRequest.contentScale`/`align` +
+     `ContentScale.getCrop` + `Alignment.getTopCenter`/`getBottomCenter` + `BoxWithConstraints` parent),
+     verified unique (`Lllp0;->invoke`) across the entire 253 MB 9.21.0 APK.
+- **Dynamic `BiliImage` ABI & Compose `$changed` slots**: `BiliImage` currently sits at 10 value
+  parameters (the exact 1-int `$changed` ceiling). `parseBiliImageAbi` now resolves `Composer`,
+  `$changed` slots (1 or 2 ints), `$default`, and `onState` indices dynamically by parameter type
+  and computes dirty/default bitmasks programmatically so adding future optional parameters
+  (crossing into `$changed1`) stays compatible.
+- **Obfuscated `RecomposeScope` & hot-reload rebinding**: 9.21.0 obfuscates `RecomposeScope` to
+  `Lal62;`. `resolveInvalidateMethod` falls back to a unique non-static `()V` method if
+  `invalidate` is ever renamed, and `rebindExistingFooter` locates any `AbstractComposeView` under
+  `id/tab_host` or `id/bottom_navigation` instead of hardcoding `WindowAwareComposeView`.
+- **Target-SDK 35 edge-to-edge polarity drift**: On Android 15+, `HomeStatusBarComponentKt` drives
+  `NavigationBarBackgroundController.updateStyle()` -> `setAppearanceLightNavigationBars(...)`
+  on tab/theme changes. `BilibiliFooterSampling` now re-asserts the sampled handle polarity on the
+  static-artwork fast path without re-running `PixelCopy`, while preserving the latest native
+  polarity in `originalDark` for clean restoration.
+- **Sub-pixel rounding & home lifecycle fallback**: Compose footer placement tolerates `±0.05px`
+  floating-point noise and `±1px` inset-edge rounding across non-integer densities while still
+  aborting on animations, and `resolveHome` walks `Activity` superclasses for `onResume`.
+
 ## Settings status card during scroll (November 22)
 
 The 1.13.0 b0647 report and screen recording showed a strip missing from

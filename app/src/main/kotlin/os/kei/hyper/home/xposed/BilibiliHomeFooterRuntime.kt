@@ -66,7 +66,7 @@ internal class BilibiliHomeFooterRuntime(
       installOrReplaceIconHook(xposed, previous, id, method, callback)
       if (previous != null) remaining.remove(previous)
     }
-    val resume = home.getDeclaredMethod("onResume")
+    val resume = findLifecycleResume(home)
     hook(HOOK, resume) { chain ->
       chain.proceed().also {
         val activity = chain.thisObject as? Activity
@@ -94,7 +94,7 @@ internal class BilibiliHomeFooterRuntime(
             val args = chain.args.toTypedArray()
             if (!compose.matches(args) || ++matchedImages != 1) null
             else {
-              runCatching { compose.observeScope(args[10]) }.getOrNull()?.let {
+              runCatching { compose.observeScope(args) }.getOrNull()?.let {
                 if (composeScope?.get() !== it) composeScope = java.lang.ref.WeakReference(it)
               }
               current.observeCompose(compose, args)
@@ -295,15 +295,13 @@ internal class BilibiliHomeFooterRuntime(
       decor.postOnAnimation {
         decor.postOnAnimation rebind@{
           if (!observesCompose || binding != null || !decor.isAttachedToWindow) return@rebind
-          val id = activity.resources.getIdentifier("tab_host", "id", PACKAGE)
-          val tabs = decor.findViewById<View>(id) ?: return@rebind
-          if (tabs.javaClass.name != "tv.danmaku.bili.home.components.bottomtab.WindowAwareComposeView" ||
-            !tabs.isAttachedToWindow || !tabs.isShown) return@rebind
           runCatching {
             val owner = activity.classLoader.loadClass("androidx.compose.ui.platform.AbstractComposeView")
+            val tabs = findFooterComposeView(decor, activity, owner) ?: return@rebind
+            if (!tabs.isAttachedToWindow || !tabs.isShown) return@rebind
             val dispose = owner.getMethod("disposeComposition")
             val create = owner.getMethod("createComposition")
-            if (owner.isInstance(tabs) && owner.getMethod("getHasComposition").invoke(tabs) == true) {
+            if (owner.getMethod("getHasComposition").invoke(tabs) == true) {
               dispose.invoke(tabs)
               create.invoke(tabs)
             }
@@ -378,12 +376,11 @@ internal class BilibiliHomeFooterRuntime(
       ) {
         restoreLegacyArtwork()
         visibleRect.offset(-decorPosition[0], -decorPosition[1])
-        if (visibleRect.left != 0 || visibleRect.right != decor.width ||
-          visibleRect.bottom != top
-        ) {
+        if (!isFooterAlignedToInset(visibleRect.left, visibleRect.right, visibleRect.bottom, decor.width, top)) {
           trace("Compose footer placement=$visibleRect, navigation starts at $top")
           return clearArtwork()
         }
+        visibleRect.set(0, visibleRect.top, decor.width, top)
 
         val scale = visibleRect.width().toFloat() / bitmap.width
         // Crop would scale by height if width-fit left vertical space.
@@ -656,21 +653,68 @@ internal class BilibiliHomeFooterRuntime(
     }
 
     fun resolveHome(dex: DexKitBridge, loader: ClassLoader): Class<out Activity> {
-      // These extras are the home tab-routing protocol, shared even when classes are renamed.
-      val home = dex.findMethod {
+      // Tier 1: Home tab-routing protocol extras, shared even when classes are renamed.
+      val byIntent = dex.findMethod {
         matcher {
           name("onNewIntent")
           paramTypes(android.content.Intent::class.java)
           returnType(Void.TYPE)
           usingEqStrings("bottom_tab_id", "bottom_tab_name")
         }
-      }.single().getMethodInstance(loader).declaringClass.asSubclass(Activity::class.java)
+      }
+      val home = if (byIntent.size == 1) {
+        byIntent.single().getMethodInstance(loader).declaringClass.asSubclass(Activity::class.java)
+      } else {
+        // Tier 2: Known home activity host carrying the tab-routing protocol.
+        Class.forName("tv.danmaku.bili.MainActivityV2", false, loader).asSubclass(Activity::class.java)
+      }
       // AppComponentFactory can resolve an Activity through a delegated class loader.
-      check(home.getDeclaredMethod("onResume").returnType == Void.TYPE) { "Unrecognized home lifecycle method" }
+      check(findLifecycleResume(home).returnType == Void.TYPE) { "Unrecognized home lifecycle method" }
       return home
+    }
+
+    internal fun findLifecycleResume(home: Class<out Activity>): Method {
+      var cursor: Class<*>? = home
+      while (cursor != null && Activity::class.java.isAssignableFrom(cursor)) {
+        runCatching { cursor.getDeclaredMethod("onResume") }.getOrNull()?.let { return it }
+        cursor = cursor.superclass
+      }
+      return home.getMethod("onResume")
+    }
+
+    private fun findFooterComposeView(decor: View, activity: Activity, abstractComposeView: Class<*>): View? {
+      for (name in listOf("tab_host", "bottom_navigation")) {
+        val id = activity.resources.getIdentifier(name, "id", PACKAGE)
+        if (id == 0) continue
+        val root = decor.findViewById<View>(id) ?: continue
+        if (abstractComposeView.isInstance(root)) return root
+        val matches = mutableListOf<View>()
+        collectComposeDescendants(root, abstractComposeView, depth = 2, out = matches)
+        if (matches.size == 1) return matches.single()
+      }
+      return null
+    }
+
+    private fun collectComposeDescendants(
+      view: View,
+      abstractComposeView: Class<*>,
+      depth: Int,
+      out: MutableList<View>,
+    ) {
+      if (depth <= 0 || view !is android.view.ViewGroup) return
+      for (index in 0 until view.childCount) {
+        val child = view.getChildAt(index)
+        if (abstractComposeView.isInstance(child)) out += child
+        else collectComposeDescendants(child, abstractComposeView, depth - 1, out)
+      }
     }
   }
 }
+
+internal fun isFooterAlignedToInset(left: Int, right: Int, bottom: Int, decorWidth: Int, insetTop: Int): Boolean =
+  kotlin.math.abs(left) <= 1 &&
+    kotlin.math.abs(right - decorWidth) <= 1 &&
+    kotlin.math.abs(bottom - insetTop) <= 1
 
 internal class BilibiliArtworkReporter(private val apk: String) {
   private val processToken = Binder()

@@ -405,7 +405,14 @@ internal class CrossSurfaceIconCache(
           UiModeManager.MODE_NIGHT_NO -> false
           else -> {
             val global = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-            val delivered = config.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            // HyperOS SystemUI's Application forwards configuration changes to its own
+            // controller without calling super, so registered callbacks never see an automatic
+            // night change. Its resources are still updated, so a theme-archive host reads them.
+            val delivered = if (watchThemeArchive) {
+              (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+                .takeUnless { it == Configuration.UI_MODE_NIGHT_UNDEFINED }
+                ?: (config.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+            } else config.uiMode and Configuration.UI_MODE_NIGHT_MASK
             val effective = if (global == Configuration.UI_MODE_NIGHT_UNDEFINED ||
               (watchThemeArchive && delivered != Configuration.UI_MODE_NIGHT_UNDEFINED)) delivered else global
             effective == Configuration.UI_MODE_NIGHT_YES

@@ -1,9 +1,11 @@
 package os.kei.hyper.home.xposed
 
+import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
+import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
@@ -275,7 +277,11 @@ internal class BilibiliComposeFooter private constructor(
     return Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { self, method, args ->
       when (method.name) {
         "invoke" -> {
-          runCatching { action(args?.singleOrNull()) }
+          try {
+            action(args?.singleOrNull())
+          } catch (_: Throwable) {
+            // Keep Bilibili's image callback path resilient if an observer fails.
+          }
           unit
         }
         "equals" -> self === args?.singleOrNull()
@@ -314,17 +320,8 @@ internal class BilibiliComposeFooter private constructor(
     }
 
     fun resolve(dex: DexKitBridge, loader: ClassLoader): BilibiliComposeFooter {
-      // Tier 1: Compose source-trace anchor (immune to localized A11y wording edits).
+      // Tier 1: Exact A11y string anchor (fast exact-match string-pool lookup on 250+ MB APKs).
       val tier1 = dex.findMethod {
-        matcher {
-          name("invoke")
-          paramTypes(Any::class.java, Any::class.java, Any::class.java)
-          usingStrings("HomeBottomTabContainer")
-        }
-      }.filter { isHomeFooterLambda(it) }
-
-      // Tier 2: Existing A11y string anchor (survives builds that strip Compose trace strings).
-      val tier2 = if (tier1.size == 1) tier1 else dex.findMethod {
         matcher {
           name("invoke")
           paramTypes(Any::class.java, Any::class.java, Any::class.java)
@@ -332,7 +329,16 @@ internal class BilibiliComposeFooter private constructor(
         }
       }.filter { isHomeFooterLambda(it) }
 
-      // Tier 3: Pure structural fingerprint (survives stripping both trace and A11y strings).
+      // Tier 2: Compose source-trace anchor (immune to localized A11y wording edits).
+      val tier2 = if (tier1.size == 1) tier1 else dex.findMethod {
+        matcher {
+          name("invoke")
+          paramTypes(Any::class.java, Any::class.java, Any::class.java)
+          usingStrings("HomeBottomTabContainer")
+        }
+      }.filter { isHomeFooterLambda(it) }
+
+      // Tier 3: Pure structural fingerprint (survives stripping both A11y and trace strings).
       val candidates = if (tier2.size == 1) tier2 else dex.findMethod {
         matcher {
           name("invoke")
@@ -400,5 +406,137 @@ internal class BilibiliComposeFooter private constructor(
         checkNotNull(type("kotlin.Unit").getField("INSTANCE").get(null)),
       )
     }
+  }
+}
+
+internal data class CachedBilibiliProfile(
+  val homeClass: String,
+  val footerClass: String?,
+  val footerMethod: String?,
+  val imageClass: String?,
+  val imageParamTypes: List<String>,
+) {
+  val hasCompose: Boolean
+    get() = !footerClass.isNullOrBlank() &&
+      !footerMethod.isNullOrBlank() &&
+      !imageClass.isNullOrBlank() &&
+      imageParamTypes.isNotEmpty()
+}
+
+internal object BilibiliFooterProfileCache {
+  private const val VERSION = "v1"
+  private const val FILE_NAME = "keihome_bili_footer_profile_v1.txt"
+
+  fun cacheDirFor(dataDir: String?): File? =
+    dataDir?.takeIf { it.isNotBlank() }?.let { File(it, "code_cache") }
+
+  fun read(cacheDir: File?, apkPath: String): CachedBilibiliProfile? {
+    val dir = cacheDir ?: return null
+    val apk = File(apkPath)
+    if (!apk.isFile) return null
+    val file = File(dir, FILE_NAME)
+    if (!file.isFile) return null
+    val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return null
+    return parse(text, apkPath, apk.length(), apk.lastModified())
+  }
+
+  fun write(cacheDir: File?, apkPath: String, profile: CachedBilibiliProfile): Boolean {
+    val dir = cacheDir ?: return false
+    val apk = File(apkPath)
+    if (!apk.isFile) return false
+    return runCatching {
+      dir.mkdirs()
+      val content = serialize(apkPath, apk.length(), apk.lastModified(), profile)
+      val temp = File(dir, "$FILE_NAME.tmp.${System.nanoTime()}")
+      temp.writeText(content, Charsets.UTF_8)
+      val target = File(dir, FILE_NAME)
+      if (!temp.renameTo(target)) {
+        target.writeText(content, Charsets.UTF_8)
+        temp.delete()
+      }
+      true
+    }.getOrDefault(false)
+  }
+
+  internal fun serialize(
+    apkPath: String,
+    apkSize: Long,
+    apkModified: Long,
+    profile: CachedBilibiliProfile,
+  ): String = buildString {
+    appendLine(VERSION)
+    appendLine(apkPath)
+    appendLine(apkSize)
+    appendLine(apkModified)
+    appendLine(profile.homeClass)
+    if (profile.hasCompose) {
+      appendLine("compose")
+      appendLine(profile.footerClass)
+      appendLine(profile.footerMethod)
+      appendLine(profile.imageClass)
+      appendLine(profile.imageParamTypes.joinToString(","))
+    } else {
+      appendLine("none")
+    }
+  }
+
+  internal fun parse(
+    content: String,
+    expectedApkPath: String,
+    expectedApkSize: Long,
+    expectedApkModified: Long,
+  ): CachedBilibiliProfile? {
+    val lines = content.lines().dropLastWhile { it.isEmpty() }
+    if (lines.size < 6) return null
+    if (lines[0] != VERSION) return null
+    if (lines[1] != expectedApkPath) return null
+    if (lines[2].toLongOrNull() != expectedApkSize) return null
+    if (lines[3].toLongOrNull() != expectedApkModified) return null
+    val homeClass = lines[4].takeIf { it.isNotBlank() } ?: return null
+    return when (lines[5]) {
+      "none" -> CachedBilibiliProfile(homeClass, null, null, null, emptyList())
+      "compose" -> {
+        if (lines.size < 10) return null
+        val footerClass = lines[6].takeIf { it.isNotBlank() } ?: return null
+        val footerMethod = lines[7].takeIf { it.isNotBlank() } ?: return null
+        val imageClass = lines[8].takeIf { it.isNotBlank() } ?: return null
+        val paramTypes = lines[9].split(',').filter { it.isNotBlank() }
+        if (paramTypes.isEmpty()) return null
+        CachedBilibiliProfile(homeClass, footerClass, footerMethod, imageClass, paramTypes)
+      }
+      else -> null
+    }
+  }
+
+  fun bind(
+    loader: ClassLoader,
+    cached: CachedBilibiliProfile,
+  ): Pair<Class<out Activity>, BilibiliComposeFooter?>? = runCatching {
+    val home = Class.forName(cached.homeClass, false, loader).asSubclass(Activity::class.java)
+    BilibiliHomeFooterRuntime.findLifecycleResume(home)
+    val compose = if (cached.hasCompose) {
+      val footer = Class.forName(cached.footerClass!!, false, loader)
+        .getDeclaredMethod(cached.footerMethod!!, Any::class.java, Any::class.java, Any::class.java)
+      val imageParams = cached.imageParamTypes.map { loadParamClass(loader, it) }.toTypedArray()
+      val image = Class.forName(cached.imageClass!!, false, loader)
+        .getDeclaredMethod("BiliImage", *imageParams)
+      BilibiliComposeFooter.bind(loader, footer, image)
+    } else {
+      null
+    }
+    home to compose
+  }.getOrNull()
+
+  internal fun loadParamClass(loader: ClassLoader, name: String): Class<*> = when (name) {
+    "boolean" -> Boolean::class.javaPrimitiveType!!
+    "byte" -> Byte::class.javaPrimitiveType!!
+    "char" -> Char::class.javaPrimitiveType!!
+    "short" -> Short::class.javaPrimitiveType!!
+    "int" -> Int::class.javaPrimitiveType!!
+    "long" -> Long::class.javaPrimitiveType!!
+    "float" -> Float::class.javaPrimitiveType!!
+    "double" -> Double::class.javaPrimitiveType!!
+    "void" -> Void.TYPE
+    else -> Class.forName(name, false, loader)
   }
 }

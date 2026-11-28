@@ -61,23 +61,28 @@ internal class BilibiliHomeFooterRuntime(
   private val reporter = BilibiliArtworkReporter(apk)
 
   fun install(compose: BilibiliComposeFooter?, remaining: MutableList<XposedInterface.HookHandle>) {
-    fun hook(id: String, method: Method, callback: XposedInterface.Hooker) {
-      val previous = findMatchingIconHook(remaining, id, method)
-      installOrReplaceIconHook(xposed, previous, id, method, callback)
-      if (previous != null) remaining.remove(previous)
-    }
     val resume = findLifecycleResume(home)
-    hook(HOOK, resume) { chain ->
+    hookMethod(HOOK, resume, remaining) { chain ->
       chain.proceed().also {
         val activity = chain.thisObject as? Activity
         if (activity != null && home.isInstance(activity)) attachSafely(activity)
       }
     }
-    if (compose != null) try {
+    if (compose != null) installCompose(compose, remaining)
+  }
+
+  /** Installs Compose footer hooks either synchronously on cache hit or after background DexKit resolution. */
+  fun installCompose(
+    compose: BilibiliComposeFooter,
+    remaining: MutableList<XposedInterface.HookHandle> = mutableListOf(),
+    rebindIfVisible: Boolean = false,
+  ) {
+    if (retired || composeProfile != null) return
+    try {
       composeProfile = compose
-      hook("$HOOK.compose", compose.drawFooter) { chain ->
-        if (Looper.myLooper() != main.looper || retired || composing != null) return@hook chain.proceed()
-        val current = session?.takeIf { it.observesCompose } ?: return@hook chain.proceed()
+      hookMethod("$HOOK.compose", compose.drawFooter, remaining) { chain ->
+        if (Looper.myLooper() != main.looper || retired || composing != null) return@hookMethod chain.proceed()
+        val current = session?.takeIf { it.observesCompose } ?: return@hookMethod chain.proceed()
         composing = current
         matchedImages = 0
         try {
@@ -87,7 +92,7 @@ internal class BilibiliHomeFooterRuntime(
           if (matchedImages > 1) current.releaseCompose()
         }
       }
-      hook("$HOOK.image", compose.image) { chain ->
+      hookMethod("$HOOK.image", compose.image, remaining) { chain ->
         val current = composing
         val observed = if (Looper.myLooper() == main.looper && !retired && current != null) {
           runCatching {
@@ -107,11 +112,25 @@ internal class BilibiliHomeFooterRuntime(
         if (observed == null) chain.proceed() else chain.proceed(observed)
       }
       Log.i(TAG, "Resolved Compose footer image in ${compose.drawFooter.declaringClass.name}")
+      if (rebindIfVisible) session?.rebindExistingFooter()
     } catch (error: Exception) {
+      composeProfile = null
       xposed.log(Log.INFO, TAG, "Compose footer profile unavailable", error)
     } catch (error: LinkageError) {
+      composeProfile = null
       xposed.log(Log.INFO, TAG, "Compose footer linkage unavailable", error)
     }
+  }
+
+  private fun hookMethod(
+    id: String,
+    method: Method,
+    remaining: MutableList<XposedInterface.HookHandle>,
+    callback: XposedInterface.Hooker,
+  ) {
+    val previous = findMatchingIconHook(remaining, id, method)
+    installOrReplaceIconHook(xposed, previous, id, method, callback)
+    if (previous != null) remaining.remove(previous)
   }
 
   /** API 102 does not replay onResume. Adopt the visible host decor after a generation change. */

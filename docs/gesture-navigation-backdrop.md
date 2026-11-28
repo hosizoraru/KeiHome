@@ -11,11 +11,20 @@ DexSQL inspection of `tv.danmaku.bili` `9.21.0` (`versionCode=9210300`, `targetS
 - **Compose footer discovery (`BilibiliComposeFooter.resolve`)**: Bilibili 9.21.0 already moved
   the legacy `TabHost` A11y string (`"切换底部导航页"`) out into a standalone `A11yMeta` helper.
   `BilibiliComposeFooter.resolve` now cascades across three unique-match tiers:
-  1. Compose source-trace anchor (`HomeBottomTabContainer`) + structural checks;
-  2. Existing A11y string (`"切换底部导航页"`) + structural checks;
+  1. Exact A11y string (`"切换底部导航页"`) + structural checks (fast string-pool exact lookup);
+  2. Compose source-trace anchor (`HomeBottomTabContainer`) + structural checks (survives A11y wording edits);
   3. Zero-string structural fingerprint (`BiliImage` + `ImageRequest.contentScale`/`align` +
      `ContentScale.getCrop` + `Alignment.getTopCenter`/`getBottomCenter` + `BoxWithConstraints` parent),
      verified unique (`Lllp0;->invoke`) across the entire 253 MB 9.21.0 APK.
+- **Zero-blocking startup & persistent profile cache**: Running DexKit synchronously in
+  `onPackageReady` (`handleBindApplication`) across Bilibili 9.21.0's 253 MB / 40+ DEX APK caused
+  `BIND APPLICATION ANR` (`reason=6 subreason=34`) on cold start, especially with peer modules
+  loaded. `KeiHomeModule.installBilibiliFooter` now restores resolved class/method descriptors from
+  `code_cache/keihome_bili_footer_profile_v1.txt` keyed by `(apkPath, fileSize, lastModified)` in
+  `<1 ms`; on cache miss (first launch per Bilibili update) it hooks `MainActivityV2.onResume`
+  synchronously via reflection (`<1 ms`) and runs DexKit on a low-priority background daemon thread
+  (`KeiHomeBiliDexKit`, `THREAD_PRIORITY_BACKGROUND`), persisting the profile and binding Compose
+  hooks cleanly on the main thread when finished.
 - **Dynamic `BiliImage` ABI & Compose `$changed` slots**: `BiliImage` currently sits at 10 value
   parameters (the exact 1-int `$changed` ceiling). `parseBiliImageAbi` now resolves `Composer`,
   `$changed` slots (1 or 2 ints), `$default`, and `onState` indices dynamically by parameter type

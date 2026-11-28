@@ -1,5 +1,7 @@
 package os.kei.hyper.home.xposed
 
+import java.io.File
+import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -171,5 +173,61 @@ class BilibiliComposeFooterTest {
     assertFalse(isFooterAlignedToInset(0, 1220, 2595, decorWidth = 1220, insetTop = 2591))
     assertFalse(isFooterAlignedToInset(4, 1220, 2591, decorWidth = 1220, insetTop = 2591))
     assertNotNull(BilibiliHomeFooterRuntime.findLifecycleResume(android.app.Activity::class.java))
+  }
+
+  @Test fun profileCacheRoundTripsComposeAndLegacyProfilesAndInvalidatesOnApkChange() {
+    val compose = CachedBilibiliProfile(
+      homeClass = "tv.danmaku.bili.MainActivityV2",
+      footerClass = "llp0",
+      footerMethod = "invoke",
+      imageClass = "kntr.base.imageloader.BiliImageKt",
+      imageParamTypes = listOf(
+        "kntr.base.imageloader.ImmutableImageRequest",
+        "androidx.compose.ui.Modifier",
+        "int",
+        "int",
+      ),
+    )
+    val serialized = BilibiliFooterProfileCache.serialize("/data/app/bili/base.apk", 253_000_000L, 1795800000L, compose)
+    assertEquals(
+      compose,
+      BilibiliFooterProfileCache.parse(serialized, "/data/app/bili/base.apk", 253_000_000L, 1795800000L),
+    )
+    assertNull(BilibiliFooterProfileCache.parse(serialized, "/data/app/bili/other.apk", 253_000_000L, 1795800000L))
+    assertNull(BilibiliFooterProfileCache.parse(serialized, "/data/app/bili/base.apk", 253_000_001L, 1795800000L))
+    assertNull(BilibiliFooterProfileCache.parse(serialized, "/data/app/bili/base.apk", 253_000_000L, 1795800001L))
+    assertNull(BilibiliFooterProfileCache.parse("corrupt", "/data/app/bili/base.apk", 253_000_000L, 1795800000L))
+
+    val legacyOnly = CachedBilibiliProfile("tv.danmaku.bili.MainActivityV2", null, null, null, emptyList())
+    val legacyText = BilibiliFooterProfileCache.serialize("/data/app/bili/base.apk", 100L, 200L, legacyOnly)
+    assertEquals(legacyOnly, BilibiliFooterProfileCache.parse(legacyText, "/data/app/bili/base.apk", 100L, 200L))
+    assertFalse(legacyOnly.hasCompose)
+    assertTrue(compose.hasCompose)
+
+    assertEquals(Int::class.javaPrimitiveType, BilibiliFooterProfileCache.loadParamClass(javaClass.classLoader!!, "int"))
+    assertEquals(String::class.java, BilibiliFooterProfileCache.loadParamClass(javaClass.classLoader!!, "java.lang.String"))
+  }
+
+  @Test fun profileCacheWritesAndReadsAtomicallyInCodeCacheDir() {
+    val root = Files.createTempDirectory("keihome-bili-cache-test").toFile()
+    try {
+      val apk = File(root, "base.apk").apply { writeText("fake-apk-bytes") }
+      val cacheDir = File(root, "code_cache")
+      val profile = CachedBilibiliProfile(
+        homeClass = "tv.danmaku.bili.MainActivityV2",
+        footerClass = "llp0",
+        footerMethod = "invoke",
+        imageClass = "kntr.base.imageloader.BiliImageKt",
+        imageParamTypes = listOf("java.lang.String", "int"),
+      )
+      assertTrue(BilibiliFooterProfileCache.write(cacheDir, apk.absolutePath, profile))
+      assertEquals(profile, BilibiliFooterProfileCache.read(cacheDir, apk.absolutePath))
+
+      // Mutating APK size invalidates the cached profile immediately.
+      apk.appendText("-updated")
+      assertNull(BilibiliFooterProfileCache.read(cacheDir, apk.absolutePath))
+    } finally {
+      root.deleteRecursively()
+    }
   }
 }

@@ -24,6 +24,8 @@ class KeiHomeModule : XposedModule() {
   private var shareIcons: HyperOsShareIcons? = null
   private var hostAppIcons: HostAppIconRuntime? = null
   private var bilibiliFooter: BilibiliHomeFooterRuntime? = null
+  @Volatile private var bilibiliRetired = false
+  @Volatile private var bilibiliScanning = false
   private var processName: String = ""
   private var inactiveWorker = false
   private val reloadState by lazy {
@@ -59,8 +61,12 @@ class KeiHomeModule : XposedModule() {
     if (!isHostPackage(param.packageName)) return
     when (param.packageName) {
       BilibiliHomeFooterRuntime.PACKAGE ->
-        if (processName == param.packageName && bilibiliFooter == null)
-          installBilibiliFooter(param.classLoader, param.applicationInfo.sourceDir)
+        if (processName == param.packageName && bilibiliFooter == null && !bilibiliScanning)
+          installBilibiliFooter(
+            param.classLoader,
+            param.applicationInfo.sourceDir,
+            cacheDir = BilibiliFooterProfileCache.cacheDirFor(param.applicationInfo.dataDir),
+          )
       HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE ->
         if (HostAppIconRuntime.supports(processName) && hostAppIcons == null)
           installHostAppIcons(param.classLoader)
@@ -93,8 +99,11 @@ class KeiHomeModule : XposedModule() {
       val share = shareIcons
       val sidebar = hostAppIcons
       val footer = bilibiliFooter
+      if (processName == BilibiliHomeFooterRuntime.PACKAGE) bilibiliRetired = true
       when {
-        footer != null -> footer.retire { loader, handoff -> footerHandoff = handoff; publish(loader) }
+        footer != null -> {
+          footer.retire { loader, handoff -> footerHandoff = handoff; publish(loader) }
+        }
         sidebar != null -> sidebar.retire { publish(sidebar.classLoader) }
         share != null -> share.retire { publish(share.classLoader) }
         ui != null -> ui.retire { publish(ui.classLoader) }
@@ -206,23 +215,91 @@ class KeiHomeModule : XposedModule() {
     try {
       val preferences = getRemotePreferences(NavigationBackdropPreferences.GROUP)
       if (!NavigationBackdropPreferences.read(preferences).includesBilibiliArtwork(Process.myUid())) return
+      bilibiliRetired = false
       val inherited = BilibiliHomeFooterRuntime.inheritedProfile(loader, remaining)
-      val (home, compose) = inherited ?: SystemUiMaterialDexKit.open(apk, cacheDir).use { dex ->
-        dex.setThreadNum(1)
-        val home = BilibiliHomeFooterRuntime.resolveHome(dex, loader)
-        val compose = try {
-          BilibiliComposeFooter.resolve(dex, loader)
-        } catch (failure: Exception) {
-          log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
-          null
-        } catch (failure: LinkageError) {
-          log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
-          null
+      if (inherited != null) {
+        bilibiliFooter = BilibiliHomeFooterRuntime(this, inherited.first, loader, apk).also {
+          it.install(inherited.second, remaining)
         }
-        home to compose
+        log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Rebound inherited home and Compose methods")
+        return
       }
-      bilibiliFooter = BilibiliHomeFooterRuntime(this, home, loader, apk).also { it.install(compose, remaining) }
-      if (inherited != null) log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Rebound inherited home and Compose methods")
+      val resolvedCacheDir = cacheDir ?: currentApplication()?.codeCacheDir
+      val cached = BilibiliFooterProfileCache.read(resolvedCacheDir, apk)
+        ?.let { BilibiliFooterProfileCache.bind(loader, it) }
+      if (cached != null) {
+        bilibiliFooter = BilibiliHomeFooterRuntime(this, cached.first, loader, apk).also {
+          it.install(cached.second, remaining)
+        }
+        log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Restored cached footer profile")
+        return
+      }
+      // Fast-path known MainActivityV2 synchronously (<1 ms) so handleBindApplication never stalls
+      // on DexKit scanning a 250+ MB APK, then resolve & cache Compose hooks off the main thread.
+      val fastHome = runCatching {
+        Class.forName("tv.danmaku.bili.MainActivityV2", false, loader).asSubclass(android.app.Activity::class.java)
+          .takeIf { BilibiliHomeFooterRuntime.findLifecycleResume(it).returnType == Void.TYPE }
+      }.getOrNull()
+      if (fastHome != null) {
+        bilibiliFooter = BilibiliHomeFooterRuntime(this, fastHome, loader, apk).also {
+          it.install(null, remaining)
+        }
+      }
+      val main = Handler(Looper.getMainLooper())
+      bilibiliScanning = true
+      Thread({
+        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+        try {
+          if (bilibiliRetired) return@Thread
+          val asyncCacheDir = resolvedCacheDir ?: currentApplication()?.codeCacheDir
+          val (home, compose) = SystemUiMaterialDexKit.open(apk, asyncCacheDir).use { dex ->
+            dex.setThreadNum(2)
+            val home = fastHome ?: BilibiliHomeFooterRuntime.resolveHome(dex, loader)
+            val compose = try {
+              BilibiliComposeFooter.resolve(dex, loader)
+            } catch (failure: Exception) {
+              log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
+              null
+            } catch (failure: LinkageError) {
+              log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
+              null
+            }
+            home to compose
+          }
+          BilibiliFooterProfileCache.write(
+            asyncCacheDir,
+            apk,
+            CachedBilibiliProfile(
+              homeClass = home.name,
+              footerClass = compose?.drawFooter?.declaringClass?.name,
+              footerMethod = compose?.drawFooter?.name,
+              imageClass = compose?.image?.declaringClass?.name,
+              imageParamTypes = compose?.image?.parameterTypes?.map { it.name }.orEmpty(),
+            ),
+          )
+          main.post {
+            if (bilibiliRetired) return@post
+            val runtime = bilibiliFooter ?: BilibiliHomeFooterRuntime(this, home, loader, apk).also {
+              it.install(null, mutableListOf())
+              bilibiliFooter = it
+              it.restoreVisibleHome(null)
+            }
+            if (compose != null) runtime.installCompose(compose, rebindIfVisible = true)
+          }
+        } catch (failure: Exception) {
+          log(Log.WARN, "KeiHomeBiliFooter", "Background home footer scan unavailable", failure)
+          if (fastHome == null) reportUnsupportedBilibiliArtwork(apk)
+        } catch (failure: LinkageError) {
+          log(Log.WARN, "KeiHomeBiliFooter", "Background home footer linkage unavailable", failure)
+          if (fastHome == null) reportUnsupportedBilibiliArtwork(apk)
+        } finally {
+          bilibiliScanning = false
+        }
+      }, "KeiHomeBiliDexKit").apply {
+        isDaemon = true
+        priority = Thread.NORM_PRIORITY - 1
+        start()
+      }
     } catch (failure: Exception) {
       log(Log.WARN, "KeiHomeBiliFooter", "Home footer unavailable", failure)
       reportUnsupportedBilibiliArtwork(apk)

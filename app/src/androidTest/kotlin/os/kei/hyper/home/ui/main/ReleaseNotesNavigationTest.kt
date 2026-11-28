@@ -227,12 +227,12 @@ class ReleaseNotesNavigationTest {
   }
 
   @Test fun currentBadgeCollapsedSummaryAndEmptyUnreadCardRenderClearly() {
-    rule.setContent { KeiHomeTheme { ReleaseNotesScreen({}, currentVersion = "1.17.0") } }
-    rule.onNodeWithTag("release-notes.current.1.17.0", useUnmergedTree = true).assertIsDisplayed()
-    rule.onNodeWithTag("release-notes.summary.1.17.0", useUnmergedTree = true).assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.toggle.1.17.0").performClick()
-    rule.onNodeWithTag("release-notes.body.1.17.0").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.summary.1.17.0", useUnmergedTree = true).assertIsDisplayed()
+    rule.setContent { KeiHomeTheme { ReleaseNotesScreen({}, currentVersion = "1.18.0") } }
+    rule.onNodeWithTag("release-notes.current.1.18.0", useUnmergedTree = true).assertIsDisplayed()
+    rule.onNodeWithTag("release-notes.summary.1.18.0", useUnmergedTree = true).assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.toggle.1.18.0").performClick()
+    rule.onNodeWithTag("release-notes.body.1.18.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.summary.1.18.0", useUnmergedTree = true).assertIsDisplayed()
     val unread = context.getString(R.string.release_notes_ui_unread)
     rule.onNode(hasText(unread, substring = true) and hasAnyAncestor(hasTestTag("release-notes.views"))).performClick()
     rule.onNodeWithTag("release-notes.empty").assertIsDisplayed()

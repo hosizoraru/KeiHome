@@ -192,6 +192,19 @@ class ReleaseNotesPolicyTest {
     assertFalse(ReleaseNotesCatalog.releases.first { it.version == "1.12.0" }.recommendSystemRestart)
   }
 
+  @Test fun release118ShowsCurrentNotesAndKeepsNativeRestartPendingAfterReading() {
+    val releases = ReleaseNotesCatalog.releases
+    val upgraded = ReleaseNotesPolicy.observe(ReleaseNotesState("1.17.0", "1.17.0"),
+      "1.18.0+g1234567.b0930", true, releases.map { it.version },
+      releases.filter { it.recommendSystemRestart }.map { it.version })
+    assertEquals(listOf("1.18.0"), upgraded.pendingVersions)
+    assertEquals(listOf("1.18.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.18.0", upgrade = true))
+    assertTrue(releases.first { it.version == "1.18.0" }.recommendSystemRestart)
+    val read = ReleaseNotesPolicy.markRead(ReleaseNotesPolicy.acknowledge(upgraded), setOf("1.18.0"))
+    assertTrue(read.unreadVersions.isEmpty())
+    assertEquals("1.18.0", read.restartReminderVersion)
+  }
+
   @Test fun release117ShowsCurrentNotesWithoutRequiringANativeRestart() {
     val releases = ReleaseNotesCatalog.releases
     val upgraded = ReleaseNotesPolicy.observe(ReleaseNotesState("1.16.0", "1.16.0"),

@@ -37,6 +37,7 @@ import os.kei.hyper.home.iconpack.IconGenerationManifest
 internal object SurfaceIconSnapshotRenderer {
   const val SIZE = 192
   private const val IMAGE_LIMIT = 4 * 1024 * 1024
+  private val DRAWABLE_BUCKETS = listOf("drawable-xxhdpi", "drawable-xxxhdpi", "drawable-xhdpi", "drawable")
   private val masks = WeakHashMap<ZipFile, NativeAdaptiveIconMask?>()
   private val preserved = WeakHashMap<ZipFile, Set<String>>()
 
@@ -248,9 +249,11 @@ internal object SurfaceIconSnapshotRenderer {
           }
         }
       }
-      compositeNativeLayers(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" })
-        ?.let { return it }
-      image("${prefix}res/drawable-xxhdpi/$name.png")?.let { return it }
+      for (bucket in DRAWABLE_BUCKETS) {
+        compositeNativeLayers(listOf(0, 1).map { "${prefix}res/$bucket/$name/$it.png" })
+          ?.let { return it }
+        image("${prefix}res/$bucket/$name.png")?.let { return it }
+      }
     }
     return null
   }

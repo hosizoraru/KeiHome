@@ -222,6 +222,7 @@ internal class SystemUiStatusBarIconRuntime(
   private val overrides = ThreadLocal<HeldBitmap>()
   private val nativeDraws = ThreadLocal<NativeDraw>()
   private val bindings = SystemUiStatusBarIconBindings()
+  private val nativeDirty = java.util.concurrent.atomic.AtomicBoolean()
   private val probes = SystemUiStatusBarProbeBudget()
   private val descriptorGuard = SystemUiHookGuard(onFailure)
   private val drawableGuard = SystemUiHookGuard(onFailure)
@@ -466,6 +467,7 @@ internal class SystemUiStatusBarIconRuntime(
     try {
       replayGuard.run(Unit) {
         replayEntries()
+        val refreshNativeBound = nativeDirty.getAndSet(false)
         var refreshed = 0
         for (binding in bindings.snapshot()) {
           if (stopped) break
@@ -474,7 +476,8 @@ internal class SystemUiStatusBarIconRuntime(
           if (!owns(view, icon)) { bindings.forget(view); continue }
           val bitmap = snapshot(binding.name)?.takeUnless { it.isRecycled }
           if (bitmap == null) {
-            if (!binding.usedSnapshot || !snapshotMissing(binding.name)) continue
+            val restoreMissed = binding.usedSnapshot && snapshotMissing(binding.name)
+            if (!restoreMissed && !refreshNativeBound) continue
           } else if (binding.applied.get() === bitmap) continue
           // This re-enters drawable(), then preserves native scaling, tint and animation setup.
           profile.update.invoke(view, false)
@@ -577,7 +580,9 @@ internal class SystemUiStatusBarIconRuntime(
    * take the current snapshot through the ordinary [replay].
    */
   fun adoptNative(entries: List<Pair<String, Bitmap>>, roots: () -> List<View> = ::windowRoots) {
-    if (stopped || entries.isEmpty() || entries.size > SystemUiNativeIconCaches.MAX_ENTRIES) return
+    if (stopped) return
+    nativeDirty.set(true)
+    if (entries.isEmpty() || entries.size > SystemUiNativeIconCaches.MAX_ENTRIES) return
     post {
       if (stopped || !lifecycle.enter()) return@post
       try {

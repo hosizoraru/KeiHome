@@ -47,7 +47,7 @@ ignored: proprietary APKs, device data and large binaries do not belong in Git.
 | `.artifacts/inputs/manifest.json` | Original path, size and SHA-256 for each retained input |
 | `.artifacts/inputs/launchers/{7722,8593,8602,9209,9226}/` | Original launcher APKs, native test fixtures and provenance |
 | `.artifacts/inputs/systemui/` | Exact SystemUI host/plugin APKs used by the material investigation |
-| `.artifacts/inputs/themes/Themes-{11540,11541,11560}.apk` | Three retained native Themes importer source APK versions |
+| `.artifacts/inputs/themes/Themes-{11540,11541,11560,11600}.apk` | Four retained native Themes importer source APK versions |
 | `.artifacts/inputs/framework/` | Framework resources/JAR and system-partition native readers |
 | `.artifacts/inputs/icon-packs/` | Arcticons and Lawnicons test APKs; no artwork is bundled in KeiHome |
 | `.artifacts/inputs/icon-samples/` | Original malformed-monochrome sample APKs |

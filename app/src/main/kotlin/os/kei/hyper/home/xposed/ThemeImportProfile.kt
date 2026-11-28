@@ -121,16 +121,30 @@ internal class ThemeImportProfile private constructor(private val methods: Map<S
         }
         val controllerManager = pick("controllerManager", controller, manager, emptyList(), false)
         check(rights.invokes.any { it.descriptor == controllerManager.descriptor }) { "Themes controller graph mismatch" }
-        val memory = pick("memoryLookup", PREFIX + "controller.MemoryDataManager", resource, listOf("java.lang.String"), false) {
-          it.invokes.any { call -> call.className == "java.util.Map" && call.name == "get" } &&
-            it.usingFields.any { use -> use.field.typeName == "java.util.Map" } &&
-            dex.findMethod { matcher { declaredClass = manager; name = it.name; returnType = resource; paramTypes("java.lang.String") } }
-              .singleOrNull()?.callers?.any { caller -> caller.invokes.any { call ->
-                call.className == resource && call.name == "getLocalId"
-              } } == true
+        val lookupCandidates = dex.findMethod {
+          matcher { declaredClass = PREFIX + "controller.MemoryDataManager"; returnType = resource; paramTypes("java.lang.String") }
+        }.filter { candidate ->
+          !Modifier.isStatic(candidate.modifiers) &&
+            candidate.invokes.any { call -> call.className == "java.util.Map" && call.name == "get" } &&
+            candidate.usingFields.any { use -> use.field.typeName == "java.util.Map" }
+        }.mapNotNull { candidate ->
+          dex.findMethod { matcher { declaredClass = manager; name = candidate.name; returnType = resource; paramTypes("java.lang.String") } }
+            .singleOrNull()
         }
-        val base = dex.findMethod { matcher { declaredClass = manager; name = memory.name; returnType = resource; paramTypes("java.lang.String") } }.single()
-        result.remove("memoryLookup"); result["lookup"] = base
+        check(lookupCandidates.size <= 64) { "Themes lookup candidate budget exceeded" }
+        val viewLocalMatches = lookupCandidates.filter { baseMethod ->
+          baseMethod.callers.any { caller ->
+            caller.className == PREFIX + "module.detail.view.ThemeDetailActivity" &&
+              "ViewLocalResource" in caller.usingStrings
+          }
+        }
+        val lookupMatches = if (viewLocalMatches.size == 1) viewLocalMatches else lookupCandidates.filter { baseMethod ->
+          baseMethod.callers.any { caller ->
+            caller.invokes.any { call -> call.className == resource && call.name == "getLocalId" }
+          }
+        }
+        check(lookupMatches.size == 1) { "Themes lookup: expected one verified role; found ${lookupMatches.size}" }
+        result["lookup"] = lookupMatches.single()
         pick("appContext", PREFIX + "basemodule.context.AppContextManager", "android.content.Context", emptyList(), true)
         check(result.keys == roles)
         result.mapValues { it.value.descriptor }

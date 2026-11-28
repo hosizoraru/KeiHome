@@ -6,13 +6,14 @@ production does not select a contract by an OEM version number.
 
 | Fixture | Local APK | SHA-256 | Resolved and reflected roles |
 | --- | --- | --- | --- |
-| 11.5.4.0 / 11540 | `.artifacts/inputs/themes/thememanager.apk` | `089429477c7b33784e306a419e8684651bcad86f480e060cfb9bb8ed389a8659` | 11 / 11 |
-| 11.5.4.1 / 11541 | `.artifacts/inputs/themes/Themes-11541.apk` | `65db2e6521e3059a36e2e4fab3a97f31ab711a0dbd483235088079ace1f44fc3` | 11 / 11 |
-| 11.5.6.0 / 11560 | `.artifacts/inputs/themes/Themes-11560.apk` | `cbae7d380763a4d7844c33a53852ac4b4e77bee7b70a86646e142b79fca047fa` | 11 / 11 |
+| 11.5.4.0 / 11540 | `.artifacts/inputs/themes/thememanager.apk` | `089429477c7b33784e306a419e8684651bcad86f480e060cfb9bb8ed389a8659` | 11 / 11 (historical) |
+| 11.5.4.1 / 11541 | `.artifacts/inputs/themes/Themes-11541.apk` | `65db2e6521e3059a36e2e4fab3a97f31ab711a0dbd483235088079ace1f44fc3` | 11 / 11 (historical) |
+| 11.5.6.0 / 11560 | `.artifacts/inputs/themes/Themes-11560.apk` | `cbae7d380763a4d7844c33a53852ac4b4e77bee7b70a86646e142b79fca047fa` | 12 / 12 |
+| 11.6.0.0 / 11600 | `.artifacts/inputs/themes/Themes-11600.apk` | `60020e69a2c8aa8adc98e1fa4fc81bcef5a1f1637a56860f49f967bf85119f68` | 12 / 12 |
 
 The user-provided 11.5.6.0 APK was moved from Downloads to the path above,
-preserving its bytes. All three APK signatures verify with the same MIUI
-certificate SHA-256:
+preserving its bytes; 11.6.0.0 was copied into `.artifacts/inputs/themes/Themes-11600.apk`.
+All four APK signatures verify with the same MIUI certificate SHA-256:
 `c9009d01ebf9f5d0302bc71b2fe9aa9a47a432bba17308a3111b75d7b2149025`.
 
 ## Production contract
@@ -156,3 +157,33 @@ record. A missing ID closes the manual detail and invokes the existing
 reimport guidance. The same intent is used for automatic apply, which still
 requires a matching import authorization. Verified with a missing record,
 a manual HyperOS4 apply, and an automatic iOS apply on Themes 11.5.6.0.
+
+## Themes 11.6.0.0 (11600) audit and hardening (November 28)
+
+DexSQL inspection of `com.android.thememanager` `11.6.0.0` (`versionCode=11600`,
+`minSdkVersion=34`, `targetSdkVersion=35`, `compileSdkVersion=36`, 6 DEX files,
+SHA-256 `60020e69a2c8aa8adc98e1fa4fc81bcef5a1f1637a56860f49f967bf85119f68`) confirmed full
+compatibility across every hooked and reflected contract:
+
+- **12 / 12 `ThemeImportProfile` roles**: All 12 roles (`rights`, `downloadRights`, `apply`,
+  `detailReady`, `validate`, `parent`, `inner`, `registry`, `iconContext`, `controllerManager`,
+  `lookup`, `appContext`) preserve identical descriptors and opcode counts relative to `11.5.6.0`.
+  On the physical Xiaomi 17 Pro (`192.168.31.12:5325`), the installed `11.6.0.0` process already
+  resolved and cached all 12 roles under `code_cache/keihome-theme-profile/`.
+- **Forward-hardened `lookup` disambiguation**: `MemoryDataManager` has two `Map.get`
+  `(String) -> Resource` methods (`qrj` backed by the `localId` map `p`, and `n7h` backed by the
+  `onlineId` map `i`), and `qrj` previously relied on a single caller that also called
+  `Resource.getLocalId()`. `ThemeImportProfile.inspect` now prefers the direct `ThemeDetailActivity`
+  `"ViewLocalResource"` caller anchor (verified unique in both `11.5.6.0` and `11.6.0.0`) before
+  falling back to the `Resource.getLocalId()` caller check.
+- **Bytecode & Manifest verification**:
+  - `ResourceApplyHelper.toq` keeps all 11 parameters with `args[8]` (`withRelateResource`) gating
+    `ApplyThemeInfo.getRelatedCodeSet()`.
+  - `ThemePCService` keeps a single non-static `Binder` field (`k`), `IThemePCService$Stub.onTransact`
+    keeps codes `2` (`importResource`) and `5` (`getLocalResources`), and `ThemePCService.ld6` / `qrj`
+    preserve the JSON import/inventory schema.
+  - `ApplyThemeTask.n5r1` still emits `ThemeStatus.status = 98` (`0x62`) on completion and launches
+    `ApplyValidateThemeTask`, whose instance fields still contain one `Set` (`zy`) and one `Resource` (`toq`).
+  - `ThemeDetailActivity.v0af` retains `ViewLocalResource` fragment lookup and `-1` group/index handling;
+    `ThemeTabActivity`, `ThemeRuntimeDataProvider` (`com.android.thememanager.provider`), and
+    `ThemeProvider` (`com.android.thememanager.theme_provider`) remain exported in the manifest.

@@ -1,5 +1,18 @@
 <resources>
     <string name="about_contributors_title">コントリビューターへの謝辞</string>
-    <string name="about_contributors_jizizr_thanks">ライト・ダーク用の静的アイコンと、ホーム画面のアイコンの一括更新への貢献に感謝します。</string>
+    <string name="about_contributors_hero_title">KeiHome を支えるすべてのコントリビューターに感謝します</string>
+    <string name="about_contributors_hero_summary">マージされたすべての Pull Request や実機調査、修正の貢献はこのページに詳細とともに記録され、更新履歴および GitHub Releases でも感謝を込めて紹介します。</string>
+    <string name="about_contributors_count_badge">貢献 %1$d 件</string>
+    <string name="about_contributors_jizizr_thanks">HyperOS 内部挙動の調査を通じ、ライト／ダークアイコン切替と通知センター描画の重要な修正を継続的に貢献。</string>
+    <string name="about_contributors_jizizr_pr3_badge">PR #3 · 修正</string>
+    <string name="about_contributors_jizizr_pr3_title">自動ライト／ダーク切替後に通知アイコンが旧外観のまま残る問題を修正</string>
+    <string name="about_contributors_jizizr_pr3_detail">実機 MiuiSystemUI の解析により HyperOS が super.onConfigurationChanged を呼ばず ComponentCallbacks が発火しない原因を特定し、日出・日没やスケジュール切替時に通知アイコンが最新外観へ追従するよう修正・検証を貢献。</string>
+    <string name="about_contributors_jizizr_static_badge">主要機能</string>
+    <string name="about_contributors_jizizr_static_title">静的アイコンの明暗自動切替とホームアイコン一括更新</string>
+    <string name="about_contributors_jizizr_static_detail">静的アイコンパック向けのライト／ダーク自動差し替え機構とホーム画面での一括更新処理に貢献し、動的レイヤーを持たないパックでも滑らかな明暗追従と低負荷な更新を実現。</string>
     <string name="about_contributors_open_profile">GitHub プロフィールを開く</string>
+    <string name="about_contributors_open_contribution">GitHub でこの貢献を見る</string>
+    <string name="about_contributors_join_title">Pull Request での参加をお待ちしています</string>
+    <string name="about_contributors_join_summary">不具合修正、新しいシステムアプリ対応、多言語改善など、マージされた PR はこの画面で詳しく紹介し、GitHub Releases でもクレジットを掲載します。</string>
+    <string name="about_contributors_join_action">GitHub Pull Requests を開く</string>
 </resources>

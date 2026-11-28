@@ -1,5 +1,18 @@
 <resources>
     <string name="about_contributors_title">Contributor acknowledgments</string>
-    <string name="about_contributors_jizizr_thanks">Thank you for contributing static light and dark icons and batched launcher icon refreshes.</string>
+    <string name="about_contributors_hero_title">Thank you to everyone building KeiHome</string>
+    <string name="about_contributors_hero_summary">Every merged pull request, device investigation, and fix is permanently credited here and highlighted in the corresponding Release Notes and GitHub Release.</string>
+    <string name="about_contributors_count_badge">%1$d contributions</string>
+    <string name="about_contributors_jizizr_thanks">Deep HyperOS runtime diagnostics and key fixes for day/night icon switching and notification center artwork.</string>
+    <string name="about_contributors_jizizr_pr3_badge">PR #3 · Fix</string>
+    <string name="about_contributors_jizizr_pr3_title">Fixed notification icons staying stale after automatic light/dark transitions</string>
+    <string name="about_contributors_jizizr_pr3_detail">Diagnosed via real-device MiuiSystemUI decompilation that HyperOS skips super.onConfigurationChanged so ComponentCallbacks never fire, fixed automatic sunrise/sunset and scheduled dark-mode icon updates in CrossSurfaceIconCache, and contributed regression coverage and device verification.</string>
+    <string name="about_contributors_jizizr_static_badge">Core feature</string>
+    <string name="about_contributors_jizizr_static_title">Static light/dark icon switching and batched launcher refresh</string>
+    <string name="about_contributors_jizizr_static_detail">Contributed automatic light/dark swapping for static icon packs together with batched HyperOS Home icon refreshes, bringing smooth appearance transitions to static packs with lower refresh overhead.</string>
     <string name="about_contributors_open_profile">Open GitHub profile</string>
+    <string name="about_contributors_open_contribution">View this contribution on GitHub</string>
+    <string name="about_contributors_join_title">Contribute via Pull Request</string>
+    <string name="about_contributors_join_summary">Bug fixes, new HyperOS app adaptations, and localization improvements are always welcome. Merged PRs are credited in detail here and mentioned in GitHub Releases.</string>
+    <string name="about_contributors_join_action">Open GitHub Pull Requests</string>
 </resources>

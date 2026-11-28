@@ -1,5 +1,18 @@
 <resources>
     <string name="about_contributors_title">贡献者致谢</string>
-    <string name="about_contributors_jizizr_thanks">感谢贡献静态明暗图标和桌面图标批量刷新。</string>
+    <string name="about_contributors_hero_title">感谢每一位共建 KeiHome 的贡献者</string>
+    <string name="about_contributors_hero_summary">每一份被合并的代码、实机排查记录与修复建议都会永久署名在此，并在对应版本的更新日志与 GitHub Release 中公开致谢。</string>
+    <string name="about_contributors_count_badge">%1$d 项贡献</string>
+    <string name="about_contributors_jizizr_thanks">深度排查 HyperOS 底层链路，持续贡献深浅色图标切换与通知中心适配修复。</string>
+    <string name="about_contributors_jizizr_pr3_badge">PR #3 · 修复</string>
+    <string name="about_contributors_jizizr_pr3_title">修复自动深浅色切换后通知图标停留在旧样式</string>
+    <string name="about_contributors_jizizr_pr3_detail">通过反编译实机 MiuiSystemUI 精准定位 HyperOS 未转发 super.onConfigurationChanged 导致 ComponentCallbacks 失效的根因，修复定时／日出日落自动切换深浅色后通知中心图标卡在启动样式的问题，并补充回归测试与实机验证。</string>
+    <string name="about_contributors_jizizr_static_badge">核心特性</string>
+    <string name="about_contributors_jizizr_static_title">静态图标明暗自动切换与桌面图标批量刷新</string>
+    <string name="about_contributors_jizizr_static_detail">贡献静态图标浅色／深色双版本自动替换机制与系统桌面批量刷新链路，让静态图标包也能平滑跟随系统深浅色切换并显著减少刷新开销。</string>
     <string name="about_contributors_open_profile">打开 GitHub 个人主页</string>
+    <string name="about_contributors_open_contribution">在 GitHub 查看此项贡献</string>
+    <string name="about_contributors_join_title">欢迎提交 Pull Request</string>
+    <string name="about_contributors_join_summary">无论是问题修复、新版系统应用适配还是多语言优化，合并后的 PR 都会在此页详细记录贡献内容并在 Release 发布时署名致谢。</string>
+    <string name="about_contributors_join_action">前往 GitHub Pull Requests</string>
 </resources>

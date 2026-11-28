@@ -78,7 +78,10 @@ internal class SystemUiAppIconBindings {
       val known = it.icon.get()
       known != null && (known === icon || bitmap != null && known === bitmap)
     }?.name ?: return null
-    if (views.size >= 64) views.removeAt(0)
+    if (views.size >= 64) {
+      val detached = views.indexOfFirst { it.view.get()?.isAttachedToWindow == false }
+      views.removeAt(if (detached >= 0) detached else 0)
+    }
     return Binding(view, name, original?.let(::WeakReference)).also { views += it }
   }
 

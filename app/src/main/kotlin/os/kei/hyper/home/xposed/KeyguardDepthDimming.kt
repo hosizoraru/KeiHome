@@ -71,6 +71,14 @@ internal class KeyguardDepthDimming(
     context.registerReceiver(receiver, IntentFilter(WALLPAPER_DIM_CHANGED), WALLPAPER_DIM_PERMISSION,
       main, Context.RECEIVER_NOT_EXPORTED)
     registrations.own { context.unregisterReceiver(receiver) }
+    // HyperOS SystemUI's Application forwards onConfigurationChanged without calling super,
+    // so ComponentCallbacks never fire on automatic dark-mode switches.
+    val configReceiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context, intent: Intent) = requestRefresh()
+    }
+    context.registerReceiver(configReceiver, IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED),
+      null, main, Context.RECEIVER_NOT_EXPORTED)
+    registrations.own { context.unregisterReceiver(configReceiver) }
     context.registerComponentCallbacks(configurationChanges)
     registrations.own { context.unregisterComponentCallbacks(configurationChanges) }
     preferences.registerOnSharedPreferenceChangeListener(listener)

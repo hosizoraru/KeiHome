@@ -710,7 +710,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       if (lifecycle.retired) return
       val generation = generations.next(previous, current) ?: return
       pending.replace(IconRefreshRequest(generation, 0))
-      monetColorMonitor.request()
+      monetColorMonitor.request(immediate = isNightModeTransition(previous, current))
       handler?.let { queue ->
         // Drop stale refresh work, but keep a queued poke for a real icon-theme change.
         val repoke = queue.hasCallbacks(launcherRepoke)

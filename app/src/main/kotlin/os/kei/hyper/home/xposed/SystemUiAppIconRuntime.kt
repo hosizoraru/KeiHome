@@ -51,6 +51,7 @@ internal class SystemUiAppIconRuntime(
   private val foldedRequest = ThreadLocal<Boolean>()
   private val foldedSources = LinkedHashMap<String, FoldedSource>()
   private var foldedInitialized = false
+  private val foldedForceRebuild = AtomicBoolean()
   @Volatile private var notificationRows: SystemUiNotificationRowReplay? = null
   @Volatile private var island: SystemUiIslandAppIconAdapter? = null
   @Volatile private var islandCacheField: java.lang.reflect.Field? = null
@@ -94,9 +95,10 @@ internal class SystemUiAppIconRuntime(
     if (stopped || !lifecycle.enter()) return@Runnable
     try {
       guard.run(Unit) {
-        val dropped = nativeCaches?.refresh() ?: return@run
+        val dropped = nativeCaches?.refresh().orEmpty()
         report(Log.INFO, TAG, "Native app-icon caches refreshed; dropped=${dropped.size}")
         clearIslandNativeCache()
+        foldedForceRebuild.set(true)
         statusBar?.adoptNative(dropped)
         statusBar?.rescanUnbound()
         queueReplay(refreshRows = true)
@@ -137,7 +139,8 @@ internal class SystemUiAppIconRuntime(
         if (!stopped && lifecycle.enter()) try {
           foldGuard.run(Unit) {
             val dependencies = synchronized(foldedSources) { foldedSources.toMap() }
-            if (foldedInitialized && dependencies.none { (name, previous) ->
+            val forced = foldedForceRebuild.getAndSet(false)
+            if (foldedInitialized && !forced && dependencies.none { (name, previous) ->
               val current = cache?.get(name)?.takeUnless { it.isRecycled }
               (current != null && current !== previous.bitmap.get()) ||
                 (current == null && previous.usedSnapshot && cache?.isMissing(name) == true)
@@ -196,7 +199,7 @@ internal class SystemUiAppIconRuntime(
         val rebind = row.getDeclaredMethod("reInflateViews")
         check(!Modifier.isStatic(rebind.modifiers) && rebind.returnType == Void.TYPE)
         SystemUiNotificationRowReplay(row.asSubclass(android.view.View::class.java), rebind,
-          currentUser, { cache?.isActive() == true })
+          currentUser, { cache?.isSettled() == true })
       }
       cachedProfile.customMethod?.let { custom -> replace(custom, "$HOOK_ID.native-custom-header.v1") { chain ->
         val result = chain.proceed()
@@ -588,7 +591,7 @@ internal class SystemUiAppIconRuntime(
         }
         if (frameworkNotice != null &&
           notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
-        bindings.bindNative(view, cached, name)
+        bindings.bindNative(view, cached, name, original = cached)
       }
       bound?.let(::boundReady)
       return result
@@ -616,7 +619,7 @@ internal class SystemUiAppIconRuntime(
     if (isCustomNonApp && profile.customIdentity(notification, currentUser) == null) return false
     if (notificationRows?.remember(view, notification) == true) queueReplay()
     if (!bindings.associated(view, name)) {
-      bindings.bindNative(view, current, name)?.let { bound ->
+      bindings.bindNative(view, current, name, original = current)?.let { bound ->
         logOnce(existingHeaderLogged, "Adopted existing notification app-icon header")
         boundReady(bound)
       }
@@ -631,7 +634,7 @@ internal class SystemUiAppIconRuntime(
     if (!profile.weatherHeader(notification, currentUser)) return null
     val original = view.drawable ?: return null
     if (notificationRows?.remember(view, notification) == true) queueReplay()
-    return bindings.bindNative(view, original, WeatherIconTemperature.PACKAGE)
+    return bindings.bindNative(view, original, WeatherIconTemperature.PACKAGE, original = original)
   }
 
   private fun bind(chain: XposedInterface.Chain, async: Boolean): Any? {

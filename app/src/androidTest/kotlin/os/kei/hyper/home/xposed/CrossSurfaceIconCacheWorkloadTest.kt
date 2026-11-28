@@ -379,7 +379,8 @@ class CrossSurfaceIconCacheWorkloadTest {
       cache.start()
       assertNull(cache.get(name(0)))
       awaitSettled(cache)
-      assertEquals(Color.RED, requireNotNull(cache.get(name(0))).getPixel(96, 96))
+      val original = requireNotNull(cache.get(name(0)))
+      assertEquals(Color.RED, original.getPixel(96, 96))
       ready.clear()
       resources = pinned(Configuration.UI_MODE_NIGHT_YES).resources
       val replacement = File(file.parentFile, "${file.name}.next")
@@ -387,9 +388,10 @@ class CrossSurfaceIconCacheWorkloadTest {
       java.nio.file.Files.move(replacement.toPath(), file.toPath(),
         java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
       assertNotNull("The archive event must refresh the cache", ready.poll(5, TimeUnit.SECONDS))
-      assertNull(cache.get(name(0)))
       awaitSettled(cache)
-      assertEquals(Color.BLUE, requireNotNull(cache.get(name(0))).getPixel(96, 96))
+      val refreshed = requireNotNull(cache.get(name(0)))
+      assertNotSame(original, refreshed)
+      assertEquals(Color.BLUE, refreshed.getPixel(96, 96))
     } finally { assertTrue(cache.stop()) }
   }
 

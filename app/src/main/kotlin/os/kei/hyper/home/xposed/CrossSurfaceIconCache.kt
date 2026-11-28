@@ -74,12 +74,12 @@ internal class CrossSurfaceIconCache(
   private var settingsObserver: ContentObserver? = null
   private var themeObserver: FileObserver? = null
   private val refreshAppearance = Runnable {
+    invalidate()
     if (active) beforeAppearanceReload?.let { step ->
       try { step() } catch (failure: Exception) {
         Log.w(TAG, "Host icon caches kept their previous artwork", failure)
       }
     }
-    invalidate()
   }
   private var appearanceRefreshQueued = false
   private var observedPalette: Long? = null
@@ -219,12 +219,12 @@ internal class CrossSurfaceIconCache(
       val palette = paletteState()
       if (observedPalette == palette) return
       observedPalette = palette
+      invalidate()
       beforeAppearanceReload?.let { step ->
         try { step() } catch (failure: Exception) {
           Log.w(TAG, "Host icon caches kept their previous artwork", failure)
         }
       }
-      invalidate()
     } catch (failure: Exception) {
       if (!warned) {
         warned = true
@@ -243,6 +243,7 @@ internal class CrossSurfaceIconCache(
         return null
       }
       val key = retainWantedLocked(packageName, activity)
+      if (appearanceRefreshQueued) return null
       dynamicMinutes[key]?.let { minute ->
         if (minute != System.currentTimeMillis() / 60_000L) cache.remove(key)
       }
@@ -254,6 +255,10 @@ internal class CrossSurfaceIconCache(
   }
 
   fun isActive(): Boolean = active && !stopping
+
+  fun isSettled(): Boolean = synchronized(lock) {
+    active && !stopping && !appearanceRefreshQueued && pending.isEmpty()
+  }
 
   private fun retainWantedLocked(packageName: String, activity: String?): Key {
     val key = keys.retain(packageName, activity)
@@ -283,7 +288,12 @@ internal class CrossSurfaceIconCache(
       return
     }
     synchronized(lock) {
-      if (!active || appearanceRefreshQueued) return
+      if (!active) return
+      // Evict stale light/dark snapshots immediately so SystemUI's own configuration pass
+      // never binds previous-mode artwork during the 64ms coalesce window.
+      revision.incrementAndGet()
+      clearSnapshotsLocked()
+      if (appearanceRefreshQueued) return
       // A theme apply can deliver a file event, a broadcast and a configuration change.
       appearanceRefreshQueued = handler.postDelayed(refreshAppearance, 64L)
     }
@@ -379,6 +389,11 @@ internal class CrossSurfaceIconCache(
       if (stampGeneration == generation && currentStamp != stamp) {
         closeArchive()
         invalidate()
+        beforeAppearanceReload?.let { step ->
+          try { step() } catch (failure: Exception) {
+            Log.w(TAG, "Host icon caches kept their previous artwork", failure)
+          }
+        }
         return false
       }
       stamp = currentStamp
@@ -395,6 +410,7 @@ internal class CrossSurfaceIconCache(
       }
       val current = appearance ?: run {
         val config = synchronized(lock) { Configuration(appearanceConfiguration) }
+        val liveConfig = if (watchThemeArchive) context.resources.configuration else config
         // A host can retain a context pinned to its old UI mode. Read the global
         // explicit setting once per generation, never from an icon-binding hook.
         val mode = try {
@@ -409,7 +425,7 @@ internal class CrossSurfaceIconCache(
             // controller without calling super, so registered callbacks never see an automatic
             // night change. Its resources are still updated, so a theme-archive host reads them.
             val delivered = if (watchThemeArchive) {
-              (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+              (liveConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK)
                 .takeUnless { it == Configuration.UI_MODE_NIGHT_UNDEFINED }
                 ?: (config.uiMode and Configuration.UI_MODE_NIGHT_MASK)
             } else config.uiMode and Configuration.UI_MODE_NIGHT_MASK
@@ -423,16 +439,17 @@ internal class CrossSurfaceIconCache(
         if (previousPalette != null && previousPalette != palette) {
           observedPalette = palette
           closeArchive()
+          invalidate()
           beforeAppearanceReload?.let { step ->
             try { step() } catch (failure: Exception) {
               Log.w(TAG, "Host icon caches kept their previous artwork", failure)
             }
           }
-          invalidate()
           return false
         }
         observedPalette = palette
-        Appearance(dark, config.locales[0] ?: Locale.getDefault(), palette)
+        val locale = liveConfig.locales[0] ?: config.locales[0] ?: Locale.getDefault()
+        Appearance(dark, locale, palette)
           .also { appearance = it }
       }
       val monetActive = current.palette ushr 48 == 1L

@@ -44,7 +44,10 @@ internal class SystemUiNotificationRowReplay(
       if (existing.rebinding) return@synchronized false
       return@synchronized false
     }
-    if (rows.size == 64) return@synchronized false
+    if (rows.size >= 64) {
+      val detached = rows.indexOfFirst { !it.rebinding && it.view.get()?.isAttachedToWindow == false }
+      if (detached >= 0) rows.removeAt(detached) else return@synchronized false
+    }
     rows.add(Row(view))
     true
   }

@@ -1,5 +1,12 @@
 # Native launcher compatibility matrix
 
+The latest added Phone fixture (2026-11-28) is **9263**,
+`RELEASE-8.01.02.9263-261013-11192009-R`. The
+[9263 compatibility record](launcher-9263-compatibility.md) extends the retained
+Phone inventory to 14 builds, adds the single `FolderFallback` callee delta in
+Monet selection, and verifies all remaining native roles and linked ARM64 bridges
+unchanged.
+
 Current HyperOS Phone AVD baseline (2026-11-19) is **0308**,
 `RELEASE-8.01.03.308-261102-11171006-R`. The
 [0308 compatibility record](launcher-0308-compatibility.md) covers the shared

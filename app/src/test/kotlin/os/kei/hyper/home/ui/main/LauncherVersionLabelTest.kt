@@ -9,6 +9,7 @@ class LauncherVersionLabelTest {
     assertEquals("Home 8593", compactLauncherVersion("RELEASE-6.01.02.0000-07231848-8593"))
     assertEquals("Home 9239", compactLauncherVersion("4.39.0.9239-10161513"))
     assertEquals("Home 9239", compactLauncherVersion("4.39.0.8593-9239"))
+    assertEquals("Home 9263", compactLauncherVersion("RELEASE-8.01.02.9263-261013-11192009-R"))
   }
 
   @Test fun buildExtractionUsesDigitBoundariesRatherThanTruncatingLongNumbers() {

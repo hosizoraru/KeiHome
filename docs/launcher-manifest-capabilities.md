@@ -34,9 +34,10 @@ shipped material setting covers Dock and Search.
 | Pad `801025490` (2026-08-07) | Absent | No corresponding symbol or `usingFolderGlassStyle` string in the matched AOT image | Present |
 | Phone `801027722` (2026-09-04) | `true` | Present | Present |
 | Phone `801029261` (2026-10-13) | `true` | Present | Present |
+| Phone `801029263` (2026-10-13) | `true` | Present | Present |
 | Phone `801030308` (2026-11-02) | `true` | Present | Present |
 
-All 13 retained Phone manifests carry the flag. These fixtures establish that
+All 14 retained Phone manifests carry the flag. These fixtures establish that
 the Phone contract was present by 7722. They leave the precise introduction
 build open because the earlier available example is a different form factor.
 Pad 5490 demonstrates that a launcher can render folder Glass without publishing

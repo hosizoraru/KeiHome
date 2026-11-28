@@ -6,6 +6,8 @@
   <string name="top_bar_gaussian">ガウス</string>
   <string name="top_bar_progressive">段階的</string>
   <string name="pack_update_available">補完または更新できるアイコンがあります。アイコンパックを更新してください。</string>
+  <string name="pack_source_updated_short">パック更新済み</string>
+  <string name="pack_source_updated_reapply_hint">インストール済みのアイコンパックが更新されました。更新して再適用すると新しいアイコンが反映されます。</string>
   <string name="pack_action_settings">その他の設定</string>
   <string name="pack_action_settings_summary">自動適用、生成範囲と使い方の設定</string>
   <string name="pack_settings_generation">生成と適用</string>

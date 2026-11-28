@@ -7,6 +7,28 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
+  @Test fun installedApkVersionOrTimestampChangeTriggersSourceUpdatedAndUpdateNeeded() {
+    val fallback = SystemIconFallback.DEFAULT
+    val built = IconBuildInventory.sourceIdentity(pack.copy(id = fallback.sourceId(pack.id)))
+    val matching = source.copy(
+      buildSource = built,
+      generation = IconGenerationManifest(
+        schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
+        considered = setOf(target.flattened),
+      ),
+    )
+    assertFalse(iconPackSourceUpdated(pack, matching, fallback))
+    assertFalse(iconPackNeedsUpdate(pack, matching, listOf(target), fallback, emptySet()))
+
+    val upgradedCode = pack.copy(source = IconPackSource.Installed("os.test.icons", 2, 100, "2.0.0"))
+    assertTrue(iconPackSourceUpdated(upgradedCode, matching, fallback))
+    assertTrue(iconPackNeedsUpdate(upgradedCode, matching, listOf(target), fallback, emptySet()))
+
+    val upgradedTime = pack.copy(source = IconPackSource.Installed("os.test.icons", 1, 200, "1.0.0"))
+    assertTrue(iconPackSourceUpdated(upgradedTime, matching, fallback))
+    assertTrue(iconPackNeedsUpdate(upgradedTime, matching, listOf(target), fallback, emptySet()))
+  }
+
   @Test fun weiboMappingRequestsAnUpdateOnlyForAnEligibleLiteIcon() {
     val weibo = IconPackComponent(RecommendedPackageIcons.WEIBO)
     val lite = IconPackComponent(RecommendedPackageIcons.WEIBO_LITE)

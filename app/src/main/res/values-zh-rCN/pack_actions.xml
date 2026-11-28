@@ -6,6 +6,8 @@
   <string name="top_bar_gaussian">高斯</string>
   <string name="top_bar_progressive">渐进</string>
   <string name="pack_update_available">有图标可补全或源包已更新，请更新图标包。</string>
+  <string name="pack_source_updated_short">源包已更新</string>
+  <string name="pack_source_updated_reapply_hint">已安装的图标包已更新，请重新更新并应用以启用新版图标。</string>
   <string name="pack_action_settings">更多设置</string>
   <string name="pack_action_settings_summary">自动应用、生成范围与使用偏好</string>
   <string name="pack_settings_generation">生成与应用</string>

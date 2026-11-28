@@ -169,6 +169,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val browserSource = MutableStateFlow<IconBrowserSource?>(null)
   val iconPackUpdateNeeded: StateFlow<Boolean>
     field = MutableStateFlow(false)
+  val activeInstalledPackUpdated: StateFlow<Boolean>
+    field = MutableStateFlow(false)
   internal val packageInventoryRevision: StateFlow<Int>
     field = MutableStateFlow(0)
   internal val importedPackRevision: StateFlow<Int>
@@ -369,20 +371,21 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           it.monetFullBleedIconPadding }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(preferences.state.map { it.extraIconPackages }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(os.kei.hyper.home.iconpack.CustomIconStore.revision) { _, _ -> Unit }.collectLatest {
-        val needed = try { withContext(Dispatchers.IO) {
-          val source = browserSource.value ?: return@withContext false
-          if (iconPacks.value.nativeImporting != null) return@withContext false
+        val (needed, sourceUpdated) = try { withContext(Dispatchers.IO) {
+          val source = browserSource.value ?: return@withContext false to false
+          if (iconPacks.value.nativeImporting != null) return@withContext false to false
           val selected = preferences.state.value
           val mappings = selected.recommendedIconMappings
           val pack = os.kei.hyper.home.iconpack.BuiltinColorOsMappings.selected(
-            currentFallbackSource() ?: return@withContext false, mappings.colorOsThemeStores)
+            currentFallbackSource() ?: return@withContext false to false, mappings.colorOsThemeStores)
+          val fallback = preferences.state.value.systemIconFallback
+          val apkSourceUpdated = iconPackSourceUpdated(pack, source, fallback)
           val targets = launcherIconTargets()
           val system = application.packageManager.getInstalledApplications(
             android.content.pm.PackageManager.ApplicationInfoFlags.of(0)).filter {
             it.flags and (android.content.pm.ApplicationInfo.FLAG_SYSTEM or
               android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
           }.mapTo(hashSetOf()) { it.packageName }
-          val fallback = preferences.state.value.systemIconFallback
           val perfectSource = if (fallback.isPerfect)
             os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application).catalog()?.sourceHash else null
           val nameMatching = selected.systemAppNameMatching &&
@@ -400,7 +403,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           }
           val custom = os.kei.hyper.home.iconpack.CustomIconSnapshot(
             os.kei.hyper.home.iconpack.CustomIconStore.selections(application), emptyMap())
-          iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
+          val update = apkSourceUpdated || iconPackNeedsUpdate(pack, source, targets, fallback, system,
+            nameMatching, colorOsExtra, fingerprints,
             installedOnly = selected.installedIconsOnly, perfectSource = perfectSource,
             completeSystemIconConfig = selected.completeSystemIconConfig,
             iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
@@ -411,12 +415,14 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             extraIconPackages = selected.extraIconPackages) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
+          update to apkSourceUpdated
         } } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
           android.util.Log.w("KeiHomePackUpdate", "Icon update inventory unavailable", failure)
-          false
+          false to false
         }
         iconPackUpdateNeeded.value = needed
+        activeInstalledPackUpdated.value = sourceUpdated
       }
     }
     viewModelScope.launch {
@@ -702,10 +708,14 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         pendingAppRefresh.restore(batch)
         appsDirty = true
         iconPacksDirty = true
-        val installedPackChanged = batch.global || iconPacks.value.packs.any { card ->
-          val installed = card.pack.source as? os.kei.hyper.home.iconpack.IconPackSource.Installed
-          installed != null && batch.targets.any { it.packageName == installed.packageName }
-        }
+        val activeInstalledPkg = currentFallbackSource()?.source
+          .let { it as? os.kei.hyper.home.iconpack.IconPackSource.Installed }?.packageName
+        val installedPackChanged = batch.global ||
+          (activeInstalledPkg != null && batch.targets.any { it.packageName == activeInstalledPkg }) ||
+          iconPacks.value.packs.any { card ->
+            val installed = card.pack.source as? os.kei.hyper.home.iconpack.IconPackSource.Installed
+            installed != null && batch.targets.any { it.packageName == installed.packageName }
+          }
         if (batch.global) {
           scanner.invalidateAll()
           clearPreviewCache()
@@ -720,8 +730,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         if (installedPackChanged) packRepository.invalidateInstalled()
         if (visiblePage in 0..1) scanApps()
         packageInventoryRevision.value++
-        // A previously visited catalogue is not a reason to rescan hidden families.
-        if (visiblePage in 2..3) readIconPacks()
+        // Always refresh installed-pack metadata when an installed APK icon pack updates so
+        // Status and navigation update reminders trigger without waiting for a tab switch.
+        if (visiblePage in 2..3 || (installedPackChanged && (iconPacks.value.scanned || activeInstalledPkg != null))) {
+          readIconPacks()
+        }
       }
     }
   }

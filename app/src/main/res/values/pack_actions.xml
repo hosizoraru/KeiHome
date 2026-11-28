@@ -6,6 +6,8 @@
   <string name="top_bar_gaussian">Gaussian</string>
   <string name="top_bar_progressive">Progressive</string>
   <string name="pack_update_available">Icons can be completed or updated. Use Update icon pack.</string>
+  <string name="pack_source_updated_short">Pack updated</string>
+  <string name="pack_source_updated_reapply_hint">This installed icon pack was updated. Update and apply again to use the new icons.</string>
   <string name="pack_action_settings">More settings</string>
   <string name="pack_action_settings_summary">Auto-apply, generation scope and preferences</string>
   <string name="pack_settings_generation">Generation &amp; application</string>

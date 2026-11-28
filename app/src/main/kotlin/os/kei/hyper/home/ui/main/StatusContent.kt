@@ -829,6 +829,8 @@ private fun DashboardActivePackCard(
         )
         if (activePack.pendingApply) {
           MetadataPill(stringResource(R.string.pack_pending_apply), warningAccent)
+        } else if (activePack.sourceUpdated) {
+          MetadataPill(stringResource(R.string.pack_source_updated_short), warningAccent)
         } else if (activePack.updateNeeded) {
           MetadataPill(stringResource(R.string.pack_update_available_short), warningAccent)
         }

@@ -30,6 +30,7 @@ internal data class ActiveIconPackSummary(
   val version: String? = null,
   val appliedAtMillis: Long? = null,
   val updateNeeded: Boolean = false,
+  val sourceUpdated: Boolean = false,
   val pendingApply: Boolean = false,
 )
 
@@ -39,6 +40,7 @@ internal fun rememberActiveIconPackSummary(
   packs: IconPacksUiState,
   fallback: SystemIconFallback,
   updateNeeded: Boolean,
+  sourceUpdated: Boolean = false,
   perfectPackId: String? = null,
 ): ActiveIconPackSummary {
   val context = LocalContext.current
@@ -79,6 +81,7 @@ internal fun rememberActiveIconPackSummary(
     version = version,
     appliedAtMillis = theme?.appliedAtMillis,
     updateNeeded = updateNeeded && !pendingApply,
+    sourceUpdated = sourceUpdated && !pendingApply,
     pendingApply = pendingApply,
   )
 }

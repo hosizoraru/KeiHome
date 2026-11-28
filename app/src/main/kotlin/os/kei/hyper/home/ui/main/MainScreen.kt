@@ -233,11 +233,13 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
   val packs by model.iconPacks.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val packUpdateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+  val packSourceUpdated by model.activeInstalledPackUpdated.collectAsStateWithLifecycle()
   val activePack = rememberActiveIconPackSummary(
     theme = runtime.report?.iconTheme,
     packs = packs,
     fallback = preferences.systemIconFallback,
     updateNeeded = packUpdateNeeded,
+    sourceUpdated = packSourceUpdated,
   )
   val effective = remember(apps.capabilities, source) { apps.capabilities?.let { browserRows(it, source, IconBrowserOptions(), "") } }
   val counts = remember(effective) { effective?.map { it.app }?.let { list ->

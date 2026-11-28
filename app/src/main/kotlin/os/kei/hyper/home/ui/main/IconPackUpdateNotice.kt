@@ -11,10 +11,22 @@ import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntryIndex
 import os.kei.hyper.home.iconpack.IconPackFormat
+import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.RecommendedPackageIcons
 import os.kei.hyper.home.iconpack.TelegramChannelIcons
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 import os.kei.hyper.home.iconpack.nativeLauncherIconNames
+
+/** Returns true when the applied theme was built from an installed APK pack whose version changed. */
+internal fun iconPackSourceUpdated(
+  pack: IconPackDescriptor,
+  source: IconBrowserSource,
+  fallback: SystemIconFallback,
+): Boolean {
+  if (pack.source !is IconPackSource.Installed) return false
+  val built = source.buildSource ?: return false
+  return built != IconBuildInventory.sourceIdentity(pack.copy(id = fallback.sourceId(pack.id)))
+}
 
 /** Unknown/unrenderable resources and deliberately uncovered user apps are not update tasks. */
 internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSource,

@@ -104,6 +104,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val sort by model.packSort.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
   val needsUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+  val sourceUpdated by model.activeInstalledPackUpdated.collectAsStateWithLifecycle()
   val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId, preferences.systemIconFallback)
   var query by rememberSaveable(section) { mutableStateOf("") }
   val activeTheme = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
@@ -128,6 +129,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("native") {
           val badges = buildList {
             if (pending != null) add(stringResource(R.string.pack_pending_apply))
+            else if (sourceUpdated) add(stringResource(R.string.pack_source_updated_short))
             else if (needsUpdate) add(stringResource(R.string.pack_update_available_short))
             source?.generation?.colorOsPackages?.size?.let { count ->
               if (count > 0) add(stringResource(R.string.coloros_fallback_applied, count))
@@ -144,6 +146,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             packs = state,
             fallback = preferences.systemIconFallback,
             updateNeeded = needsUpdate,
+            sourceUpdated = sourceUpdated,
           )
           SystemIconThemeCard(runtime, badges, activePack) { model.refresh(3) }
         }
@@ -250,12 +253,15 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           }
         }
         items(cards, key = { it.pack.id }, contentType = { "pack" }) { card ->
+          val isCurrent = card.pack.id == activePackId
           IconPackCard(card, model.packPreviews, preferences.iconPackAppearance,
             state.nativeAssociations[preferences.systemIconFallback.sourceId(card.pack.id)],
-            card.pack.id == activePackId, state.nativeImporting == preferences.systemIconFallback.sourceId(card.pack.id),
+            isCurrent, state.nativeImporting == preferences.systemIconFallback.sourceId(card.pack.id),
             importReady && !busy,
             state.nativeResult?.takeIf { it.sourceId == preferences.systemIconFallback.sourceId(card.pack.id) },
             onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport,
+            updateNeeded = isCurrent && needsUpdate && pending == null,
+            sourceUpdated = isCurrent && sourceUpdated && pending == null,
             manualThemeFallback = preferences.manualThemeFallback,
             onRemove = if (card.pack.source is IconPackSource.Imported) ({
               removingPack = card.pack
@@ -465,6 +471,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   appearance: IconPackAppearance, nativeId: String?, current: Boolean, importing: Boolean, enabled: Boolean,
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit,
   metadataContent: @Composable (() -> Unit)? = null,
+  updateNeeded: Boolean = false, sourceUpdated: Boolean = false,
   onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false,
   manualThemeFallback: Boolean = false, modifier: Modifier = Modifier) {
   val context = LocalContext.current
@@ -528,18 +535,33 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         }
         if (current) MetadataPill(stringResource(R.string.icon_pack_current),
           MiuixTheme.colorScheme.primary)
+        if (current && sourceUpdated) MetadataPill(
+          stringResource(R.string.pack_source_updated_short),
+          Color(0xFFFF963A),
+        ) else if (current && updateNeeded) MetadataPill(
+          stringResource(R.string.pack_update_available_short),
+          Color(0xFFFF963A),
+        )
         metadataContent?.invoke()
       }
       Text(stringResource(R.string.icon_pack_coverage, pack.entries.size, card.matchedApps),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (current && sourceUpdated) Text(
+        stringResource(R.string.pack_source_updated_reapply_hint),
+        style = MiuixTheme.textStyles.footnote1,
+        color = Color(0xFFFF963A),
+        modifier = Modifier.testTag("pack.source-updated.${pack.id}"),
+      )
       if (pack.colorOsProfile != null) Text(stringResource(R.string.icon_pack_coloros_originals, card.originalApps, card.dynamicApps),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      val prioritizeUpdate = !generated && nativeId != null && current && updateNeeded
       val actionDescription = stringResource(when {
-        nativeId != null && generated -> R.string.icon_pack_native_update
+        nativeId != null && (generated || prioritizeUpdate) -> R.string.icon_pack_native_update
         nativeId != null -> R.string.icon_pack_native_open
         else -> R.string.icon_pack_native_import
       })
       val updateDescription = stringResource(R.string.icon_pack_native_update)
+      val openDescription = stringResource(R.string.icon_pack_native_open)
       Row(Modifier.fillMaxWidth().testTag("pack.preview.actions"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         BoxWithConstraints(Modifier.weight(1f).testTag("pack.preview.strip")) {
@@ -554,26 +576,33 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
           horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
           PackActionButton(stringResource(when {
             importing -> R.string.pack_action_importing_short
-            nativeId != null && generated -> R.string.pack_action_update_short
+            nativeId != null && (generated || prioritizeUpdate) -> R.string.pack_action_update_short
             nativeId != null -> R.string.pack_action_apply_short
             else -> R.string.pack_action_import_short
           }), onClick = {
             // Generated packs retain their source ID while their content and native theme record change.
-            if (nativeId == null || generated) onImport() else {
+            if (nativeId == null || generated || prioritizeUpdate) onImport() else {
               openNativeThemeDetail(context, nativeId)
             }
           }, modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $actionDescription" },
-            enabled = !importing && if (generated) enabled && card.matchedApps > 0
+            enabled = !importing && if (generated || prioritizeUpdate) enabled && (card.matchedApps > 0 ||
+              pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)
             else nativeId != null || (enabled && (card.matchedApps > 0 ||
               pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)),
             primary = true, operation = when {
               nativeId == null -> PageActionIcon.IMPORT
-              generated -> PageActionIcon.UPDATE
+              generated || prioritizeUpdate -> PageActionIcon.UPDATE
               else -> PageActionIcon.APPLY
             })
-          if (!generated && nativeId != null) PackActionButton(stringResource(R.string.pack_action_update_short),
-            modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" },
-            onClick = onImport, enabled = enabled && !importing)
+          if (!generated && nativeId != null) {
+            if (prioritizeUpdate) PackActionButton(stringResource(R.string.pack_action_apply_short),
+              modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $openDescription" },
+              onClick = { openNativeThemeDetail(context, nativeId) }, enabled = !importing,
+              operation = PageActionIcon.APPLY)
+            else PackActionButton(stringResource(R.string.pack_action_update_short),
+              modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" },
+              onClick = onImport, enabled = enabled && !importing)
+          }
         }
       }
       Os4AnimatedVisibility(result != null && !result.imported) {

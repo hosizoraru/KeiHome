@@ -206,19 +206,38 @@ in light mode afterwards showed QQ's light artwork; before the fix it showed the
 
 KeiHome's SystemUI snapshot cache (`CrossSurfaceIconCache`, `watchThemeArchive`) picks
 `res` or `nightmode/res` from `UiModeManager.nightMode` when it is explicitly YES or NO.
-In automatic mode it used the configuration last delivered to its component callbacks.
-HyperOS SystemUI's `SystemUIApplicationImpl.onConfigurationChanged` forwards to its own
+In automatic mode (`MODE_NIGHT_AUTO` / `MODE_NIGHT_CUSTOM`) it previously used the
+configuration last delivered to its component callbacks. HyperOS SystemUI's
+`SystemUIApplicationImpl.onConfigurationChanged` forwards to its own
 `ConfigurationForwarder` without calling `super`, so those callbacks never run there. The
-copy stayed at the runtime's start appearance (observed 2026-11-27: runtime started at
-03:29 during night, every notification header still dark after the 07:00 automatic switch
-to light; manual switches were correct). It now reads the host's live resources, which
-SystemUI's own UI follows, and keeps the delivered copy only as a fallback.
+copy stayed at the runtime's start appearance (reported and verified by `@jizizr` in
+PR #3: runtime started at 03:29 during night, every notification header stayed dark after
+the 07:00 automatic switch to light, while manual switches were correct).
 
-Device check (117000850, same phone): the SystemUI runtime hot-reloaded at 12:49 in light
-mode. A temporary `custom_schedule` start at 12:56 switched to dark through the scheduled
-UiModeManager path (fast swap logged before the night change, SystemUI caches refreshed at
-12:56:05). The notification shade at 12:58 showed Mi Health's dark artwork, which the stale
-light copy would not have chosen. The schedule was then restored to `auto` (19:00/07:00).
+Fixes landed for 1.18.0:
+
+1. `CrossSurfaceIconCache` (`watchThemeArchive`) now reads the host's live
+   `context.resources.configuration` for both night mode and locale (keeping the callback
+   copy as fallback).
+2. `appearanceChanged()` evicts stale snapshots immediately before the 64 ms coalesce
+   window and defers enqueuing new loads until `refreshAppearance` fires, preventing
+   SystemUI's own `onUiModeChanged` from binding previous-mode snapshots during the window.
+3. `invalidate()` runs before `beforeAppearanceReload` (including on mid-drain archive
+   stamp drift), and `SystemUiNotificationRowReplay` gates `reInflateViews()` on
+   `CrossSurfaceIconCache.isSettled()` so rows re-inflate after new snapshots finish
+   decoding rather than against an empty cache.
+4. `SystemUiAppIconRuntime.refreshNative` no longer aborts when `nativeCaches == null`,
+   marks folded notifications for rebuild on appearance changes, preserves native
+   `original` drawables across `bindNative` / `bindExistingHeader` / `bindWeatherHeader`,
+   and prefers evicting detached views/rows before live attached ones.
+5. `KeyguardDepthDimming` also listens to `Intent.ACTION_CONFIGURATION_CHANGED` for the
+   same SystemUI `ComponentCallbacks` gap, and `LauncherIconRefreshRuntime` requests
+   immediate Monet synchronization on night-mode transitions.
+
+Device check (`@jizizr`, 117000850): SystemUI hot-reloaded at 12:49 in light mode; a
+temporary `custom_schedule` start at 12:56 switched to dark via the scheduled
+`UiModeManager` path (fast swap logged before the night change, SystemUI caches refreshed
+at 12:56:05), and the notification shade at 12:58 showed Mi Health's dark artwork.
 
 ## Behavior and limits
 

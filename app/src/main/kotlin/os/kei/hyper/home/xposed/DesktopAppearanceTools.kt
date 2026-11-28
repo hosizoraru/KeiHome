@@ -22,7 +22,8 @@ import os.kei.hyper.home.status.RuntimeStatusRequest
 /** On-demand diagnostics only; no shell, root, persistent subscription or extra polling worker. */
 internal object DesktopAppearanceTools {
   fun handle(context: Context, request: RuntimeStatusRequest, isCurrent: () -> Boolean,
-    systemClassLoader: ClassLoader?, diagnostic: (String) -> Unit): Boolean {
+    systemClassLoader: ClassLoader?, wallpaperReconnectActive: Boolean?,
+    diagnostic: (String) -> Unit): Boolean {
     if (!isCurrent()) return false
     val uri = Uri.parse("content://${RuntimeStatusInbox.AUTHORITY}")
     val resolver = context.contentResolver
@@ -45,18 +46,35 @@ internal object DesktopAppearanceTools {
         ?.serviceInfo?.let { "${it.packageName}/${it.name}" }
     }.getOrNull()
     val wallpaperDump = service?.let { dump("activity", arrayOf("service", it), diagnostic) }
-    val (dark, subscribed) = if (home == null) null to null
-      else DesktopAppearanceDiagnostics.wallpaper(wallpaperDump, request.userId, home)
+    val wallpaperSnapshot = if (home == null) null
+      else DesktopAppearanceDiagnostics.wallpaperDetail(wallpaperDump, request.userId, home)
+    val dark = wallpaperSnapshot?.wallpaperDark
+    val subscribed = wallpaperSnapshot?.homeSubscribed
+    val homeListenerCount = wallpaperSnapshot?.homeListenerCount
     val homeDark = if (home == null) null else DesktopAppearanceDiagnostics.homeDarkIcons(
       dump("window", arrayOf("windows"), diagnostic), request.userId, home)
-    diagnostic("appearance snapshot region=$dark subscription=$subscribed homeDark=$homeDark wallpaperService=${service != null}")
+    val homeInfo = home?.let { runCatching { context.packageManager.getPackageInfo(it, 0) }.getOrNull() }
+    val wallpaperInfo = runCatching { context.packageManager.getPackageInfo("com.miui.miwallpaper", 0) }.getOrNull()
+    diagnostic("appearance snapshot region=$dark subscription=$subscribed listeners=$homeListenerCount " +
+      "homeDark=$homeDark selfHeal=$wallpaperReconnectActive wallpaperService=${service != null}")
     val manager = context.getSystemService(UiModeManager::class.java)
-    val report = DesktopAppearanceReport(request.id, request.userId, SystemClock.elapsedRealtime(),
-      runCatching { manager?.nightMode?.takeIf { it in 0..3 } }.getOrNull(),
-      read("current appearance") { ConfigurationPulse(requireNotNull(systemClassLoader)).canonicalMode().night() },
-      dark, subscribed, homeDark,
-      home?.let { runCatching { context.packageManager.getPackageInfo(it, 0).longVersionCode }.getOrNull() },
-      result)
+    val report = DesktopAppearanceReport(
+      requestId = request.id,
+      userId = request.userId,
+      checkedAtElapsed = SystemClock.elapsedRealtime(),
+      selectedMode = runCatching { manager?.nightMode?.takeIf { it in 0..3 } }.getOrNull(),
+      night = read("current appearance") { ConfigurationPulse(requireNotNull(systemClassLoader)).canonicalMode().night() },
+      wallpaperDark = dark,
+      homeSubscribed = subscribed,
+      homeDarkIcons = homeDark,
+      launcherVersion = homeInfo?.longVersionCode,
+      refreshResult = result,
+      launcherVersionName = homeInfo?.versionName,
+      wallpaperVersionName = wallpaperInfo?.versionName,
+      wallpaperVersionCode = wallpaperInfo?.longVersionCode,
+      homeListenerCount = homeListenerCount,
+      wallpaperReconnectActive = wallpaperReconnectActive,
+    )
     resolver.call(uri, DesktopAppearanceInbox.REPORT, null, Bundle().apply { putString("report", report.encode()) })
     return true
   }

@@ -18,7 +18,8 @@ internal object LauncherRuntimeCapabilities {
   const val DOCK_LAYOUT = 32
   const val GLASS_PAIR = 64
   const val DOCK_HORIZONTAL_PADDING = 128
-  const val KNOWN = 255
+  const val WALLPAPER_RECONNECT = 256
+  const val KNOWN = 511
 
   fun isValid(bits: Int): Boolean = bits in 0..KNOWN && (bits and GLASS_PAIR == 0 || bits and GLASS != 0) &&
     (bits and DOCK_HORIZONTAL_PADDING == 0 || bits and (DOCK or DOCK_LAYOUT) == (DOCK or DOCK_LAYOUT))

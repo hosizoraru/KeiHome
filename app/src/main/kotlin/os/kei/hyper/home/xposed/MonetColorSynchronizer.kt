@@ -167,8 +167,16 @@ internal class MonetColorSynchronizer(
   ): Boolean {
     if (!isCurrent()) return false
     val context = contextForUser(baseContext, request.userId) ?: return false
-    if (request.desktopAction != null)
-      return DesktopAppearanceTools.handle(context, request, isCurrent, systemClassLoader(), diagnostic)
+    if (request.desktopAction != null) {
+      val wallpaperReconnectActive = if (currentUserId() == request.userId) {
+        native.isAvailable(context)
+        native.lastGreeting?.let {
+          (it.capabilities and os.kei.hyper.home.status.LauncherRuntimeCapabilities.WALLPAPER_RECONNECT) != 0
+        }
+      } else null
+      return DesktopAppearanceTools.handle(
+        context, request, isCurrent, systemClassLoader(), wallpaperReconnectActive, diagnostic)
+    }
     val activeUser = currentUserId()
     val identities = NativeRuntimeIdentitySelection()
     if (activeUser == request.userId) {

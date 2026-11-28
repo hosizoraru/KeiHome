@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,14 +16,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
@@ -57,9 +66,17 @@ internal data class DesktopAppearanceUiState(
 internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
   val state by model.desktopAppearance.collectAsStateWithLifecycle()
   val lastRefresh by DesktopAppearanceInbox.lastRefresh.collectAsStateWithLifecycle()
+  val context = LocalContext.current
+  var copied by remember { mutableStateOf(false) }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   LaunchedEffect(model) { model.readDesktopAppearance() }
+  LaunchedEffect(copied) {
+    if (copied) {
+      delay(2000)
+      copied = false
+    }
+  }
   Scaffold(backdrop = backdrop, modifier = Modifier.testTag("desktop.page.tools"), topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(R.string.desktop_dark_mode_statusbar), scrollBehavior = behavior, expandable = false,
@@ -85,10 +102,26 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
             state.failed || report == null -> R.string.desktop_tools_unavailable
             report.wallpaperDark == true && report.homeDarkIcons == true -> R.string.desktop_tools_mismatch
             report.homeSubscribed == false -> R.string.desktop_tools_subscription_missing
+            report.wallpaperReconnectActive == true -> R.string.desktop_tools_protected
+            report.wallpaperReconnectActive == false -> R.string.desktop_tools_self_heal_inactive_summary
             else -> R.string.desktop_tools_snapshot
           }))
-          Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+          Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ToolValue(R.string.desktop_tools_self_heal, diagnosticBoolean(report?.wallpaperReconnectActive,
+              R.string.desktop_tools_self_heal_active, R.string.desktop_tools_self_heal_inactive))
+            ToolValue(R.string.desktop_tools_subscription, when {
+              report?.homeSubscribed == true && report.homeListenerCount != null && report.homeListenerCount > 0 ->
+                stringResource(R.string.desktop_tools_found_count, report.homeListenerCount)
+              else -> diagnosticBoolean(report?.homeSubscribed,
+                R.string.desktop_tools_found, R.string.desktop_tools_not_found)
+            })
+            ToolValue(R.string.desktop_tools_wallpaper, diagnosticBoolean(report?.wallpaperDark,
+              R.string.desktop_tools_dark, R.string.desktop_tools_light))
+            ToolValue(R.string.desktop_tools_foreground, diagnosticBoolean(report?.homeDarkIcons,
+              R.string.desktop_tools_dark_ink, R.string.desktop_tools_light_ink))
+            ToolValue(R.string.desktop_tools_current, diagnosticBoolean(report?.night,
+              R.string.desktop_tools_dark, R.string.desktop_tools_light))
             ToolValue(R.string.desktop_tools_mode, stringResource(when (report?.selectedMode) {
               0 -> R.string.desktop_tools_auto
               1 -> R.string.desktop_tools_light
@@ -96,16 +129,12 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
               3 -> R.string.desktop_tools_scheduled
               else -> R.string.desktop_tools_unknown
             }))
-            ToolValue(R.string.desktop_tools_current, diagnosticBoolean(report?.night,
-              R.string.desktop_tools_dark, R.string.desktop_tools_light))
-            ToolValue(R.string.desktop_tools_wallpaper, diagnosticBoolean(report?.wallpaperDark,
-              R.string.desktop_tools_dark, R.string.desktop_tools_light))
-            ToolValue(R.string.desktop_tools_subscription, diagnosticBoolean(report?.homeSubscribed,
-              R.string.desktop_tools_found, R.string.desktop_tools_not_found))
-            ToolValue(R.string.desktop_tools_foreground, diagnosticBoolean(report?.homeDarkIcons,
-              R.string.desktop_tools_dark_ink, R.string.desktop_tools_light_ink))
             ToolValue(R.string.desktop_tools_launcher,
-              report?.launcherVersion?.toString() ?: stringResource(R.string.desktop_tools_unknown))
+              formatPackageVersion(report?.launcherVersionName, report?.launcherVersion)
+                ?: stringResource(R.string.desktop_tools_unknown))
+            ToolValue(R.string.desktop_tools_wallpaper_app,
+              formatPackageVersion(report?.wallpaperVersionName, report?.wallpaperVersionCode)
+                ?: stringResource(R.string.desktop_tools_unknown))
             report?.let {
               val at = System.currentTimeMillis() -
                 (android.os.SystemClock.elapsedRealtime() - it.checkedAtElapsed).coerceAtLeast(0)
@@ -114,8 +143,34 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
                 style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
             }
             Text(stringResource(R.string.desktop_tools_provenance),
-              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary,
-              modifier = Modifier.padding(bottom = 16.dp))
+              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            if (report != null) {
+              Button(
+                onClick = {
+                  val clip = ClipData.newPlainText(
+                    context.getString(R.string.desktop_tools_status),
+                    report.formatFeedbackSummary(BuildConfig.VERSION_NAME),
+                  )
+                  context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(clip)
+                  copied = true
+                },
+                colors = ButtonDefaults.buttonColors(),
+                modifier = Modifier.fillMaxWidth().testTag("desktop.tools.copy"),
+              ) {
+                Text(stringResource(if (copied) R.string.desktop_tools_copied else R.string.desktop_tools_copy))
+              }
+            }
+          }
+        }
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
+          BasicComponent(title = stringResource(R.string.desktop_tools_cause_title),
+            summary = stringResource(R.string.desktop_tools_cause_summary))
+          Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.desktop_tools_cause_detail),
+              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Text(stringResource(R.string.desktop_tools_feedback_note),
+              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
         }
         Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
@@ -148,9 +203,20 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
 @Composable
 private fun ToolValue(@StringRes title: Int, value: String) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    Text(stringResource(title), modifier = Modifier.weight(1f), style = MiuixTheme.textStyles.body2,
+    Text(stringResource(title), modifier = Modifier.weight(0.42f), style = MiuixTheme.textStyles.body2,
       color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    Text(value, style = MiuixTheme.textStyles.body2)
+    Text(value, modifier = Modifier.weight(0.58f), style = MiuixTheme.textStyles.body2,
+      textAlign = TextAlign.End)
+  }
+}
+
+private fun formatPackageVersion(name: String?, code: Long?): String? {
+  val trimmed = name?.trim()?.takeIf { it.isNotEmpty() }
+  return when {
+    trimmed != null && code != null -> "$trimmed ($code)"
+    trimmed != null -> trimmed
+    code != null -> code.toString()
+    else -> null
   }
 }
 

@@ -67,8 +67,33 @@ class DesktopAppearanceTest {
   }
 
   @Test fun wireRoundTripAndFreshness() {
-    val report = DesktopAppearanceReport("request-1", 0, 100, 0, true, true, false, false, 801029259)
+    val report = DesktopAppearanceReport(
+      requestId = "request-1",
+      userId = 0,
+      checkedAtElapsed = 100,
+      selectedMode = 0,
+      night = true,
+      wallpaperDark = true,
+      homeSubscribed = false,
+      homeDarkIcons = false,
+      launcherVersion = 801030308,
+      launcherVersionName = "RELEASE-8.01.03.308-261102-11171006-R",
+      wallpaperVersionName = "7.2.2-ALPHA-11061607",
+      wallpaperVersionCode = 500722000,
+      homeListenerCount = 0,
+      wallpaperReconnectActive = true,
+    )
     assertEquals(report, DesktopAppearanceReport.decode(report.encode()))
+    // Backward compatibility with schema 1 (11 fields).
+    val legacy = "1|request-1|0|100|0|1|1|0|0|801029259|?"
+    val decodedLegacy = DesktopAppearanceReport.decode(legacy)
+    assertEquals(DesktopAppearanceReport("request-1", 0, 100, 0, true, true, false, false, 801029259), decodedLegacy)
+    val summary = report.formatFeedbackSummary("1.17.0")
+    assertTrue(summary.contains("KeiHome: 1.17.0"))
+    assertTrue(summary.contains("RELEASE-8.01.03.308-261102-11171006-R (801030308)"))
+    assertTrue(summary.contains("7.2.2-ALPHA-11061607 (500722000)"))
+    assertTrue(summary.contains("SelfHeal: active"))
+    assertTrue(summary.contains("Subscription: missing(0)"))
     val request = RuntimeStatusRequest("request-1", 0, 90, desktopAction = DesktopAppearanceAction.INSPECT)
     assertTrue(report.matches(request, 101))
     assertFalse(report.matches(request.copy(id = "old"), 101))
@@ -82,13 +107,17 @@ class DesktopAppearanceTest {
     SERVICE com.miui.miwallpaper/.server.MiuiWallPaperControllerService 1 pid=100 user=0
       miuiWallpaperData = MiuiWallpaperData{which=1, partIsDeep ={status_bar_rect=1, clock_style_rect=1}}
       mWallpaperChangeListeners.size=$count
-    $listeners
-  """.trimIndent()
+  """.trimIndent() + "\n" + listeners
 
   @Test fun readsRegionalDataAndLiveHomeSubscriptionSeparately() {
     val absent = wallpaper("listener: WallpaperRemoteCallback{which=3, packageName=com.android.systemui, callback=x}, binderAlive=true")
-    assertEquals(true to false, DesktopAppearanceDiagnostics.wallpaper(absent, 0, "com.miui.home"))
-    val found = wallpaper("listener: WallpaperRemoteCallback{which=1, packageName=com.miui.home, callback=x}, binderAlive=true")
+    assertEquals(WallpaperDiagnosticSnapshot(true, false, 0),
+      DesktopAppearanceDiagnostics.wallpaperDetail(absent, 0, "com.miui.home"))
+    val found = wallpaper(
+      "listener: WallpaperRemoteCallback{which=1, packageName=com.miui.home, callback=a}, binderAlive=true\n" +
+      "listener: WallpaperRemoteCallback{which=1, packageName=com.miui.home, callback=b}, binderAlive=true")
+    assertEquals(WallpaperDiagnosticSnapshot(true, true, 2),
+      DesktopAppearanceDiagnostics.wallpaperDetail(found, 0, "com.miui.home"))
     assertEquals(true to true, DesktopAppearanceDiagnostics.wallpaper(found, 0, "com.miui.home"))
     assertEquals(null to null, DesktopAppearanceDiagnostics.wallpaper(found, 10, "com.miui.home"))
     assertNull(DesktopAppearanceDiagnostics.wallpaper(wallpaper("", count = 2), 0, "com.miui.home").second)

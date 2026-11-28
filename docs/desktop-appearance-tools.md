@@ -16,12 +16,13 @@ AVD 的服务列表存在存活的 Home 壁纸订阅；实体机复发时没有�
 
 状态卡分别显示：
 
-- 用户选择的深浅色模式。
-- 模式服务当前要求的外观。
-- 系统壁纸服务的状态栏区域深浅。
-- 服务列表中是否存在当前 Home 的存活壁纸订阅。
+- 断联自愈保护（通过桌面原生握手能力位 `LauncherRuntimeCapabilities.WALLPAPER_RECONNECT` 实时确认）。
+- 桌面壁纸订阅状态及存活监听数（`mWallpaperChangeListeners` 中 `com.miui.home` 且 `binderAlive=true`）。
+- 系统壁纸服务的状态栏区域深浅（`status_bar_rect`）。
 - 当前用户、默认屏幕、Home 主窗口最近请求的前景色。
-- 桌面版本和快照读取时间。
+- 模式服务当前要求的外观与用户选择的深浅色模式。
+- 系统桌面（`com.miui.home`）与壁纸服务（`com.miui.miwallpaper`）的完整版本名与版本号，以及快照读取时间。
+- 一键复制纯文本诊断摘要（含 KeiHome、系统桌面、壁纸服务版本与实时状态），便于后续桌面或壁纸高频更新导致自愈失效时直接反馈。
 
 桌面窗口请求不等于 SystemUI 最终像素，也不是 KeiHome 当前页面的状态栏颜色。
 Home 在后台时仍显示其保留窗口的最近请求。壁纸与窗口是依次读取的快照，
@@ -76,7 +77,7 @@ WindowManager 窗口诊断。使用系统 Binder，不执行 shell、su 或 app_
 
 这是一项手动恢复与诊断工具，不是原生壁纸连接问题的自动修复。
 
-### 本次复发的实际结果
+### 本次复发的实际结果与根因确认
 
 实体机更新测试构建后，回到同一壁纸桌面仍可复现深色前景。
 2026-11-17 20:52 从 App 点击刷新，确认收到配置已刷新并恢复的回执，
@@ -84,3 +85,49 @@ WindowManager 窗口诊断。使用系统 Binder，不执行 shell、su 或 app_
 模式切换入口，切回原来的深色模式后，本次故障也未消失。
 因此不能把早先一次用户观察到恢复，推广为稳定有效的修复流程。
 工具不追加强制白色或定期切换设置等补丁。
+
+2026-11-28 实体机再次复发后，结合实机日志、`com.miui.miwallpaper`
+`7.1.9.1-ALPHA-11022109` 与 `7.2.2-ALPHA-11061607` 的对比分析，以及
+`com.miui.home`（0308 等 13 个 Phone/Pad 版本）`libapp_launcher.so` 与
+`libapp.so` 反汇编，确认完整根因为桌面原生 Rust 客户端
+`mi_wallpaper_manager` 断联永久失活：
+
+1. `com.miui.miwallpaper` 服务端两版本间 `com.miui.miwallpaper.server.*`
+   全部 194 个方法及组件清单完全一致，触发源是壁纸包更新/重启杀掉了旧的
+   `MiuiWallPaperControllerService`，而 `com.miui.home` 进程继续存活。
+2. 桌面 Rust 客户端 `MiuiWallpaperManagerInner::trigger_reconnect` 仅做一次
+   `do_bind_service("reconnect_immediate")`，若撞上壁纸更新冻结窗口失败或超时
+   即直接退出不再重试；业务查询 `MiuiWallpaperManagerInner::get_service` 在
+   `service == None` 时直接返回 `Err("Service is not bound")`，没有任何懒重连。
+3. Dart 层 `WallpaperGetxController.adaptHomeToWallpaper` 在调用
+   `isMiuiWallpaperComponentUsing()` 抛出 `"Service is not bound"` 时缺少
+   异常兜底，导致后续深浅更新整段中止，状态栏永远停留在断联前的旧值
+   （如白天浅色模式的 `colorMode=0, isLight=true`），直到桌面进程重启。
+
+### 原生自愈修复（`libkeihome_hyos_lsp.so`）
+
+KeiHome 在既有桌面原生模块中新增 `wallpaper_reconnect_profile` 与
+`wallpaper_reconnect_hooks`，通过字符串锚点与 ARM64 结构化校验动态解析
+`libapp_launcher.so` 中的 `do_bind_service`、`trigger_reconnect`、`get_service`
+及 `ArcInner` 字段偏移（全部 13 个本地 Phone/Pad 版本通过严格校验，不匹配时
+安全静默关闭）：
+
+- **`do_bind_service` 退避重试**：仅针对 `reconnect*` 原因（不阻塞冷启动
+  `bind_service_sync`），在原生重连后台线程内按 `2s → 4s → 8s → 15s → 20s → 30s`
+  退避重试，按 250ms 切片检查 `destroyed` 标志并在重连前正确释放旧 `anyhow::Error`。
+  连接成功后，桌面原生 `on_service_connected → restore_callbacks_after_reconnect`
+  自动恢复全部壁纸回调监听。
+- **`get_service` 懒重连与内联自愈**：仅在 `!destroyed && !is_bound` 确认服务
+  未绑定时，以 3 秒节流触发原生 `trigger_reconnect("reconnect_lazy")`；若当前
+  位于非 `.ui` 工作线程（如 `app-frb-pool`），最多微等待 500ms，一旦绑定恢复
+  即释放旧错误并内联重试 `get_service`，让 `adaptHomeToWallpaper()` 无感成功。
+
+#### 实机演练回执（Xiaomi 17 Pro，2026-11-28）
+
+- 桌面进程 `com.miui.home`（0308，PID `27989`）运行期间覆盖更新 `com.miui.miwallpaper`
+  （新进程 PID `29018`）：`19:43:15.215` 桌面两个原生壁纸客户端命中 OEM 竞态并遭遇
+  10s 绑定超时（`on_binding_died` 被 `Reconnect already in progress` 跳过）；
+  `19:43:27.217`（10s 超时 + 2s 退避）KeiHome 触发第 1 次重试，5ms 内双实例均打印
+  `KeiHomeWallpaperReconnect: event=retry_succeeded arg=1` 与
+  `Restored listener id=1, which=1`，`MiuiWallPaperControllerService` 中两条
+  `com.miui.home` 监听均恢复 `binderAlive=true`，状态栏保持 `colorMode=1, isLight=false`。

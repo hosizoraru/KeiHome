@@ -17,19 +17,71 @@ internal data class DesktopAppearanceReport(
   val homeDarkIcons: Boolean?,
   val launcherVersion: Long?,
   val refreshResult: AppearanceRefreshResult? = null,
+  val launcherVersionName: String? = null,
+  val wallpaperVersionName: String? = null,
+  val wallpaperVersionCode: Long? = null,
+  val homeListenerCount: Int? = null,
+  val wallpaperReconnectActive: Boolean? = null,
 ) {
   fun matches(request: RuntimeStatusRequest, now: Long): Boolean =
     request.isPending(now) && requestId == request.id && userId == request.userId &&
       checkedAtElapsed in request.startedAtElapsed..now
 
-  fun encode(): String = listOf("1", requestId, userId, checkedAtElapsed, selectedMode ?: "?",
+  fun encode(): String = listOf(
+    "2", requestId, userId, checkedAtElapsed, selectedMode ?: "?",
     night.wire(), wallpaperDark.wire(), homeSubscribed.wire(), homeDarkIcons.wire(),
-    launcherVersion ?: "?", refreshResult?.name ?: "?").joinToString("|")
+    launcherVersion ?: "?", refreshResult?.name ?: "?",
+    launcherVersionName.wireText(), wallpaperVersionName.wireText(),
+    wallpaperVersionCode ?: "?", homeListenerCount ?: "?",
+    wallpaperReconnectActive.wire(),
+  ).joinToString("|")
+
+  fun formatFeedbackSummary(keihomeVersion: String): String {
+    fun yn(value: Boolean?, yes: String, no: String) = when (value) {
+      true -> yes
+      false -> no
+      null -> "unknown"
+    }
+    val modeLabel = when (selectedMode) {
+      0 -> "auto(0)"
+      1 -> "light(1)"
+      2 -> "dark(2)"
+      3 -> "scheduled(3)"
+      else -> "unknown"
+    }
+    val launcher = listOfNotNull(
+      launcherVersionName?.takeIf { it.isNotBlank() },
+      launcherVersion?.let { "($it)" },
+    ).joinToString(" ").ifEmpty { "unknown" }
+    val wallpaper = listOfNotNull(
+      wallpaperVersionName?.takeIf { it.isNotBlank() },
+      wallpaperVersionCode?.let { "($it)" },
+    ).joinToString(" ").ifEmpty { "unknown" }
+    val sub = when {
+      homeSubscribed == true && homeListenerCount != null -> "connected($homeListenerCount)"
+      homeSubscribed == true -> "connected"
+      homeSubscribed == false -> "missing(0)"
+      else -> "unknown"
+    }
+    return buildString {
+      appendLine("KeiHome: $keihomeVersion")
+      appendLine("Launcher: $launcher")
+      appendLine("MiWallpaper: $wallpaper")
+      appendLine("SelfHeal: ${yn(wallpaperReconnectActive, "active", "inactive")}")
+      appendLine("Subscription: $sub")
+      appendLine("WallpaperStatusBarRegion: ${yn(wallpaperDark, "dark", "light")}")
+      appendLine("LauncherIconRequest: ${yn(homeDarkIcons, "dark_icons", "light_icons")}")
+      appendLine("SystemAppearance: ${yn(night, "dark", "light")} | Mode: $modeLabel")
+      refreshResult?.let { appendLine("LastRefresh: ${it.name}") }
+    }.trimEnd()
+  }
 
   companion object {
     fun decode(value: String?): DesktopAppearanceReport? = runCatching {
       val p = value?.split('|') ?: return null
-      if (p.size != 11 || p[0] != "1" || !p[1].matches(Regex("[a-zA-Z0-9-]{1,64}"))) return null
+      val schema = p.firstOrNull() ?: return null
+      val validSize = (schema == "1" && p.size == 11) || (schema == "2" && p.size == 16)
+      if (!validSize || !p[1].matches(Regex("[a-zA-Z0-9-]{1,64}"))) return null
       fun bool(index: Int): Boolean? = when (p[index]) {
         "1" -> true
         "0" -> false
@@ -37,24 +89,59 @@ internal data class DesktopAppearanceReport(
         else -> error("Invalid boolean")
       }
       fun integer(index: Int): Long? = if (p[index] == "?") null else p[index].toLong()
+      fun text(index: Int): String? = p[index].takeUnless { it == "?" || it.isBlank() }
+        ?.also { require(it.length <= 96 && '\n' !in it && '\r' !in it) }
       val user = p[2].toInt().also { require(it >= 0) }
       val checked = p[3].toLong().also { require(it >= 0) }
       val mode = integer(4)?.also { require(it in 0..3) }?.toInt()
       val version = integer(9)?.also { require(it > 0) }
-      DesktopAppearanceReport(p[1], user, checked, mode, bool(5), bool(6), bool(7), bool(8),
-        version, p[10].takeUnless { it == "?" }?.let(AppearanceRefreshResult::valueOf))
+      val refresh = p[10].takeUnless { it == "?" }?.let(AppearanceRefreshResult::valueOf)
+      if (schema == "1") {
+        return@runCatching DesktopAppearanceReport(
+          p[1], user, checked, mode, bool(5), bool(6), bool(7), bool(8), version, refresh)
+      }
+      val wallpaperCode = integer(13)?.also { require(it > 0) }
+      val listeners = integer(14)?.also { require(it in 0..64) }?.toInt()
+      DesktopAppearanceReport(
+        requestId = p[1],
+        userId = user,
+        checkedAtElapsed = checked,
+        selectedMode = mode,
+        night = bool(5),
+        wallpaperDark = bool(6),
+        homeSubscribed = bool(7),
+        homeDarkIcons = bool(8),
+        launcherVersion = version,
+        refreshResult = refresh,
+        launcherVersionName = text(11),
+        wallpaperVersionName = text(12),
+        wallpaperVersionCode = wallpaperCode,
+        homeListenerCount = listeners,
+        wallpaperReconnectActive = bool(15),
+      )
     }.getOrNull()
   }
 }
 
 private fun Boolean?.wire(): String = when (this) { true -> "1"; false -> "0"; null -> "?" }
 
+private fun String?.wireText(): String {
+  val cleaned = this?.replace('|', ' ')?.replace('\n', ' ')?.replace('\r', ' ')?.trim()?.take(96)
+  return if (cleaned.isNullOrEmpty()) "?" else cleaned
+}
+
+internal data class WallpaperDiagnosticSnapshot(
+  val wallpaperDark: Boolean?,
+  val homeSubscribed: Boolean?,
+  val homeListenerCount: Int?,
+)
+
 /** New or incomplete OEM dump formats fail to unknown, rather than implying a healthy state. */
 internal object DesktopAppearanceDiagnostics {
-  fun wallpaper(dump: String?, userId: Int, homePackage: String): Pair<Boolean?, Boolean?> {
+  fun wallpaperDetail(dump: String?, userId: Int, homePackage: String): WallpaperDiagnosticSnapshot {
     if (dump == null ||
       !Regex("""(?m)^SERVICE [^\n]*\buser=$userId(?:\s|$)""").containsMatchIn(dump))
-      return null to null
+      return WallpaperDiagnosticSnapshot(null, null, null)
     val records = dump.lineSequence().filter { it.contains("miuiWallpaperData = MiuiWallpaperData{which=1,") }
       .toList()
     val dark = records.singleOrNull()?.let {
@@ -64,12 +151,15 @@ internal object DesktopAppearanceDiagnostics {
     val count = Regex("""mWallpaperChangeListeners\.size=(\d+)""").find(dump)
       ?.groupValues?.get(1)?.toIntOrNull()
     val listeners = dump.lineSequence().filter { it.trimStart().startsWith("listener: ") }.toList()
-    val subscribed = if (count == null || count != listeners.size) null else listeners.any {
+    val homeAliveCount = if (count == null || count != listeners.size) null else listeners.count {
       it.contains("packageName=$homePackage,") && it.contains("binderAlive=true") &&
         Regex("""which=(1|3),""").containsMatchIn(it)
     }
-    return dark to subscribed
+    return WallpaperDiagnosticSnapshot(dark, homeAliveCount?.let { it > 0 }, homeAliveCount)
   }
+
+  fun wallpaper(dump: String?, userId: Int, homePackage: String): Pair<Boolean?, Boolean?> =
+    wallpaperDetail(dump, userId, homePackage).let { it.wallpaperDark to it.homeSubscribed }
 
   fun homeDarkIcons(dump: String?, userId: Int, homePackage: String): Boolean? {
     if (dump == null) return null

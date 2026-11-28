@@ -202,6 +202,24 @@ and, about 330 ms later, `Native app-icon caches refreshed` (dropped 6 and 7), a
 replay of 3 views and a row replay of 7 rows in SystemUI. A notification-shade screenshot
 in light mode afterwards showed QQ's light artwork; before the fix it showed the dark one.
 
+### Automatic night mode in SystemUI
+
+KeiHome's SystemUI snapshot cache (`CrossSurfaceIconCache`, `watchThemeArchive`) picks
+`res` or `nightmode/res` from `UiModeManager.nightMode` when it is explicitly YES or NO.
+In automatic mode it used the configuration last delivered to its component callbacks.
+HyperOS SystemUI's `SystemUIApplicationImpl.onConfigurationChanged` forwards to its own
+`ConfigurationForwarder` without calling `super`, so those callbacks never run there. The
+copy stayed at the runtime's start appearance (observed 2026-11-27: runtime started at
+03:29 during night, every notification header still dark after the 07:00 automatic switch
+to light; manual switches were correct). It now reads the host's live resources, which
+SystemUI's own UI follows, and keeps the delivered copy only as a fallback.
+
+Device check (117000850, same phone): the SystemUI runtime hot-reloaded at 12:49 in light
+mode. A temporary `custom_schedule` start at 12:56 switched to dark through the scheduled
+UiModeManager path (fast swap logged before the night change, SystemUI caches refreshed at
+12:56:05). The notification shade at 12:58 showed Mi Health's dark artwork, which the stale
+light copy would not have chosen. The schedule was then restored to `auto` (19:00/07:00).
+
 ## Behavior and limits
 
 - **Target:** light copy in light mode, dark copy in dark mode. If palette selectors

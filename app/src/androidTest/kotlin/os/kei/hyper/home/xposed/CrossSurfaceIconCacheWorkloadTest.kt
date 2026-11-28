@@ -336,6 +336,63 @@ class CrossSurfaceIconCacheWorkloadTest {
     } finally { assertTrue(cache.stop()) }
   }
 
+  @Test fun automaticNightFollowsHostResourcesWhenItsCallbacksAreNeverDelivered() = fixture { file ->
+    val target = InstrumentationRegistry.getInstrumentation().targetContext
+    val mode = target.getSystemService(android.app.UiModeManager::class.java).nightMode
+    org.junit.Assume.assumeFalse(mode in listOf(android.app.UiModeManager.MODE_NIGHT_YES,
+      android.app.UiModeManager.MODE_NIGHT_NO))
+    fun pinned(night: Int) = target.createConfigurationContext(
+      Configuration(target.resources.configuration).apply {
+        uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or night
+      })
+    fun archive(destination: File) {
+      fun png(color: Int): ByteArray {
+        val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+        return try {
+          bitmap.eraseColor(color)
+          ByteArrayOutputStream().also { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+            .toByteArray()
+        } finally { bitmap.recycle() }
+      }
+      ZipOutputStream(destination.outputStream()).use { zip ->
+        for ((path, bytes) in os.kei.hyper.home.iconpack.NativeDayNightIcon.entries(
+          name(0), png(Color.RED), png(Color.BLUE))) {
+          zip.putNextEntry(ZipEntry(path)); zip.write(bytes); zip.closeEntry()
+        }
+      }
+    }
+    archive(file)
+    // Like HyperOS SystemUI: callbacks are swallowed while the host's resources still change.
+    var resources = pinned(Configuration.UI_MODE_NIGHT_NO).resources
+    val host = object : ContextWrapper(target) {
+      override fun getResources(): android.content.res.Resources = resources
+      override fun registerComponentCallbacks(callback: ComponentCallbacks) {}
+      override fun unregisterComponentCallbacks(callback: ComponentCallbacks) {}
+      override fun registerReceiver(receiver: BroadcastReceiver?, filter: IntentFilter,
+        broadcastPermission: String?, scheduler: Handler?, flags: Int): Intent? = null
+      override fun unregisterReceiver(receiver: BroadcastReceiver) {}
+    }
+    val ready = java.util.concurrent.LinkedBlockingQueue<Unit>()
+    val cache = CrossSurfaceIconCache(host, themeFile = file, paletteState = { 0L },
+      notifyOnMiss = true, watchThemeArchive = true, onReady = { ready.offer(Unit) })
+    try {
+      cache.start()
+      assertNull(cache.get(name(0)))
+      awaitSettled(cache)
+      assertEquals(Color.RED, requireNotNull(cache.get(name(0))).getPixel(96, 96))
+      ready.clear()
+      resources = pinned(Configuration.UI_MODE_NIGHT_YES).resources
+      val replacement = File(file.parentFile, "${file.name}.next")
+      archive(replacement)
+      java.nio.file.Files.move(replacement.toPath(), file.toPath(),
+        java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      assertNotNull("The archive event must refresh the cache", ready.poll(5, TimeUnit.SECONDS))
+      assertNull(cache.get(name(0)))
+      awaitSettled(cache)
+      assertEquals(Color.BLUE, requireNotNull(cache.get(name(0))).getPixel(96, 96))
+    } finally { assertTrue(cache.stop()) }
+  }
+
   private fun name(index: Int) = "com.keihome.workload.app$index"
 
   private fun fixture(body: (File) -> Unit) {

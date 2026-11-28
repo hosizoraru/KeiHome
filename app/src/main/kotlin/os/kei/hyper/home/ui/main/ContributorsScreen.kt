@@ -74,13 +74,22 @@ private val JIZIZR_HIGHLIGHTS = listOf(
     tag = "contributors.jizizr.pr3",
   ),
   ContributorHighlight(
+    version = "v1.17.0",
+    badgeRes = R.string.about_contributors_jizizr_pr2_badge,
+    badgeTint = Os4BadgePalette.Teal,
+    titleRes = R.string.about_contributors_jizizr_pr2_title,
+    detailRes = R.string.about_contributors_jizizr_pr2_detail,
+    url = "${ProjectLinks.SOURCE_URL}/pull/2",
+    tag = "contributors.jizizr.pr2",
+  ),
+  ContributorHighlight(
     version = "v1.16.0",
-    badgeRes = R.string.about_contributors_jizizr_static_badge,
+    badgeRes = R.string.about_contributors_jizizr_pr1_badge,
     badgeTint = Os4BadgePalette.Purple,
-    titleRes = R.string.about_contributors_jizizr_static_title,
-    detailRes = R.string.about_contributors_jizizr_static_detail,
-    url = "${ProjectLinks.SOURCE_URL}/pulls?q=author%3Ajizizr",
-    tag = "contributors.jizizr.static-icons",
+    titleRes = R.string.about_contributors_jizizr_pr1_title,
+    detailRes = R.string.about_contributors_jizizr_pr1_detail,
+    url = "${ProjectLinks.SOURCE_URL}/pull/1",
+    tag = "contributors.jizizr.pr1",
   ),
 )
 

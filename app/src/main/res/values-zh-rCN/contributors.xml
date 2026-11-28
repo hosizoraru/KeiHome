@@ -7,9 +7,12 @@
     <string name="about_contributors_jizizr_pr3_badge">PR #3 · 修复</string>
     <string name="about_contributors_jizizr_pr3_title">修复自动深浅色切换后通知图标停留在旧样式</string>
     <string name="about_contributors_jizizr_pr3_detail">通过反编译实机 MiuiSystemUI 精准定位 HyperOS 未转发 super.onConfigurationChanged 导致 ComponentCallbacks 失效的根因，修复定时／日出日落自动切换深浅色后通知中心图标卡在启动样式的问题，并补充回归测试与实机验证。</string>
-    <string name="about_contributors_jizizr_static_badge">核心特性</string>
-    <string name="about_contributors_jizizr_static_title">静态图标明暗自动切换与桌面图标批量刷新</string>
-    <string name="about_contributors_jizizr_static_detail">贡献静态图标浅色／深色双版本自动替换机制与系统桌面批量刷新链路，让静态图标包也能平滑跟随系统深浅色切换并显著减少刷新开销。</string>
+    <string name="about_contributors_jizizr_pr2_badge">PR #2 · 修复</string>
+    <string name="about_contributors_jizizr_pr2_title">修复静态明暗图标切换后通知栏与通知中心图标不更新</string>
+    <string name="about_contributors_jizizr_pr2_detail">定位静态明暗图标切换后 SystemUI 仍持有旧主题归档与 AppIconsManager 位图缓存的问题，在主线程刷新原生主题资源与缓存并接管状态栏旧图，使通知栏和通知中心同步刷新。</string>
+    <string name="about_contributors_jizizr_pr1_badge">PR #1 · 特性</string>
+    <string name="about_contributors_jizizr_pr1_title">可选的静态明暗图标与桌面图标批量刷新</string>
+    <string name="about_contributors_jizizr_pr1_detail">贡献静态图标的浅色／深色双版本自动替换机制与系统桌面批量刷新链路，避免普通图标因 MAML 选择器导致启动和返回桌面掉帧，显著提升流畅度。</string>
     <string name="about_contributors_open_profile">打开 GitHub 个人主页</string>
     <string name="about_contributors_open_contribution">在 GitHub 查看此项贡献</string>
     <string name="about_contributors_join_title">欢迎提交 Pull Request</string>

@@ -7,9 +7,12 @@
     <string name="about_contributors_jizizr_pr3_badge">PR #3 · Fix</string>
     <string name="about_contributors_jizizr_pr3_title">Fixed notification icons staying stale after automatic light/dark transitions</string>
     <string name="about_contributors_jizizr_pr3_detail">Diagnosed via real-device MiuiSystemUI decompilation that HyperOS skips super.onConfigurationChanged so ComponentCallbacks never fire, fixed automatic sunrise/sunset and scheduled dark-mode icon updates in CrossSurfaceIconCache, and contributed regression coverage and device verification.</string>
-    <string name="about_contributors_jizizr_static_badge">Core feature</string>
-    <string name="about_contributors_jizizr_static_title">Static light/dark icon switching and batched launcher refresh</string>
-    <string name="about_contributors_jizizr_static_detail">Contributed automatic light/dark swapping for static icon packs together with batched HyperOS Home icon refreshes, bringing smooth appearance transitions to static packs with lower refresh overhead.</string>
+    <string name="about_contributors_jizizr_pr2_badge">PR #2 · Fix</string>
+    <string name="about_contributors_jizizr_pr2_title">Fixed status bar and notification center icons not updating after static light/dark swaps</string>
+    <string name="about_contributors_jizizr_pr2_detail">Identified stale ThemeResources archive handles and AppIconsManager bitmap caches in SystemUI after static light/dark swaps, adding main-thread native cache refreshes and status-bar bitmap adoption so notifications stay in sync.</string>
+    <string name="about_contributors_jizizr_pr1_badge">PR #1 · Feature</string>
+    <string name="about_contributors_jizizr_pr1_title">Optional static light/dark icons and batched launcher icon refresh</string>
+    <string name="about_contributors_jizizr_pr1_detail">Contributed automatic light/dark swapping for static icon packs together with batched HyperOS Home icon refreshes, avoiding MAML selector transition frame drops for ordinary icons while lowering refresh overhead.</string>
     <string name="about_contributors_open_profile">Open GitHub profile</string>
     <string name="about_contributors_open_contribution">View this contribution on GitHub</string>
     <string name="about_contributors_join_title">Contribute via Pull Request</string>

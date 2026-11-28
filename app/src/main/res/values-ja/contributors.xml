@@ -7,9 +7,12 @@
     <string name="about_contributors_jizizr_pr3_badge">PR #3 · 修正</string>
     <string name="about_contributors_jizizr_pr3_title">自動ライト／ダーク切替後に通知アイコンが旧外観のまま残る問題を修正</string>
     <string name="about_contributors_jizizr_pr3_detail">実機 MiuiSystemUI の解析により HyperOS が super.onConfigurationChanged を呼ばず ComponentCallbacks が発火しない原因を特定し、日出・日没やスケジュール切替時に通知アイコンが最新外観へ追従するよう修正・検証を貢献。</string>
-    <string name="about_contributors_jizizr_static_badge">主要機能</string>
-    <string name="about_contributors_jizizr_static_title">静的アイコンの明暗自動切替とホームアイコン一括更新</string>
-    <string name="about_contributors_jizizr_static_detail">静的アイコンパック向けのライト／ダーク自動差し替え機構とホーム画面での一括更新処理に貢献し、動的レイヤーを持たないパックでも滑らかな明暗追従と低負荷な更新を実現。</string>
+    <string name="about_contributors_jizizr_pr2_badge">PR #2 · 修正</string>
+    <string name="about_contributors_jizizr_pr2_title">静的明暗アイコン切替後にステータスバー・通知センターのアイコンが更新されない問題を修正</string>
+    <string name="about_contributors_jizizr_pr2_detail">静的アイコン切替後に SystemUI が古い ThemeResources と AppIconsManager キャッシュを保持し続ける原因を特定し、メインスレッドでのネイティブキャッシュ更新とステータスバー画像の引き継ぎを実装。</string>
+    <string name="about_contributors_jizizr_pr1_badge">PR #1 · 機能</string>
+    <string name="about_contributors_jizizr_pr1_title">選択式の静的明暗アイコンとホーム画面アイコンの一括更新</string>
+    <string name="about_contributors_jizizr_pr1_detail">静的アイコンパック向けのライト／ダーク自動差し替え機構とホーム画面の一括更新処理に貢献し、通常アイコンの MAML セレクターによる遷移時のコマ落ちを回避して滑らかな動作を実現。</string>
     <string name="about_contributors_open_profile">GitHub プロフィールを開く</string>
     <string name="about_contributors_open_contribution">GitHub でこの貢献を見る</string>
     <string name="about_contributors_join_title">Pull Request での参加をお待ちしています</string>

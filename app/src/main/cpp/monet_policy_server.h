@@ -18,6 +18,7 @@ constexpr uint32_t kNativeDockLayoutCapability = 32u;
 constexpr uint32_t kNativeLauncherGlassCapability = 16u;
 constexpr uint32_t kNativeLauncherGlassPairCapability = 64u;
 constexpr uint32_t kNativeDockHorizontalPaddingCapability = 128u;
+constexpr uint32_t kNativeWallpaperReconnectCapability = 256u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
@@ -94,6 +95,7 @@ extern uint64_t kh_dock_glass_notified;
 // disabled, and only an authenticated material command renews the enable lease.
 extern uint32_t kh_theme_materials_installed;
 extern uint32_t kh_theme_materials_enabled;
+extern uint32_t kh_wallpaper_reconnect_installed;
 }
 
 // Reader ABI, including the null-pointer path:

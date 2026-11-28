@@ -44,6 +44,8 @@ add_library(keihome_hyos_lsp SHARED
     deferred_zip_release.cpp
     maml_zip_release_profile.cpp
     maml_zip_release_hooks.cpp
+    wallpaper_reconnect_profile.cpp
+    wallpaper_reconnect_hooks.cpp
 )
 
 # A disposable diagnostic build only. OFF contributes no observer or worker to

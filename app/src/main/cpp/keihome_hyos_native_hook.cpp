@@ -9,6 +9,7 @@
 #include "native_api.h"
 #include "maml_zip_release_hooks.h"
 #include "monet_hooks.h"
+#include "wallpaper_reconnect_hooks.h"
 #include "launcher_form_factor.h"
 
 #include <android/log.h>
@@ -128,6 +129,7 @@ void BackfillLoadedLibraries() {
     BackfillLoadedLibrary(kHyperRuntimeName);
     BackfillLoadedLibrary(kDartLibraryName);
     BackfillLoadedLibrary("librust_maml_sdk.so");
+    InstallWallpaperReconnect();
 }
 
 void OnLsposedLibraryLoaded(const char* name, void* handle) {
@@ -140,11 +142,16 @@ void HandleLoadedLibrary(const char* name, void* handle, bool fresh_load) {
         if (!IsTabletLauncherDevice()) InstallMamlZipRelease();
         return;
     }
+    if (EndsWith(name, "libapp_launcher.so")) {
+        InstallWallpaperReconnect();
+        return;
+    }
     if (EndsWith(name, kHyperRuntimeName)) {
         EnsureLsposedMadviseGuard(name);
         return;
     }
     if (EndsWith(name, kDartLibraryName)) {
+        InstallWallpaperReconnect();
         if (IsTabletLauncherDevice()) {
             // Diagnostic-only admission is safe even for an already running
             // Pad isolate. It neither probes nor patches its Dart factories.

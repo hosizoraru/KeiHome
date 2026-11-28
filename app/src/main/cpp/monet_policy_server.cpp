@@ -47,6 +47,7 @@ uint32_t kh_dock_glass_corner_q8 = 0u;
 uint32_t kh_dock_glass_corner_style = kNativeDockGlassRecentsStyle;
 uint64_t kh_dock_glass_revision = 0u;
 uint64_t kh_dock_glass_notified = 0u;
+uint32_t kh_wallpaper_reconnect_installed = 0u;
 }
 
 namespace {
@@ -98,7 +99,10 @@ uint32_t InstalledCapabilities() {
         if (__atomic_load_n(&kh_launcher_search_glass_installed, __ATOMIC_RELAXED) == 1u)
             glass |= kNativeLauncherGlassPairCapability;
     }
-    return monet | materials | labels | dock | glass;
+    const uint32_t wallpaper_reconnect =
+        __atomic_load_n(&kh_wallpaper_reconnect_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeWallpaperReconnectCapability : 0u;
+    return monet | materials | labels | dock | glass | wallpaper_reconnect;
 }
 
 uint32_t ReadLe32(const uint8_t* bytes) {

@@ -126,6 +126,7 @@ All six production resolvers pass on all five fixtures. Evidence is under
 | Image recovery | 8 positive and 63 rejected profiles plus 54 ARM64 cases per fixture; complete native builds with tracing both off and on |
 | Material/highlight | 242 resolver checks per fixture, 1,440 patched and 1,120 bypass executions per fixture; 945 exact-patch assertions |
 | Monochrome gate | 40 checks per fixture, including relocation and ambiguity |
+| Wallpaper reconnect (`libapp_launcher.so`) | 13/13 Phone (`8602`–`0308`) and Pad (`pad-5490`) fixtures resolved uniquely with dynamic offset extraction (`0x10`/`0xd5`/`0x101`/`0x38`), negative mutation rejections, and 10 retry/lazy-rebind state-machine tests (`app/src/test/cpp/wallpaper_reconnect_test.cpp`) |
 
 The standalone instruction suites stub Dart callees or use synthetic roots.
 They do not execute Dart GC or establish rendering on the three newer launchers.

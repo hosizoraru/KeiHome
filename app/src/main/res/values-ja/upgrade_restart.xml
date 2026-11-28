@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="upgrade_restart_title">更新後の再起動をおすすめします</string>
-    <string name="upgrade_restart_body">バージョン %1$s ではモジュールのネイティブコードが更新されています。ホットリロードで Java のフックは更新できますが、ランチャーやシステムプロセスが読み込み済みのネイティブライブラリは置き換えられません。\n\n更新内容を完全に反映するため、都合のよいときに端末を一度再起動してください。</string>
-    <string name="upgrade_restart_note">確認しても自動で再起動せず、ホームの配置や設定も変更しません。この案内は再起動を推奨する更新ごとに一度だけ表示され、端末の故障を示すものではありません。</string>
+    <string name="upgrade_restart_title">ホーム画面を再起動して更新を反映</string>
+    <string name="upgrade_restart_body">バージョン %1$s ではシステムホームのネイティブライブラリ（.so）が更新されています。ほかのスコープは API 102 ホットリロードで反映済みのため、端末全体を再起動する必要はなく、ホーム画面を一度再起動するだけで有効になります。</string>
+    <string name="upgrade_restart_reason_title">ホーム画面の再起動だけでよい理由</string>
+    <string name="upgrade_restart_reason_body">本モジュールのネイティブライブラリ（.so）を読み込むのはシステムホーム（com.miui.home）のみです。読み込み済みの .so はホットリロードで置き換えられませんが、システムフレームワーク・システム UI・テーマなどの Java フックはすでに自動更新済みです。</string>
+    <string name="upgrade_restart_steps_title">手早く反映する方法</string>
+    <string name="upgrade_restart_steps_body">下の「システムホームの詳細を開く」から「強制停止」を選ぶか、LSPosed 等からホームを再起動してホーム画面へ戻ると即座に反映されます。端末の再起動は、一部の環境でホーム再起動後も旧版のままになる場合のみで十分です。</string>
+    <string name="upgrade_restart_note">確認してもホームの停止や端末の再起動は行わず、レイアウトや設定も変更しません。この案内はネイティブライブラリ更新を含むバージョンごとに一度だけ表示されます。</string>
     <string name="upgrade_restart_countdown">お読みください · %1$d 秒</string>
-    <string name="upgrade_restart_acknowledge">確認しました、後で再起動</string>
+    <string name="upgrade_restart_acknowledge">了解、後でホームを再起動</string>
+    <string name="upgrade_restart_open_launcher_settings">システムホームの詳細を開く</string>
 </resources>

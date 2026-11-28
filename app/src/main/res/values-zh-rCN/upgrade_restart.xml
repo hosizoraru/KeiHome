@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="upgrade_restart_title">更新后建议重启系统</string>
-    <string name="upgrade_restart_body">%1$s 更新了模块的原生代码。热重载可以刷新 Java 层 Hook，但无法替换桌面或其他系统进程已经加载的原生库。\n\n建议在方便时重启一次系统，让更新后的能力完整生效。</string>
-    <string name="upgrade_restart_note">确认只表示已知晓，不会自动重启，也不会更改桌面布局和设置。此提醒仅在需要建议重启的版本更新后出现一次，不代表设备发生故障。</string>
+    <string name="upgrade_restart_title">重启系统桌面以加载新版原生库</string>
+    <string name="upgrade_restart_body">%1$s 更新了系统桌面原生库（.so）。其余作用域已通过 API 102 自动热重载生效，无需重启整台手机，只需重启一次「系统桌面」即可。</string>
+    <string name="upgrade_restart_reason_title">为什么只需要重启系统桌面？</string>
+    <string name="upgrade_restart_reason_body">仅系统桌面（com.miui.home）加载了本模块的原生库；热重载无法替换进程中已载入的 .so，但系统框架、系统界面、主题壁纸等 Java 层能力均已自动热重载完毕。</string>
+    <string name="upgrade_restart_steps_title">如何快捷生效？</string>
+    <string name="upgrade_restart_steps_body">点击下方「前往系统桌面详情」后选择「结束运行」，或通过 LSPosed／快捷方式重启系统桌面，再返回桌面即可立即加载新版原生库；仅当极少数环境重启桌面后仍未生效时，再按需重启手机。</string>
+    <string name="upgrade_restart_note">点击确认仅表示已知晓，不会自动结束桌面或重启手机，也不会改变桌面布局与设置；此提醒每个涉及原生库更新的版本仅出现一次。</string>
     <string name="upgrade_restart_countdown">请阅读 · %1$d 秒</string>
-    <string name="upgrade_restart_acknowledge">已了解，稍后重启</string>
+    <string name="upgrade_restart_acknowledge">已了解，稍后重启桌面</string>
+    <string name="upgrade_restart_open_launcher_settings">前往系统桌面详情</string>
 </resources>

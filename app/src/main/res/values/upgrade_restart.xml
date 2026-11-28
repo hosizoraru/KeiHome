@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="upgrade_restart_title">Restart recommended after updating</string>
-    <string name="upgrade_restart_body">Version %1$s updates native module code. Hot reload refreshes Java hooks, but cannot replace native libraries already loaded by the launcher or other system processes.\n\nRestart your device once when convenient so the updated capabilities can load completely.</string>
-    <string name="upgrade_restart_note">Acknowledging this message will not restart your device or change your Home layout and settings. This reminder appears only once for an update that recommends a restart. It does not mean your device is faulty.</string>
+    <string name="upgrade_restart_title">Restart System Launcher to load update</string>
+    <string name="upgrade_restart_body">Version %1$s updates System Launcher’s native library (.so). Other scopes already refreshed via API 102 hot reload, so you do not need to reboot your phone — restarting System Launcher once is enough.</string>
+    <string name="upgrade_restart_reason_title">Why only System Launcher?</string>
+    <string name="upgrade_restart_reason_body">Only System Launcher (com.miui.home) loads KeiHome’s native .so library. Hot reload cannot replace a library already mapped into that process, while Java hooks in System Framework, SystemUI, Themes, and other scopes are already up to date.</string>
+    <string name="upgrade_restart_steps_title">How to apply quickly</string>
+    <string name="upgrade_restart_steps_body">Tap “Open Launcher app info” below and choose Force stop (or restart System Launcher via LSPosed), then return Home to load the new native library right away. Reboot your phone only as a fallback if a specific ROM still keeps the previous build.</string>
+    <string name="upgrade_restart_note">Confirming only dismisses this reminder — it will not stop System Launcher, reboot your phone, or change your layout and settings. This notice appears once per native-library update.</string>
     <string name="upgrade_restart_countdown">Please read · %1$ds</string>
-    <string name="upgrade_restart_acknowledge">Understood, restart later</string>
+    <string name="upgrade_restart_acknowledge">Understood, restart Launcher later</string>
+    <string name="upgrade_restart_open_launcher_settings">Open Launcher app info</string>
 </resources>
